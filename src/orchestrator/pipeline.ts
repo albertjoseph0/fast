@@ -10,10 +10,11 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { TickContext } from "../core/context.ts";
-import type { Action, Idea, SubmissionChangeArea, Venture } from "../core/types.ts";
+import type { Action, HumanTask, Idea, SubmissionChangeArea, Venture } from "../core/types.ts";
 import { OPEN_STATUSES } from "../governance/outbox.ts";
 import { testGeosFor } from "../lab/audiences.ts";
 import { storeProductDefs } from "../playbook/product.ts";
+import { taskDraft } from "../playbook/setup.ts";
 import { effectiveDomains } from "../principles/sensitivity.ts";
 import { latestJob, patch, transition } from "./lifecycle.ts";
 import type { StudioDeps } from "./deps.ts";
@@ -28,6 +29,10 @@ function done(ctx: TickContext, v: Venture, kind: Action["kind"], naturalSuffix?
   return ctx.store.actions.list(
     (a) => a.ventureId === v.id && a.kind === kind && (a.status === "executed" || a.status === "dry_run") && (naturalSuffix === undefined || a.dedupeKey.endsWith(naturalSuffix)),
   ).length > 0;
+}
+
+function taskDone(ctx: TickContext, kind: HumanTask["kind"], ventureId?: string): boolean {
+  return ctx.store.tasks.count((t) => t.kind === kind && t.status === "done" && (ventureId === undefined || t.ventureId === ventureId)) > 0;
 }
 
 function storeRecord(v: Venture) {
@@ -77,6 +82,7 @@ async function ensureBuild(ctx: TickContext, deps: StudioDeps, v: Venture): Prom
       baseline: { ...v.baseline, specVersion: 1, hookIds },
     });
   }
+  if (!v.bindings.backendUrl) return v; // the render bakes in the backend URL; advanceBuilding waits for it
   if (!v.build || v.build.specVersion !== v.specVersion) {
     const record = deps.renderApp({
       venture: v,
@@ -107,6 +113,7 @@ export async function advanceBuilding(ctx: TickContext, deps: StudioDeps, ventur
   const built = await ensureBuild(ctx, deps, venture);
   if (!built) return "killed during build";
   let v = built;
+  if (!v.build) return "waiting for the verdict backend (backend.deploy)";
   if (openActions(ctx, v, "store.").length || openActions(ctx, v, "web.").length || openActions(ctx, v, "monetization.").length) {
     return "waiting on open store actions";
   }
@@ -139,6 +146,7 @@ export async function advanceBuilding(ctx: TickContext, deps: StudioDeps, ventur
     return "waiting for app record";
   }
   if (v.bindings.products.length === 0) {
+    if (!taskDone(ctx, "apple.paid_apps_agreement")) return "waiting for the Paid Apps Agreement";
     const territories = testGeosFor(spec.locale, ctx.config);
     propose({
       ...base,
@@ -203,6 +211,13 @@ export async function advanceBuilding(ctx: TickContext, deps: StudioDeps, ventur
   if (!done(ctx, v, "monetization.configure")) {
     propose({ ...base, kind: "monetization.configure", payload: { productIds: v.bindings.products.map((p) => p.productId), entitlementId: ctx.config.monetization.entitlementId }, naturalKey: "initial", summary: `Configure paywall products for ${spec.appName}`, rationale: "Entitlements and offerings for the price ladder" });
     return "configuring monetization";
+  }
+  if (!taskDone(ctx, "apple.privacy_labels", v.id)) {
+    if (!ctx.store.tasks.count((t) => t.kind === "apple.privacy_labels" && t.ventureId === v.id && t.status === "open")) {
+      const inventory = spec.compliance.dataInventory.map((d) => `${d.dataType} → ${d.purpose} (${d.sentTo.join(", ")})`).join("; ");
+      ctx.outbox.openTask(taskDraft("apple.privacy_labels", v.id, `Data inventory for ${spec.appName}: ${inventory}. Privacy policy: ${v.bindings.privacyUrl ?? "pending"}.`));
+    }
+    return "waiting for App Privacy labels";
   }
   const changedAreas: SubmissionChangeArea[] = v.specVersion === 1 ? ["new_app"] : changedAreasFor(v);
   propose({

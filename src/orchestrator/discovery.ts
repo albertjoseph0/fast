@@ -96,7 +96,7 @@ export function createVenture(ctx: TickContext, record: IdeaRecord, screening: S
  */
 export async function runDiscovery(ctx: TickContext, deps: StudioDeps, freeCashCents: number): Promise<string> {
   const p = ctx.config.portfolio;
-  if (ctx.tick % p.discoveryEveryTicks !== 0) return "not a discovery tick";
+  if ((ctx.tick - 1) % p.discoveryEveryTicks !== 0) return "not a discovery tick"; // ticks 1, 1+N, 1+2N, ...
   const active = ctx.store.ventures.list(isActive).length;
   const slots = ventureCapacity(ctx, freeCashCents) - active;
   if (slots <= 0) return `portfolio full (${active} active)`;

@@ -31,7 +31,7 @@ describe("discovery", () => {
         ["Alpha", "Beta", "Gamma"].map((title) => ({ id: w.store.nextId("idea"), idea: { ...IDEA, title }, sourceSignalIds: [], createdAt: w.clock.iso() })),
       screen: async (_ctx, record) => ({ ...screening([]), id: `scr_${++n}`, ideaId: record.id, score: record.idea.title === "Gamma" ? 90 : record.idea.title === "Alpha" ? 70 : 40, verdict: record.idea.title === "Beta" ? "reject" : "advance" }),
     });
-    const ctx = tickContext(w, { tick: 3 });
+    const ctx = tickContext(w, { tick: 1 });
     const out = await runDiscovery(ctx, deps, 5_000_000);
     expect(out).toMatch(/3 ideas, 2 advanced/);
     // One venture already exists in the fixture world, so two slots remain.
