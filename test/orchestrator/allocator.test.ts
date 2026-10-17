@@ -40,7 +40,7 @@ describe("applyLifecycleDecisions", () => {
     const [subs] = openActions(w, "store.upsert_subscriptions");
     const [territories] = openActions(w, "store.set_territories");
     expect((territories?.payload as { territories: string[] }).territories).toEqual(["CA", "US"]);
-    expect(subs?.createdAt <= (territories?.createdAt ?? "")).toBe(true);
+    expect((subs?.createdAt ?? "") <= (territories?.createdAt ?? "")).toBe(true);
   });
 
   it("does not let a sunset venture be revived by an old scale action", () => {

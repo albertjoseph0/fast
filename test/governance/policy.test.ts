@@ -113,6 +113,19 @@ describe("global rules", () => {
     expect(severities(propose(w, input("store.release", { platform: "ios", phased: true }, { naturalKey: key() })), "freeze")).toEqual(["block"]);
   });
 
+  it("network and studio freezes block matching actions", () => {
+    const w = makeWorld();
+    w.store.adCampaigns.put(adCampaign());
+    w.store.adCampaigns.put(adCampaign({ id: "adc_000002", network: "apple" }));
+    w.store.freeze({ scope: "network:meta", reason: "account review", at: START, by: "owner" });
+    const pause = (id: string) => propose(w, input("ads.pause", { adCampaignId: id, reason: "r" }, { naturalKey: id }));
+    expect(severities(pause("adc_000001"), "freeze")).toEqual(["block"]);
+    expect(severities(pause("adc_000002"), "freeze")).toEqual([]);
+    w.store.unfreeze("network:meta");
+    w.store.freeze({ scope: "studio", reason: "audit", at: START, by: "owner" });
+    expect(severities(propose(w, input("support.reply", { ticketId: "t", reply: "AI assistant here.", aiDisclosed: true }, { ventureId: undefined })), "freeze")).toEqual(["block"]);
+  });
+
   it("requires a known venture for venture-scoped kinds", () => {
     const w = makeWorld();
     expect(severities(propose(w, input("venture.kill", { reason: "r" }, { ventureId: "ven_999999" })), "venture.exists")).toEqual(["block"]);
@@ -567,6 +580,15 @@ describe("monetization rules", () => {
     history(w, "remote_config.set", { key: "paywall", variants: [{ id: "x", rolloutPct: 100, payload: { productIds: ["week_699_t3"], highlightedProductId: "week_699_t3" } }] });
     expect(severities(w.gov.propose(paywall(["week_699_t3"])), "monetization.subscriber_change")).toEqual([]);
     expect(severities(w.gov.propose(paywall(["year_3999_t0"])), "monetization.subscriber_change")).toEqual(["needs_human"]);
+  });
+
+  it("blocks core changes through remote config; other keys pass", () => {
+    const w = makeWorld();
+    const core = w.gov.propose(input("remote_config.set", { key: "core", variants: [{ id: "a", rolloutPct: 100, payload: { prompt: "x" } }] }));
+    expect(core.status).toBe("blocked");
+    expect(severities(core, "remote_config.core")).toEqual(["block"]);
+    const share = w.gov.propose(input("remote_config.set", { key: "share", variants: [{ id: "a", rolloutPct: 100, payload: {} }] }, { naturalKey: key() }));
+    expect(severities(share, "remote_config.core")).toEqual([]);
   });
 });
 

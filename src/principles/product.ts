@@ -1,0 +1,286 @@
+/**
+ * Spec lint: store-listing limits (App Store Connect), paywall rules (Apple 3.1.2,
+ * price ladder only), share and invite rules (Bier P9, Apple 5.1.2(v)), the data inventory
+ * behind App Privacy labels, the age rating, and copy lint over every LLM-written surface.
+ * `autoFix` repairs the mechanical problems so a designer retry is spent only on judgment.
+ */
+import type { StudioConfig } from "../config/schema.ts";
+import type { AppSpec, Idea, OnboardingStep, PolicyFinding, SensitiveDomain } from "../core/types.ts";
+import { lintCopyAll } from "./copy.ts";
+import { DATA_INPUT_STEPS, lintOnboarding, VALUE_STEPS } from "./onboarding.ts";
+import { minimumAgeFor } from "./sensitivity.ts";
+
+export const SPEC_LIMITS = {
+  subtitle: 30,
+  promotionalText: 170,
+  keywords: 100,
+  screenshotCaptions: [3, 10],
+  nameCandidates: 3,
+  paywallPages: [1, 4],
+  paywallBullets: [2, 6],
+  productIds: [1, 4],
+  maxCloseAfterSeconds: 3,
+  inviteMessage: 160,
+} as const;
+
+const SLUG = /^[a-z0-9-]+$/;
+
+/** Lint a designer spec against the store, paywall, share, privacy and copy rules. Empty means clean. */
+export function lintSpec(spec: AppSpec, idea: Idea, config: StudioConfig, domains?: SensitiveDomain[]): PolicyFinding[] {
+  const findings: PolicyFinding[] = [...lintOnboarding(spec)];
+  const add = (ruleId: string, severity: PolicyFinding["severity"], message: string, citation?: string) =>
+    findings.push({ ruleId: `spec.${ruleId}`, severity, message, ...(citation ? { citation } : {}) });
+  const L = SPEC_LIMITS;
+
+  if (spec.subtitle.length > L.subtitle) add("subtitle_length", "block", `subtitle is ${spec.subtitle.length} chars (max ${L.subtitle})`, "App Store Connect");
+  if (spec.aso.promotionalText.length > L.promotionalText) {
+    add("promotional_text_length", "block", `promotional text is ${spec.aso.promotionalText.length} chars (max ${L.promotionalText})`, "App Store Connect");
+  }
+  const keywordChars = spec.aso.keywords.join(",").length;
+  if (keywordChars > L.keywords) add("keywords_length", "block", `keywords are ${keywordChars} chars comma-joined (max ${L.keywords})`, "App Store Connect");
+  const captions = spec.aso.screenshotCaptions.length;
+  if (captions < L.screenshotCaptions[0] || captions > L.screenshotCaptions[1]) {
+    add("screenshot_captions", "block", `${captions} screenshot captions (allowed ${L.screenshotCaptions[0]}..${L.screenshotCaptions[1]})`, "App Store Connect");
+  }
+  const names = distinctNames(spec.nameCandidates).length;
+  if (names < L.nameCandidates) add("name_candidates", "warn", `${names} distinct name candidates (want ${L.nameCandidates}) in case the store name is taken`);
+  if (!SLUG.test(spec.slug)) add("slug", "block", `slug "${spec.slug}" must match ${SLUG.source}`);
+
+  lintPaywall(spec, config, add);
+
+  const share = spec.share;
+  if (!share.artifact.trim()) add("share_artifact", "block", "share.artifact is empty", "Bier P9");
+  if (!share.watermark.trim()) add("share_watermark", "block", "share.watermark is empty: shared output must advertise the app", "Bier P9");
+  if (!share.deepLinkPath.startsWith("/")) add("share_deep_link", "block", `share.deepLinkPath "${share.deepLinkPath}" must start with "/"`, "Bier P9");
+  if (spec.invite && spec.invite.prefilledMessage.length > L.inviteMessage) {
+    add("invite_message_length", "block", `invite message is ${spec.invite.prefilledMessage.length} chars (max ${L.inviteMessage})`, "SMS segment; Apple 5.1.2(v)");
+  }
+
+  const promotional = spec.retention.pushSchedule.some((p) => p.kind === "promotional");
+  if (promotional && !spec.onboarding.some((s) => s.kind === "notification_preprompt")) {
+    add("promotional_push_opt_in", "warn", "promotional pushes need an in-app opt-in (notification_preprompt step)", "Apple 4.5.4");
+  }
+  if (!spec.retention.dailyHook.trim()) add("daily_hook", "warn", "retention.dailyHook is empty: no reason to open the app tomorrow", "Bier P9");
+
+  const inventory = spec.compliance.dataInventory;
+  if (inventory.length === 0) add("data_inventory", "block", "compliance.dataInventory is empty (App Privacy labels are derived from it)", "Apple 5.1.1, 5.1.2");
+  if (spec.core.inputKind !== "none" && !inventory.some((d) => d.purpose === "core_feature" && d.sentTo.includes("anthropic"))) {
+    add("data_inventory_ai", "block", `core input ${spec.core.inputKind} is sent to Anthropic but no core_feature entry lists it`, "Apple 5.1.2(i)");
+  }
+  const requiredAge = minimumAgeFor(idea, domains ?? idea.sensitiveDomains);
+  if (Number(spec.compliance.minimumAge) < requiredAge) {
+    add("minimum_age", "block", `minimum age ${spec.compliance.minimumAge} is below the required ${requiredAge}`, "Apple 1.3, age rating questionnaire");
+  }
+
+  const aso = spec.aso;
+  findings.push(
+    ...lintCopyAll(
+      [
+        { text: aso.description, path: "aso.description" },
+        { text: aso.promotionalText, path: "aso.promotionalText" },
+        ...aso.keywords.map((k, i) => ({ text: k, path: `aso.keywords[${i}]` })),
+        ...aso.screenshotCaptions.map((c, i) => ({ text: c, path: `aso.screenshotCaptions[${i}]` })),
+      ],
+      "aso",
+    ),
+    ...lintCopyAll(
+      [{ text: spec.paywall.headline, path: "paywall.headline" }, ...spec.paywall.bullets.map((b, i) => ({ text: b, path: `paywall.bullets[${i}]` }))],
+      "paywall",
+    ),
+    ...lintCopyAll(
+      [
+        { text: share.cardHeadline, path: "share.cardHeadline" },
+        { text: share.caption, path: "share.caption" },
+      ],
+      "share",
+    ),
+    ...lintCopyAll(
+      spec.retention.pushSchedule.map((p, i) => ({ text: p.copy, path: `retention.pushSchedule[${i}].copy` })),
+      "push",
+    ),
+    ...lintCopyAll([{ text: spec.core.aiSystemPrompt, path: "core.aiSystemPrompt" }], "system_prompt"),
+  );
+  return findings;
+}
+
+function lintPaywall(spec: AppSpec, config: StudioConfig, add: (ruleId: string, severity: PolicyFinding["severity"], message: string, citation?: string) => void): void {
+  const p = spec.paywall;
+  const L = SPEC_LIMITS;
+  if (p.pages < L.paywallPages[0] || p.pages > L.paywallPages[1]) add("paywall_pages", "block", `${p.pages} paywall pages (allowed ${L.paywallPages[0]}..${L.paywallPages[1]})`);
+  if (p.bullets.length < L.paywallBullets[0] || p.bullets.length > L.paywallBullets[1]) {
+    add("paywall_bullets", "block", `${p.bullets.length} paywall bullets (allowed ${L.paywallBullets[0]}..${L.paywallBullets[1]})`);
+  }
+  if (p.productIds.length < L.productIds[0] || p.productIds.length > L.productIds[1]) {
+    add("paywall_products", "block", `${p.productIds.length} paywall products (allowed ${L.productIds[0]}..${L.productIds[1]})`);
+  }
+  const ladder = new Map(config.monetization.ladder.map((e) => [e.id, e]));
+  for (const id of p.productIds) {
+    const entry = ladder.get(id);
+    if (!entry) {
+      add("paywall_product_unknown", "block", `product "${id}" is not in the price ladder`, "prices come from monetization.ladder only");
+    } else if (!config.monetization.allowedTrialDays.includes(entry.trialDays)) {
+      add("paywall_trial_days", "block", `product "${id}" has a ${entry.trialDays}-day trial (allowed ${config.monetization.allowedTrialDays.join(", ")})`);
+    }
+  }
+  if (!p.productIds.includes(p.highlightedProductId)) {
+    add("paywall_highlighted", "block", `highlighted product "${p.highlightedProductId}" is not among the paywall products`);
+  }
+  if (p.showCloseAfterSeconds === null) {
+    if (p.style !== "hard") add("paywall_close", "block", "only a hard paywall may hide the close button", "Apple 3.1.2");
+  } else if (p.showCloseAfterSeconds < 0 || p.showCloseAfterSeconds > L.maxCloseAfterSeconds) {
+    add("paywall_close", "block", `close button after ${p.showCloseAfterSeconds}s (allowed 0..${L.maxCloseAfterSeconds})`, "Apple 3.1.2");
+  }
+}
+
+/** Pure mechanical fixes for the rules that need no judgment. Returns the fixed spec and what changed. */
+export function autoFix(spec: AppSpec, config: StudioConfig): { spec: AppSpec; changes: string[] } {
+  const changes: string[] = [];
+  const L = SPEC_LIMITS;
+
+  const subtitle = truncateAtWord(spec.subtitle, L.subtitle);
+  if (subtitle !== spec.subtitle) changes.push(`subtitle truncated to ${subtitle.length} chars`);
+  const promotionalText = truncateAtWord(spec.aso.promotionalText, L.promotionalText);
+  if (promotionalText !== spec.aso.promotionalText) changes.push(`promotional text truncated to ${promotionalText.length} chars`);
+
+  const keywords = spec.aso.keywords.map((k) => k.trim()).filter((k) => k.length > 0);
+  while (keywords.length > 0 && keywords.join(",").length > L.keywords) keywords.pop();
+  if (keywords.length !== spec.aso.keywords.length || keywords.some((k, i) => k !== spec.aso.keywords[i])) {
+    changes.push(`keywords trimmed to ${keywords.length} (${keywords.join(",").length} chars)`);
+  }
+
+  const close = spec.paywall.showCloseAfterSeconds;
+  const showCloseAfterSeconds =
+    close === null ? (spec.paywall.style === "hard" ? null : L.maxCloseAfterSeconds) : Math.min(L.maxCloseAfterSeconds, Math.max(0, close));
+  if (showCloseAfterSeconds !== close) changes.push(`paywall close button after ${showCloseAfterSeconds}s (was ${close})`);
+
+  const slug = SLUG.test(spec.slug) ? spec.slug : slugify(spec.slug) || slugify(spec.appName) || "app";
+  if (slug !== spec.slug) changes.push(`slug "${spec.slug}" -> "${slug}"`);
+
+  const nameCandidates = distinctNames(spec.nameCandidates);
+  if (nameCandidates.length !== spec.nameCandidates.length) changes.push(`name candidates deduped to ${nameCandidates.length}`);
+
+  const onboarding = fixOnboarding(spec, changes);
+  const products = fixProducts(spec.paywall, config, changes);
+
+  return {
+    spec: {
+      ...spec,
+      subtitle,
+      slug,
+      nameCandidates,
+      onboarding,
+      paywall: { ...spec.paywall, ...products, showCloseAfterSeconds },
+      aso: { ...spec.aso, keywords, promotionalText },
+    },
+    changes,
+  };
+}
+
+/** One consent before the first data input (inserted when missing), and a value preview before the paywall. */
+function fixOnboarding(spec: AppSpec, changes: string[]): OnboardingStep[] {
+  const steps = spec.onboarding;
+  const consentAt = steps.findIndex((s) => s.kind === "ai_data_consent");
+  const duplicates = steps.filter((s) => s.kind === "ai_data_consent").length - 1;
+  if (duplicates > 0) changes.push(`removed ${duplicates} duplicate ai_data_consent steps`);
+  let out = steps.filter((s) => s.kind !== "ai_data_consent");
+  const firstData = out.findIndex((s) => DATA_INPUT_STEPS.includes(s.kind));
+  const early = Math.max(0, Math.min(1, out.length));
+  const beforeData = firstData >= 0 ? Math.min(firstData, early) : early;
+
+  const existing = steps[consentAt];
+  if (existing) {
+    // Index among non-consent steps where the consent originally sat.
+    const original = steps.slice(0, consentAt).filter((s) => s.kind !== "ai_data_consent").length;
+    const late = firstData >= 0 && original > firstData;
+    if (late) changes.push(`moved ai_data_consent before step "${out[firstData]?.id}"`);
+    out = insertAt(out, late ? beforeData : original, existing);
+  } else if (firstData >= 0 || spec.core.inputKind !== "none") {
+    const consent: OnboardingStep = {
+      id: uniqueId(steps, "ai_data_consent"),
+      kind: "ai_data_consent",
+      title: "How your answers are used",
+      subtitle: "Your answers and uploads are sent to our AI provider, Anthropic, to create your result.",
+      options: [],
+      storeAs: null,
+    };
+    out = insertAt(out, beforeData, consent);
+    changes.push("inserted an ai_data_consent step");
+  }
+
+  if (spec.paywall.placement === "after_onboarding" && !out.some((s) => VALUE_STEPS.includes(s.kind))) {
+    const preview: OnboardingStep = {
+      id: uniqueId(out, "value_preview"),
+      kind: "value_preview",
+      title: "Here's a first look at your result",
+      subtitle: null,
+      options: [],
+      storeAs: null,
+    };
+    const last = out[out.length - 1];
+    out = insertAt(out, last?.kind === "notification_preprompt" ? out.length - 1 : out.length, preview);
+    changes.push("inserted a value_preview before the paywall");
+  }
+  return out;
+}
+
+/** Drop products outside the ladder and keep the highlighted product among the rest. */
+function fixProducts(paywall: AppSpec["paywall"], config: StudioConfig, changes: string[]): Pick<AppSpec["paywall"], "productIds" | "highlightedProductId"> {
+  const known = new Set(config.monetization.ladder.map((e) => e.id));
+  let productIds = [...new Set(paywall.productIds.filter((id) => known.has(id)))].slice(0, SPEC_LIMITS.productIds[1]);
+  if (productIds.length === 0) productIds = [...config.monetization.defaultProductIds];
+  if (productIds.length !== paywall.productIds.length || productIds.some((id, i) => id !== paywall.productIds[i])) {
+    changes.push(`paywall products ${paywall.productIds.join(",")} -> ${productIds.join(",")}`);
+  }
+  let highlightedProductId = paywall.highlightedProductId;
+  if (!productIds.includes(highlightedProductId)) {
+    highlightedProductId = productIds.includes(config.monetization.defaultHighlightedProductId)
+      ? config.monetization.defaultHighlightedProductId
+      : (productIds[0] ?? highlightedProductId);
+    changes.push(`highlighted product -> ${highlightedProductId}`);
+  }
+  return { productIds, highlightedProductId };
+}
+
+function insertAt<T>(items: T[], index: number, item: T): T[] {
+  return [...items.slice(0, index), item, ...items.slice(index)];
+}
+
+/** Cut at the last word boundary within `max` chars, dropping trailing punctuation. */
+export function truncateAtWord(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max + 1);
+  const space = cut.lastIndexOf(" ");
+  const base = space > 0 ? cut.slice(0, space) : text.slice(0, max);
+  return base.replace(/[\s,;:\-–—&+/]+$/u, "");
+}
+
+/** Lowercase a-z0-9 joined by single dashes. */
+export function slugify(text: string): string {
+  return text
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function distinctNames(names: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of names) {
+    const name = raw.trim();
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
+function uniqueId(steps: OnboardingStep[], base: string): string {
+  const ids = new Set(steps.map((s) => s.id));
+  if (!ids.has(base)) return base;
+  let i = 2;
+  while (ids.has(`${base}_${i}`)) i++;
+  return `${base}_${i}`;
+}

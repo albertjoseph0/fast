@@ -596,6 +596,10 @@ export const RULES: PolicyRule[] = [
     return sameSet(currentIds, referencedProductIds(a)) ? [] : [flag("needs_human", "Changing paywall products on a venture with paying subscribers needs a board approval")];
   }),
 
+  rule("remote_config.core", "Apple 2.5.2 / 2.5.19: core behaviour ships as a reviewed build, never as a remote flag", ["remote_config.set"], (a, _ctx, flag) =>
+    a.payload.key === "core" ? [flag("block", "Core changes ship as a reviewed build, not remote config")] : [],
+  ),
+
   rule("venture.kill_with_subscribers", "ARCHITECTURE s.8: apps with paying users are sunset, never killed", ["venture.kill"], (a, ctx, flag) => {
     const subs = latestSubscribers(ctx, a.ventureId);
     return subs > 0 ? [flag("block", `Venture has ${subs} active subscribers: use venture.sunset`)] : [];
