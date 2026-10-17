@@ -1,0 +1,431 @@
+{
+ "key": "ai-generation-stack",
+ "summary": "Snapshot of the AI generation stack as of 2026-10-17. Most figures come from primary pages fetched today; the date on each source is noted where the page shows one. Local raw data: the live Vercel AI Gateway catalog is in /tmp/claude-0/-home-user-fast/c1d0fe0c-b263-51e8-af6d-7c0344c439e2/scratchpad/aigen/gw_models.json (474 models, fetched without auth). Tabulated views are in /tmp/claude-0/-home-user-fast/c1d0fe0c-b263-51e8-af6d-7c0344c439e2/scratchpad/aigen/video_models.txt and /tmp/claude-0/-home-user-fast/c1d0fe0c-b263-51e8-af6d-7c0344c439e2/scratchpad/aigen/image_models.txt. The cost model is in /tmp/claude-0/-home-user-fast/c1d0fe0c-b263-51e8-af6d-7c0344c439e2/scratchpad/aigen/calc/cost.py.\n\nBiggest changes against older assumptions:\n(a) OpenAI shut down the Sora 2 models and the Videos API on 2026-09-24 and named no replacement. OpenAI's own guide says so.\n(b) Imagen 4 on the Gemini API was scheduled to shut down 2026-08-17 (secondary sources quoting Google's changelog). The original Nano Banana (gemini-2.5-flash-image) shut down 2026-10-02 (Gemini pricing page).\n(c) Veo 3.1 is no longer a top-quality model. On Artificial Analysis's blind-vote Text-to-Video-with-Audio board it ranks #19 (Elo 968). The leaders are Wan 3.0 (1174), Utopai X, Seedance 2.5 (1160), MiniMax H3 (1159, $4.80/min) and FLUX 3. MiniMax H3 768p is #1 for image-to-video (1140) at about $0.08/s.\n(d) Claude's current generation is Opus 5.5 ($4/$20 per M tokens), Sonnet 5.5 ($2/$10) and Haiku 5.5 ($0.10/$0.50), plus Fable 5.1 ($10/$50). All have 1M context. Batch pricing is 50% off.\n\nCode-generation agents. The Claude Agent SDK is Claude Code packaged as a TypeScript or Python library: built-in tools, hooks, subagents, MCP, permissions and sessions. The CLI form is `claude -p`. Use `--bare` for reproducible scripted runs. `--output-format json` returns `total_cost_usd`, `--json-schema` returns structured output, `--max-budget-usd` caps spend, and `--permission-mode dontAsk|acceptEdits|auto` plus `--permission-prompts none` cover unattended runs. Third parties must authenticate with API keys; claude.ai login is not allowed. OpenAI Codex has an equivalent `codex exec` with `--json` event streams, `--output-schema`, read-only or workspace-write sandboxes, `CODEX_API_KEY` and `openai/codex-action`. gpt-5.3-codex costs $1.75/$14 per M tokens. Expo ships official plugins for Claude Code and Codex. Its remote MCP server exposes Expo docs, EAS Build history, EAS Update channels, TestFlight metadata and simulator screenshots, and `create-expo-app` writes AGENTS.md. Expo Agent (beta, March 2026) is itself powered by Claude Code but has no API. Practitioner reports (June 2026) say agents still fail at .pbxproj edits, code signing and visual debugging. Signing and store submission need deterministic tooling such as EAS and fastlane, or a human gate. I found no primary case study of a studio shipping fully autonomously.\n\nImages. On the Artificial Analysis text-to-image board, GPT Image 2.5 Sunburst and Flare lead (Elo 1220 and 1207) but cost about $0.21 per image at max quality. Good value options:\n- Nano Banana 2.1: Elo 1174, $0.0336 per 1K image, $0.0168 batch, up to 4K, up to 14 reference images, SynthID on every image.\n- Meta Muse Image: Elo 1127, $0.01.\n- MAI-Image-2.6-Flash: Elo 1119, $0.0195.\n- gpt-image-2: low quality $0.005\u20130.006, medium $0.041\u20130.053, high $0.165\u20130.211; transparent backgrounds; edges up to 3840px.\n- Recraft V4.1: vector illustration (SVG-style) at $0.08 per image, Flash at $0.007.\n- FLUX 3 Image: $0.041\u2013$0.607 by size.\n- Ideogram 4.5: has an API with a `dry_run` price quote. Its price list did not load (the page needs JavaScript); a secondary source gives $0.03/$0.06/$0.10.\nApple Guideline 2.3.3/2.3.4 (updated 2026-10-16) requires screenshots that show the app in use and previews that are screen captures only. Use AI for frames, backgrounds and overlays, not as a stand-in for UI.\n\nVideo, per second at roughly 1080p with audio:\n- Veo 3.1: $0.40 (Google). Veo 3.1 Fast: $0.10 at 720p, $0.12 at 1080p (Google), but the gateway lists $0.15. Veo 3.1 Lite: $0.05 at 720p, $0.08 at 1080p. Clips are 4/6/8 s; 9:16 supported; extensions add 7 s each, up to 148 s total, 720p only.\n- Seedance 2.5: about $0.57 (token-priced). It runs 4\u201330 s and supports 9:16, editing and extension.\n- Wan 3.0: $0.20, 2\u201330 s.\n- Kling 3.0: $0.168\u20130.392, 3\u201315 s.\n- MiniMax H3: $0.08 at 768p.\n- Grok Imagine 1.5 Lite: $0.03 at 720p.\n- HeyGen Video-1: $0.01\u20130.05.\n- Runway API: $0.01 per credit. Gen-4.5 costs $0.12/s, and Runway also resells Kling, Seedance, Veo, Wan, Grok and MiniMax.\n- Luma Ray 3.2: $0.30 per 5 s at 720p, $1.20 per 5 s at 1080p.\nAll of these except Luma are available through Vercel AI Gateway's `experimental_generateVideo`, with async jobs, webhooks and idempotency keys.\n\nAvatar and UGC tools:\n- HeyGen API: separate prepaid wallet; Avatar III/IV/V engines at about $0.0167\u2013$0.0667/s (HeyGen blog, via secondary sources). 10 concurrent jobs on pay-as-you-go. Digital-twin avatars need consent; photo avatars have no consent check, so that responsibility falls on the customer.\n- Mirage (Captions) Avatar X: $0.15/s, billed in 6-second increments.\n- Creatify API: $99 for 500 credits or $299 for 2,000. AI Avatar costs 5 credits per 30 s, Aurora 2.0 costs 0.4\u20132.8 credits/s, and Asset Generator prices dropped about 50\u201375% on 2026-10-11.\n- Argil: 160 credits/min plus a royalty on stock avatars; the dollar value of a credit is not published.\n- Arcads: API only on the Pro tier, about $385\u2013550/mo, per a competitor's blog (low confidence).\n\nVoice and music:\n- ElevenLabs: $0.08 per 1K characters (v3/v4), $0.04 for Flash/Turbo. Eleven Music is $0.15/min, licensed for commercial use on Starter and above.\n- OpenAI gpt-4o-mini-tts: $12 per M audio output tokens.\n- Gemini 3.8 Flash TTS: $0.00225 per 10 s; this doubles on 2027-01-01.\n- Lyria 3.5: $0.08 per song.\n- TikTok: businesses must use the Commercial Music Library (about 1M tracks) for commercial content, including organic posts. The Content Posting API has no music field for video, so licensed music has to be baked into the file. Photo posts can use `auto_add_music`.\n\nRendering:\n- Remotion: free for companies of up to 3 people. Larger companies pay $0.01 per render with a $100/mo minimum. Lambda costs about $0.001\u2013$0.02 per render.\n- Shotstack: $0.20/min down to $0.05/min.\n- Creatomate: about 14 credits per minute at 720p.\n\nGateway access:\n- OpenAI-compatible endpoint: https://ai-gateway.vercel.sh/v1. Anthropic Messages endpoint: https://ai-gateway.vercel.sh/v1/messages, including count_tokens.\n- Claude Code and the Agent SDK route through it with `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY=\"\"`.\n- No markup on tokens, BYOK included. Model IDs use dotted versions, e.g. `anthropic/claude-opus-5.5`, where Anthropic's own ID is `claude-opus-5-5`.\n\nDisclosure:\n- EU AI Act Article 50 applies from 2026-08-02. The final Code of Practice on marking and labelling was published 2026-06-10. The AI Omnibus grants a grace period to 2026-12-02 only for systems already on the market before 2 Aug 2026. Providers must mark outputs in a machine-readable way; deployers must label deepfakes.\n- TikTok requires labels on realistic AI content, reads C2PA, and is testing an invisible watermark. The API's `is_aigc` flag applies the \"Creator labeled as AI-generated\" label.\n- YouTube auto-labels content since May 2026; a C2PA \"fully generative\" label is permanent.\n- Meta reads C2PA and applies \"AI info\" labels.\n- Veo output and all Gemini images carry SynthID. OpenAI images carry C2PA plus SynthID (May 2026, secondary source).\n- The FTC's 16 CFR 465 rule (effective Oct 2024) bans testimonials from people who don't exist, with penalties up to $51,744 per violation. That rules out AI avatars posing as real customers.\n\nFully loaded cost for 100 assets/day (modeled; assumes 1.5x candidates for QA and retries, LLM scripting and judging, TTS, music, rendering, and about $25/day fixed for licenses and agents):\n- Lean mix (90 AI-image slideshows + 10 hook-plus-demo clips): about $66/day, about $2.0K/mo.\n- Balanced mix (60 slideshows, 25 Veo-Lite hook-plus-demo, 10 HeyGen 30-s avatars, 5 Seedance 2.5 15-s clips): about $156/day, about $4.7K/mo.\n- Avatar-heavy mix (40 slideshows, 20 hook-plus-demo, 40 Mirage 30-s avatars): about $275/day.\n- All-premium mix (100 \u00d7 15-s Veo 3.1 Standard with audio): about $1,000/day, about $30K/mo.\nOptional human review at 1 min per asset adds about $50/day. Per asset: slideshow $0.15\u20130.37, hook-plus-demo $0.87\u20131.23, 30-s avatar $1.9\u20135.5, 15-s generative clip $2.05 (MiniMax H3) to $13.8 (Seedance 2.5 at 1080p).",
+ "findings": [
+  {
+   "claim": "OpenAI's Sora 2 models and Videos API were shut down on 2026-09-24 and there is no one-to-one replacement API.",
+   "evidence": "OpenAI's video-generation guide says: 'The Sora 2 models and Videos API were shut down on September 24, 2026 and are no longer available' and 'No one-to-one replacement API is available.' Secondary sources say the shutdown was announced 2026-03-24 and the consumer app closed 2026-04-26. Sora is also absent from the OpenAI pricing page and from Vercel AI Gateway.",
+   "sources": [
+    "https://developers.openai.com/api/docs/guides/video-generation",
+    "https://help.make.com/openai-sora-and-video-modules-deprecation-by-september-24-2026?hl=en-GB",
+    "https://zilliz.com/ai-faq/what-is-the-sora-shutdown-timeline"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Veo 3.1 has fallen to the middle of the blind-vote video leaderboards. Chinese and open-weight models now lead on both quality and price.",
+   "evidence": "Artificial Analysis Text-to-Video with Audio (AA-Video-T2V v2.1, fetched 2026-10-17): #1 Wan 3.0 1174 ($12.00/min); #2 Utopai X 1169 (no API); #3 Seedance 2.5 1160 ($34.12/min); #4 MiniMax H3 768p, open weights, 1159 ($4.80/min); #5 MiniMax H3 Max 1155; #6 FLUX 3 1146 ($17.40/min); #8 Gemini Omni Flash 1.1 1132 ($9.12/min); #15 Kling 3.0 Omni Pro 1019; #19 Veo 3.1 968 ($24/min); #20 Veo 3.1 Fast 965; #21 Veo 3.1 Lite 950 ($4.80/min). Image-to-Video: #1 MiniMax H3 768p 1140 ($5.40/min), #2 Seedance 2.5 1138, #3 Gemini Omni Flash 1.1, #4 Wan 3.0, #13 Veo 3.1 1028. Prices are per minute of 1080p on each creator's API. The page shows no update date; Elo 95% intervals are about \u00b116\u201319.",
+   "sources": [
+    "https://artificialanalysis.ai/video/leaderboard/text-to-video",
+    "https://artificialanalysis.ai/video/leaderboard/image-to-video"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Veo 3.1 on the Gemini API: clips are 4, 6 or 8 s, 16:9 or 9:16, 24 fps, always with native audio. Extensions add 7 s each, up to 148 s total, at 720p only. 1080p, 4K, extension and reference images need 8-s clips. Output carries a SynthID watermark and is stored for 2 days.",
+   "evidence": "Veo docs give model IDs veo-3.1-generate-preview, veo-3.1-fast-generate-preview and veo-3.1-lite-generate-preview; Veo 3.0 IDs are deprecated. Up to 3 reference images (none on Lite). Latency runs from about 11 s to 6 min. personGeneration is 'allow_adult' only in the EU/UK/CH/MENA. Pricing page (last updated 2026-10-16): Veo 3.1 Standard $0.40/s at 720p and 1080p, $0.60 at 4K; Fast $0.10, $0.12 and $0.30; Lite $0.05 and $0.08, no 4K. Charged only when generation succeeds; no batch tier.",
+   "sources": [
+    "https://ai.google.dev/gemini-api/docs/veo",
+    "https://ai.google.dev/gemini-api/docs/pricing"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Vercel AI Gateway's model catalog is public, machine-readable and includes per-model video capabilities and prices. It lists 474 models, including 39 video and 37 image models. Runway, Luma and Sora are not on it; HeyGen's prompt-to-video model is.",
+   "evidence": "GET https://ai-gateway.vercel.sh/v1/models returned HTTP 200 without auth (538 KB). Counts: 318 language, 39 video, 37 image, 28 embedding, 13 speech, 10 transcription, 9 realtime models. Video entries carry video_capabilities: supported_operations, resolutions, aspect_ratios, durations, generate_audio. Per-second prices from the catalog: Wan 3.0 $0.05/0.10/0.20 (480p/720p/1080p), 2\u201330 s, 9:16; Seedance 2.5 4\u201330 s, 9:16, editing and extension; Kling 3.0 t2v $0.168\u20130.392 (std/pro, audio, voice control), 3\u201315 s; Kling 2.6 std $0.042; MiniMax H3 $0.08 (768p) / $0.13 (2K), 4\u201315 s; MiniMax H3 Max $0.05 (480p); Grok Imagine Video 1.5 Lite $0.02/0.03/0.14, 1\u201315 s; Veo 3.1 Lite $0.03\u20130.08; HeyGen heygen-video-1 (released 2026-10-09) $0.01 (480p) to $0.05 (1080p), 5\u201315 s. The catalog also has ZDR and no-training flags per model.",
+   "sources": [
+    "https://ai-gateway.vercel.sh/v1/models"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Seedance 2.x is billed per video token, and the token count for an output clip is about width \u00d7 height \u00d7 fps \u00d7 seconds / 1024. At list price that is about $0.15/s for Seedance 2.0 at 720p, $0.37/s at 1080p, $0.23/s for Seedance 2.5 at 720p, $0.57/s at 1080p, and $0.076/s for 2.0 Mini at 720p.",
+   "evidence": "The gateway lists Seedance 2.0 at $7/M tokens (480p/720p) and $7.7/M (1080p); 2.5 at $10.7/M and $11.7/M; 2.0 Mini at $3.5/M; lower rates when the input contains video; minimum token floors apply. The formula is my derivation, but it reproduces Artificial Analysis's published prices exactly: Seedance 2.0 1080p $22.45/min = $0.374/s, and 2.5 1080p $34.12/min = $0.569/s. Runway resells Seedance 2.5 at 20/30/68 credits per second (480p/720p/1080p) with an 80-credit minimum.",
+   "sources": [
+    "https://ai-gateway.vercel.sh/v1/models",
+    "https://artificialanalysis.ai/video/leaderboard/text-to-video",
+    "https://docs.dev.runwayml.com/guides/pricing/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Runway's developer API costs $0.01 per credit and now resells many third-party models (Kling, Seedance, Veo, Wan, Grok, MiniMax/Hailuo, Gemini Omni, ElevenLabs) alongside its own Gen-4.5 and Gen-4 Turbo.",
+   "evidence": "Runway developer pricing page: gen4.5 12 credits/s ($0.12/s); gen4_turbo 5 ($0.05/s); veo3.1 40 with audio / 20 without; veo3.1_fast 15/10; kling3.0_pro 12/17; wan3 5/10/20; seedance2_5 20/30/68; h3_max 5/8; hailuo3 10/15; gemini_omni_flash_1.1 3.4/10/15/30 (360p/720p/1080p/4K); aleph2 28. Images: gen4_image_turbo 2, muse_image 1, nano_banana_2.1 4/6/12, ideogram_4_5 1\u201325, gpt_image_2 1\u201341. Recipes product_ad, product_ugc and multi_shot_video (13\u201317 credits/s). eleven_v4 rose from 2.2 to 5 credits per 1K characters after 2026-10-12. No other effective dates are given.",
+   "sources": [
+    "https://docs.dev.runwayml.com/guides/pricing/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Luma's API lists only Ray 3.2 for video: $0.06 per 5 s at 360p draft, $0.15 at 540p, $0.30 at 720p and $1.20 at 1080p; 10-s clips cost 3x the 5-s price. HDR is 2x and HDR+EXR 3x. Rates may change before GA.",
+   "evidence": "Luma Agents API pricing page: 'Video rates are subject to change ahead of general availability.' uni-1 images cost $0.0404 at 2K and uni-1-max $0.10. Provisioned throughput starts at $2,100\u20133,800 per unit per month with an 8-unit minimum. Moderated or failed async jobs are refunded. The page has no date. Luma is not on Vercel AI Gateway.",
+   "sources": [
+    "https://docs.agents.lumalabs.ai/guides/pricing/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "fal.ai lists MiniMax H3 Max at $0.05/s, H3 Max Turbo at $0.025/s, Kling v3 Pro at $0.14/s and Seedance 2.0 at $0.014 per 1K tokens. Images: Nano Banana 2 $0.08, Nano Banana Pro $0.15, Flux 3 Edit $0.048 per megapixel, Z-Image Turbo $0.005 per megapixel.",
+   "evidence": "fal.ai pricing page (no date, \u00a9 2026). GPUs: H100 $4.50/h list ('as low as' $2.49), B200 $7.99/h. The page notes 'Settings such as resolution, duration, and quality may affect the final cost.' fal's Nano Banana 2 price ($0.08) is above Google's own ($0.067 at 1K), so fal is not always the cheapest route.",
+   "sources": [
+    "https://fal.ai/pricing"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Vercel AI Gateway runs video generation as async jobs through AI SDK `experimental_generateVideo`, `experimental_startVideo` and `experimental_getVideoStatus`, with signed webhooks and automatic idempotency keys. This suits serverless and queue-driven pipelines.",
+   "evidence": "Video generation docs (last_updated 2026-09-08): passing `poll: {intervalMs, timeoutMs}` makes the call a gateway job; it requires ai@7.0.50+ and @ai-sdk/gateway@4.0.44+, and start/status require ai@7.0.76+. Persisted start requests are capped at 300 KiB, so pass images as hosted URLs or get a 413. Webhook events: video.generation.completed / failed / cancelled, with header `x-ai-gateway-signature: t=..,v1=HMAC-SHA256`; a 2xx response is expected within 10 s. Hosted results carry `expiresAt`. In the single-request flow Node's Undici has a default 5-min timeout. Common parameters: duration, aspectRatio, resolution, generateAudio, frameImages (first/last frame), inputReferences.",
+   "sources": [
+    "https://vercel.com/docs/ai-gateway/modalities/video-generation"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Vercel AI Gateway serves an OpenAI-compatible API at https://ai-gateway.vercel.sh/v1 and an Anthropic Messages-compatible API at https://ai-gateway.vercel.sh (POST /v1/messages and /v1/messages/count_tokens). Claude Code and the Claude Agent SDK can route through it with environment variables alone.",
+   "evidence": "OpenAI-compatible docs (last_updated 2026-10-07): GET /models, GET /models/{model}, POST /chat/completions (streaming, tools, structured outputs, file attachments, image generation), POST /embeddings; auth is `Authorization: Bearer` with AI_GATEWAY_API_KEY or a Vercel OIDC token. Anthropic docs (last_updated 2026-09-18): `x-api-key` or Bearer auth; tools, thinking and structured outputs supported; `cache_control` is passed through to Anthropic, Vertex and Bedrock, with a 5-min TTL. Claude Code setup: ANTHROPIC_BASE_URL=https://ai-gateway.vercel.sh, ANTHROPIC_AUTH_TOKEN=<gateway key>, ANTHROPIC_API_KEY=\"\" (must be empty). The Agent SDK inherits these. CLAUDE_CODE_EXTRA_BODY can pass providerOptions such as only, order and sort; set CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1 when routing to Bedrock or Vertex. Gateway model IDs use dotted versions, e.g. anthropic/claude-opus-5.5, anthropic/claude-sonnet-5.5, anthropic/claude-haiku-5.5.",
+   "sources": [
+    "https://vercel.com/docs/ai-gateway/sdks-and-apis/openai-chat-completions",
+    "https://vercel.com/docs/ai-gateway/sdks-and-apis/anthropic-messages-api",
+    "https://ai-gateway.vercel.sh/v1/models"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Vercel AI Gateway charges no markup or platform fee on tokens, including with BYOK. The free tier covers a subset of models at lower rate limits; buying credits moves a team to the paid tier.",
+   "evidence": "Pricing docs (last_updated 2026-09-08): 'AI Gateway charges no markup and no platform fee on tokens.' Free credits stop once credits are purchased. BYOK requires purchased credits, and a failed BYOK request is retried on system credentials and billed to credits. Add-ons: Custom Reporting $0.075 per 1K writes and $5 per 1K queries; team-wide ZDR or provider allowlist $0.10 per 1K requests; trace drains $0.05 per 1K traces. Budgets can be set per team, project, key or member. Price discrepancy found: the gateway lists Veo 3.1 Fast 1080p with audio at $0.15/s, while Google's Gemini API page says $0.12/s.",
+   "sources": [
+    "https://vercel.com/docs/ai-gateway/pricing",
+    "https://ai-gateway.vercel.sh/v1/models",
+    "https://ai.google.dev/gemini-api/docs/pricing"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Current Claude API list prices per M tokens: Opus 5.5 $4/$20, Sonnet 5.5 $2/$10, Haiku 5.5 $0.10/$0.50 (\u2264100K-token prompts; $0.50/$2.50 above), Fable 5.1 $10/$50. Batch is 50% off and cache reads are roughly 0.1x input. All have 1M context and 128K max output.",
+   "evidence": "The claude-api skill reference (cached 2026-10-06) and the live gateway catalog agree. Gateway release dates: Opus 5.5 2026-09-22, Sonnet 5.5 2026-09-28, Haiku 5.5 2026-10-07. Gateway batch prices: Opus 5.5 $2/$10, Sonnet 5.5 $1/$5. Opus 5.5 fast mode is $8/$40. API notes: on Opus 5.5 thinking cannot be disabled and effort defaults to 'medium'; forced tool_choice any/tool returns 400 on Opus 5.5 and Sonnet 5.5; assistant prefill is removed. Minor discrepancy: the gateway lists Sonnet 5.5 cache reads at $0.10/M, the skill says $0.20.",
+   "sources": [
+    "https://ai-gateway.vercel.sh/v1/models",
+    "claude-api skill (bundled reference, cached 2026-10-06)"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The Claude Agent SDK, Claude Code packaged as a TypeScript or Python library, is the primary harness for headless code agents. Third-party products built on it must use API-key auth.",
+   "evidence": "Agent SDK overview: 'A library that runs the Claude Code binary' with built-in tools, hooks, subagents, MCP, permissions, sessions, skills and plugins. 'Unless previously approved, Anthropic does not allow third party developers to offer claude.ai login or rate limits for their products, including agents built on the Claude Agent SDK.' Use is governed by Anthropic's Commercial Terms. Branding: may not be called 'Claude Code'. An alternative is Claude Managed Agents, where Anthropic hosts the loop and a per-session sandbox.",
+   "sources": [
+    "https://code.claude.com/docs/en/agent-sdk/overview"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Headless Claude Code (`claude -p`) has the controls needed for autonomous build jobs: reproducible bare mode, per-run cost reporting, a budget cap, schema-validated output, unattended permission modes and resumable sessions.",
+   "evidence": "Headless docs: `--bare` skips hooks, skills, plugins, MCP and CLAUDE.md auto-discovery; it is 'recommended for scripted and SDK calls, and will become the default for -p'. `--output-format json` includes `total_cost_usd` and a per-model cost breakdown (client-side estimates). `--json-schema` returns `structured_output`. `--max-budget-usd` caps spend. `--permission-mode auto|dontAsk|acceptEdits`; `--permission-prompts none` (v2.1.259+) denies anything that would prompt. `--resume <session_id>` continues a session. SIGTERM exits with code 143. Piped stdin is capped at 10 MB. Background work is waited on for up to 10 min by default.",
+   "sources": [
+    "https://code.claude.com/docs/en/headless"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "OpenAI Codex has an equivalent non-interactive mode, `codex exec`, with JSONL events, JSON-Schema final output, sandbox levels and API-key auth for CI.",
+   "evidence": "Docs: `--json` streams events (thread.started, turn.completed, item.*). `--output-schema <file>` and `-o` write the final message. The default sandbox is read-only; `--sandbox workspace-write` allows edits; danger-full-access only on isolated runners. '`--full-auto` is no longer supported'; use workspace-write or `--approve-for-me`. Auth via `CODEX_API_KEY`; the `openai/codex-action` GitHub Action is recommended. Codex requires a git repo unless `--skip-git-repo-check` is passed. Price: gpt-5.3-codex $1.75 input / $0.175 cached / $14 output per M tokens. The page shows no date.",
+   "sources": [
+    "https://learn.chatgpt.com/docs/non-interactive-mode",
+    "https://developers.openai.com/api/docs/pricing"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Expo officially supports Claude Code and Codex with a plugin, Expo Skills and a remote MCP server that exposes EAS build and TestFlight data. Expo Agent (beta) is itself powered by Claude Code.",
+   "evidence": "docs.expo.dev/agents.md (modified 2026-09-24): `claude plugin install expo@claude-plugins-official`; `codex plugin add expo@openai-curated`. The MCP server gives 'live access to the latest Expo documentation, EAS Build history, EAS Update channels, and TestFlight metadata', can install SDK-matching packages, read build logs and take simulator screenshots. `create-expo-app` writes AGENTS.md and .claude/settings.json. Expo Agent blog post (2026-03-10): 'powered by Claude Code and tuned by the Expo team'; builds SwiftUI or Jetpack Compose apps and deploys to the App Store from the browser; waitlist only; no automation API mentioned.",
+   "sources": [
+    "https://docs.expo.dev/agents.md",
+    "https://expo.dev/blog/expo-agent-beta"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Fully autonomous iOS shipping is still unreliable. Agents handle UI code and fixing build errors well but fail at Xcode project-file edits, code signing and visual debugging. I found no primary case study of a studio shipping autonomously end to end.",
+   "evidence": "A practitioner guide (updated June 2026, 8 production iOS apps, 293 Swift files) says agents excel at SwiftUI views, SwiftData models, refactoring and build-error diagnosis, but fail at .pbxproj modifications, code signing and visual debugging. A VP0 guide (June 2026) says Claude Code can scaffold Expo apps and drive EAS builds but defaults to generic design. The search returned no primary-source studio case study.",
+   "sources": [
+    "https://www.blakecrosley.com/guides/ios-agent-development",
+    "https://vp0.com/blogs/can-claude-code-build-mobile-apps"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Estimated Claude spend for one agentic MVP build session (an Expo app of tens of screens) is about $10\u201340. This is a modeled assumption, not a measurement.",
+   "evidence": "Assumes about 20M input tokens, 90% served from cache, about 2M uncached or cache-write tokens and about 0.5M output. Opus 5.5: 18M \u00d7 $0.20 + 2M \u00d7 $5 (cache write) + 0.5M \u00d7 $20 \u2248 $24. Sonnet 5.5: 18M \u00d7 $0.10\u20130.20 + 2M \u00d7 $2.50 + 0.5M \u00d7 $10 \u2248 $12\u201314. Real usage should be read from `total_cost_usd` and capped with `--max-budget-usd`.",
+   "sources": [
+    "https://ai-gateway.vercel.sh/v1/models",
+    "https://code.claude.com/docs/en/headless"
+   ],
+   "confidence": "low"
+  },
+  {
+   "claim": "Text-to-image quality (Artificial Analysis, Oct 2026): OpenAI GPT Image 2.5 leads, but Nano Banana 2.1, Meta Muse Image and MAI-Image-2.6-Flash are 5\u201320x cheaper for similar Elo.",
+   "evidence": "AA-Image-T2I v2.1, price per 1K images at 1024\u00b2: GPT Image 2.5 Sunburst (max) 1220, $210.7; Flare (max) 1207, $210.7; GPT Image 2 (high) 1186, $211; Nano Banana 2.1 1174, $33.6; Grok Imagine Image 2.0 1167, $60; MAI-Image-2.6 1166, $38.9; Nano Banana 2 1140, $67; Meta Muse Image 1127, $10; MAI-Image-2.6-Flash 1119, $19.5; FLUX 3 Image 1116, $48; Nano Banana Pro 1115, $134; Seedream 5.0 Pro 1100, $90.",
+   "sources": [
+    "https://artificialanalysis.ai/image/leaderboard/text-to-image"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Gemini image models (Nano Banana family): prices, IDs, aspect ratios up to 21:9 including 9:16, up to 4K, up to 14 reference images, and SynthID on every output. Nano Banana (2.5 Flash Image) shut down 2026-10-02 and Imagen 4 on 2026-08-17.",
+   "evidence": "Pricing page (2026-10-16), per image standard/batch: Nano Banana 2.1 1K $0.0336/$0.0168, 2K $0.0504, 4K $0.113; Nano Banana 2 (gemini-3.1-flash-image) 0.5K $0.045, 1K $0.067, 2K $0.101, 4K $0.151; Nano Banana Pro 1K/2K $0.134, 4K $0.24; Nano Banana 2 Lite 1K $0.0336; Nano Banana 2.5 'shuts down October 2, 2026'. Image docs: model ID gemini-nano-banana-2.1 is recommended for new projects; 'All generated images include a SynthID watermark'; ratios include 9:16 and 4:5. Imagen 4 IDs (imagen-4.0-generate/ultra/fast-001) had an Aug 17 2026 shutdown per Google's June 15 2026 changelog as reported by trackers; Imagen is absent from the current pricing page.",
+   "sources": [
+    "https://ai.google.dev/gemini-api/docs/pricing",
+    "https://ai.google.dev/gemini-api/docs/image-generation",
+    "https://kingy.ai/ai-launch-tracker/google-will-shut-down-three-imagen-4-api-models-august-17/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "OpenAI gpt-image-2 costs about $0.005\u20130.006 per image at low quality, $0.041\u20130.053 at medium and $0.165\u20130.211 at high. The gpt-image-2.5 Flare and Sunburst models use the same token rates and add 'xhigh' and 'max' quality levels. Organization verification is required.",
+   "evidence": "Image generation guide cost table: GPT Image 2 low $0.006 (1024\u00b2) / $0.005 (1024\u00d71536); medium $0.053 / $0.041; high $0.211 / $0.165; GPT Image 1 Mini low $0.005. Token prices: image output $30 per M tokens, image input $8, text input $5; batch output $15. Edges must be multiples of 16px, max 3840px, aspect ratio 1:3 to 3:1. Transparent backgrounds supported in PNG or WebP. `moderation` can be auto or low. 'Organization verification is required before using GPT Image models.'",
+   "sources": [
+    "https://developers.openai.com/api/docs/guides/image-generation",
+    "https://developers.openai.com/api/docs/pricing"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Other image options: Recraft V4.1 does vector illustration (SVG-style, suits icons) at $0.08 per image, with Flash at $0.007. FLUX 3 Image costs $0.041\u2013$0.607 by size. Seedream 5.0 is $0.035 and Meta Muse $0.01.",
+   "evidence": "Gateway catalog: recraft-v4.1 $0.035 per image, $0.08 for the vector_illustration style; recraft-v4.1-pro $0.21 ($0.30 vector); recraft-v4.1-flash $0.007 (released 2026-09-23); bfl/flux-3-image 768\u00b2 $0.041, 1024\u00b2 $0.048, 2048\u00b2 $0.10, 4096\u00b2 $0.607 (released 2026-10-05); bytedance seedream-5.0-pro and lite $0.035; meta/muse-image-1.0 $0.01; spacexai grok-imagine-image-2.0 $0.04\u20130.08.",
+   "sources": [
+    "https://ai-gateway.vercel.sh/v1/models"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Ideogram 4.5 is available on the API (v2 endpoint) with a `dry_run` price quote and quality tiers. I could not confirm its dollar prices from Ideogram's own page.",
+   "evidence": "developer.ideogram.ai v2 reference: POST https://api.ideogram.ai/v2/image/generate/ideogram-4-5. `dry_run: true` returns a PriceQuote without generating or billing. Pricing is tiered at 1K or 2K output and 'auto' bills as 2K; quality can be very_low (needs source images), low, medium or high. Sizes up to 2048\u00d72048, aspect ratio up to 6:1. Default limit is 10 in-flight requests. The pricing table on ideogram.ai is loaded by JavaScript. A secondary source (Wireflow, 2026-10-14) gives 4.5 at $0.03/$0.06/$0.10 for low/medium/high. Runway resells ideogram_4_5 at 1\u201325 credits ($0.01\u20130.25).",
+   "sources": [
+    "https://developer.ideogram.ai/v2/api-reference/images/generate/ideogram-4-5.md",
+    "https://ideogram.ai/pricing/?pricing_tab=api",
+    "https://www.wireflow.ai/blog/ideogram-api-pricing",
+    "https://docs.dev.runwayml.com/guides/pricing/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Apple's App Review Guidelines limit AI-generated store creative. Screenshots must show the app in use, and app previews may only use screen captures of the app.",
+   "evidence": "Guideline 2.3.3: 'Screenshots should show the app in use, and not merely the title art, login page, or splash screen. They may also include text and image overlays.' Guideline 2.3.4: 'previews may only use video screen captures of the app itself.' The page shows 'Last Updated: October 16, 2026'.",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The HeyGen API bills from a separate pay-as-you-go wallet, uses v3 endpoints with Avatar III, IV and V engines, and is concurrency-limited. Per-second prices are not in the docs; HeyGen's own blog, as reported by secondary sources, gives about $0.0167\u2013$0.0667/s.",
+   "evidence": "Developer docs: API-key auth bills to API plans, while OAuth/MCP draws on subscription credits ('trial-scale only'). The self-serve pricing page (platform.heygen.com/pricing) did not render. POST /v3/videos selects the engine; Avatar IV is the default. Concurrency: pay-as-you-go 10 workflows, Enterprise 20 plus burst up to +50 at 1.5x. POST /v3/videos allows 10/s (30/s on a higher tier). Filler-word removal costs $0.01/s. Secondary sources citing HeyGen's blog and G2: Avatar III digital twin $0.0167/s up to Avatar V $0.0667/s; others cite $0.05/s for Avatar IV/V. Free API credits were reportedly removed in February 2026.",
+   "sources": [
+    "https://docs.heygen.com/llms.txt",
+    "https://developers.heygen.com/docs/usage-limits.md",
+    "https://www.heygen.com/blog/ai-video-generator-pricing",
+    "https://www.g2.com/articles/heygen-api-pricing"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "HeyGen consent policy: digital-twin avatars need recorded consent from the subject, and only enterprise accounts with a signed indemnity can skip it. Photo avatars have no consent check, so the customer carries the legal risk.",
+   "evidence": "Avatar consent doc: the levels are (1) a webcam consent statement, available to all customers, with the link expiring in 24 h; (2) an uploaded consent video under 35 s, enterprise only; (3) skipping consent, enterprise only with a signed indemnity. 'Photo (type: photo) and prompt (type: prompt) groups have no consent step.' For photo avatars, obtaining the subject's agreement and keeping a record is the customer's responsibility.",
+   "sources": [
+    "https://developers.heygen.com/docs/avatar-consent.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The Mirage (Captions) API costs $0.15 per second for Mirage Avatar X, an image or video plus audio-to-talking-video model, billed in 6-second increments. Styled captions cost $0.15 per minute.",
+   "evidence": "Captions/Mirage API pricing doc: 'Mirage Avatar X ... $0.15 per second (6-second increments)'; 'Add Captions ... $0.15 per minute', rounded up to the minute. A secondary source reports the page was last modified 2026-08-13 and earlier listed 'Mirage Video 1' at $0.175/s.",
+   "sources": [
+    "https://captions.ai/help/docs/api/pricing.md",
+    "https://help.mirage.app/docs/api/pricing"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The Creatify API is subscription-based: $99/mo for 500 credits (about $0.198 per credit) or $299/mo for 2,000 (about $0.15). Its avatar, Aurora and Boreal models are priced per second, and Asset Generator prices fell about 50\u201375% on 2026-10-11.",
+   "evidence": "Billing doc: URL to Video and AI Avatar cost 5 credits per 30 s; Aurora 1.0 1 credit/s, Fast 0.5/s; Aurora 2.0 0.4/0.7/1.4/2.8 credits/s (480p/720p/1080p/2K, audio up to 59.7 s); Boreal-H3 0.4\u20132.6 credits/s; Ad Clone 12 credits per 5 s; HTML Interactive Ad 10 credits. Changelog for October 2026: Asset Generator now charges the app's rates, e.g. Kling 3.0 Pro 5 s from 17 to 8.5 credits, Veo 3.1 8 s from 64 to 32, Seedance 2.5 720p 5 s from 46 to 11.5. Failed or rejected tasks are refunded; files are kept at least 7 days. The Inspiration API was removed in September 2026.",
+   "sources": [
+    "https://docs.creatify.ai/billing.md",
+    "https://docs.creatify.ai/api-reference/changelog.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The Argil API needs a Classic-or-higher subscription and charges 160 credits per minute of video, 20 per minute of voice, and a 20-credit royalty per video for stock avatars. The dollar value of a credit is not published in the docs.",
+   "evidence": "API pricing doc: a 30-s video with 3 image B-rolls and a v1 avatar costs 70 + 10 + 20 + 30 = 130 credits. Voice cost is avoided by linking an ElevenLabs account. The royalty does not apply to self-trained avatars. Enterprise starts above 60,000 credits/month. Plan prices ($39 Classic, $149 Pro, $499 Scale) come from secondary snapshots.",
+   "sources": [
+    "https://docs.argil.ai/resources/api-pricings.md",
+    "https://argil.ai/pricing"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Arcads reportedly offers API access only on its Pro tier (about $385/mo promotional, $550 list), with talking actors at 800 credits per minute. Synthesia's API is on its Creator plan (about $89/mo, 30 min). Both are unverified against the vendors' own pages.",
+   "evidence": "The Arcads figures come from a Creatify blog post, a competitor, so they may be biased. Synthesia: several third-party 2026 guides cite $89/mo with 30 video minutes and API access, a $1,000/yr custom avatar add-on, and Enterprise at about $25\u201340K/yr.",
+   "sources": [
+    "https://creatify.ai/blog/arcads-pricing-(2026)-plans-credits-and-what-you-ll-actually-pay",
+    "https://www.arcade.software/post/synthesia-pricing"
+   ],
+   "confidence": "low"
+  },
+  {
+   "claim": "ElevenLabs API: $0.08 per 1K characters for v4, v3 and Multilingual v2; $0.04 for v4 Turbo, Flash and Turbo. Eleven Music costs $0.15/min, is licensed for commercial use on Starter and above, and is capped at 5 min per generation.",
+   "evidence": "API pricing page: plans Free (10K chars), Starter $6, Creator $22, Pro $99 (1.238M chars), Scale $299, Business $990 (12.375M chars). Sound effects $0.12/min, royalty-free. Music finetunes $1.50 each. 'Commercial use licensing on Starter and higher plans' for music. No effective date shown.",
+   "sources": [
+    "https://elevenlabs.io/pricing/api"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Cheaper voice and music: OpenAI gpt-4o-mini-tts is $0.60 per M text-input tokens and $12 per M audio-output tokens. Gemini 3.8 Flash TTS is $0.00225 per 10 s of audio, doubling on 2027-01-01. Google Lyria 3.5 is $0.08 per full song, and Lyria 3 Clip is $0.04 per 30 s.",
+   "evidence": "OpenAI pricing: tts-1 $15 and tts-1-hd $30 per M characters; transcription gpt-4o-mini-transcribe $0.003/min, gpt-transcribe $0.0045/min. Gemini pricing (2026-10-16): 3.8 Flash TTS $0.50 input / $9.00 audio per M tokens, batch half price, with increases to $1.00/$18.00 from 2027-01-01; 3.8 Flash-Lite TTS $0.0015 per 10 s; free tier on Standard. Lyria is priced per request.",
+   "sources": [
+    "https://developers.openai.com/api/docs/pricing",
+    "https://ai.google.dev/gemini-api/docs/pricing"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "TikTok requires businesses to use its Commercial Music Library for commercial activity, including organic posts. The Content Posting API has no music-selection field for video, so licensed or commercially cleared AI music must be mixed into the uploaded file. Photo carousels can request auto-added music.",
+   "evidence": "TikTok Business Help (last updated July 2025, about 15 months old, may have changed): businesses 'cannot use the general music library for commercial usage'; the CML covers organic content, ads and branded content; about 1M pre-cleared songs; free. Content Posting API direct-post reference: post_info has is_aigc, brand_content_toggle and brand_organic_toggle, and no music fields; 'All content posted by unaudited clients will be restricted to private viewing mode.' Earlier research in this project (research_distribution-apis.json) recorded photo posts of up to 35 images with auto_add_music on DIRECT_POST only. Secondary sources say CML licenses cover TikTok only, not cross-posting.",
+   "sources": [
+    "https://ads.tiktok.com/help/article/commercial-music-library",
+    "https://developers.tiktok.com/doc/content-posting-api-reference-direct-post",
+    "https://www.soundstripe.com/blogs/tiktok-music-library-explained"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Remotion is free for companies of up to 3 people. Larger companies on the Automators license pay $0.01 per render with a $100/mo minimum. Lambda rendering costs about $0.001 for a trivial composition and $0.017\u20130.021 for a 1-min video.",
+   "evidence": "remotion.pro/license (\u00a9 2026): 'free to use for individuals and companies up to three people'; 'Remotion for Automators: Build video creation tools - $0.01 per render, $100/mo minimum' for prompt-to-video apps and automated video creation; Creators $25/mo per seat; Enterprise from $500/mo. Lambda cost example (2048 MB, us-east-1, v4.0.381): Hello World warm $0.001 in 7.56 s; 1-min video warm $0.017, cold $0.021.",
+   "sources": [
+    "https://www.remotion.pro/license",
+    "https://www.remotion.dev/docs/lambda/cost-example.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Shotstack charges $0.20/min pay-as-you-go, falling to $0.05/min on its $499/mo Volume plan (10K minutes). Its bundled AI generation is heavily marked up. Creatomate uses credits at about 14 per minute of 720p video, with renders deleted after 30 days.",
+   "evidence": "Shotstack pricing: Starter $39 for 250 min (15.6\u00a2/min), Pro $99 for 750 min, Scale $199 for 2,000 min (10\u00a2/min), Volume $499 for 10,000 min (5\u00a2/min); 1080p max on lower tiers, 4K on Pro and up; unused minutes roll over 3 months. AI resale: Seedance 2.5 5-s 720p for $2.96, about 2.5x the roughly $1.16 implied by the gateway token price; ElevenLabs voice at 6\u00a2 per 1K characters. Creatomate: Essential 2,000 credits, Growth 10,000 ('about 12 hours of video'), Beyond 50,000; API on all plans; one image is one credit; dollar prices not shown on the page.",
+   "sources": [
+    "https://shotstack.io/pricing/",
+    "https://creatomate.com/pricing"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "EU AI Act Article 50 transparency obligations apply from 2026-08-02. The final Code of Practice on marking and labelling AI-generated content was published 2026-06-10. Providers must apply machine-readable, detectable marking; deployers must label deepfakes. The AI Omnibus gives a grace period to 2026-12-02 only for systems placed on the market before 2026-08-02.",
+   "evidence": "European Commission page (last update 2026-10-12): the final code was published 10 June 2026; about 190 signatories by end of July 2026; the code was confirmed as an adequate voluntary tool; 'applicable from 2 August 2026'. Section 1 requires providers to mark audio, image, video and text in a machine-readable, detectable way; Section 2 requires deployers to label deepfakes and AI text on matters of public interest unless it had human editorial review; an optional EU icon set is available. Addleshaw Goddard (2026-06-18) describes three icons (basic, AI-generated, partially AI-modified) and the AI Omnibus grace period to 2 Dec 2026 for systems on the market before 2 Aug 2026.",
+   "sources": [
+    "https://digital-strategy.ec.europa.eu/en/policies/code-practice-ai-generated-content",
+    "https://www.addleshawgoddard.com/en/insights/insights-briefings/2026/technology/eu-ai-act-code-practice-marking-labelling-ai-generated-content/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "TikTok requires labels on realistic AI-generated content and detects it through C2PA Content Credentials, its own classifiers and an invisible watermark in testing. The Content Posting API's `is_aigc` flag applies the 'Creator labeled as AI-generated' label.",
+   "evidence": "TikTok Newsroom (2026-03-10): 'We require people to label realistic AI-generated content on TikTok'; reads C2PA; testing a 'robust technological watermark that only we can read' on content made with TikTok tools and content uploaded with C2PA; testing an AIGC feed-share control in Manage topics; over 1.3B videos labelled. API docs: is_aigc means 'Set to true if the video is AI generated content' and labels it 'Creator labeled as AI-generated'; brand_organic_toggle marks promotion of the creator's own business. Secondary sources claim synthetic media of real private individuals is banned outright; not verified against TikTok's own text.",
+   "sources": [
+    "https://newsroom.tiktok.com/tiktok-ssa-shares-more-ways-to-spot-shape-and-understand-ai-generated-content?lang=en-ZA",
+    "https://developers.tiktok.com/doc/content-posting-api-reference-direct-post",
+    "https://storrito.com/resources/tiktoks-2026-ai-labeling-rules-and-what-they-signal-for-platform-governance"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Since May 2026 YouTube auto-applies AI labels when it detects significant photorealistic AI use. Content whose C2PA metadata marks it as fully generative gets a permanent label. On Shorts the label is an overlay, and YouTube says it does not affect recommendations or monetization.",
+   "evidence": "YouTube blog: 'If a creator doesn't specify whether or not they used AI, but our systems detect significant photorealistic AI use, we will now automatically apply a label.' Labels are permanent for content made with YouTube's own AI tools (Veo, Dream Screen) or with C2PA metadata indicating fully generative AI. 'a disclosure label alone does not change how a video is recommended or whether it's eligible to earn money.'",
+   "sources": [
+    "https://blog.youtube/news-and-events/improving-ai-labels-for-viewers-and-creators/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Meta applies 'AI info' labels automatically to ads made with its own generative tools and reads third-party C2PA credentials. Political and social-issue ads need AI disclosure. The detailed 2026 ad-label rules are confirmed only by secondary sources.",
+   "evidence": "Meta newsroom post (Feb 2026, updated 2026-06-01): advertisers must disclose AI use in certain political and social-issue ads, and Meta adds the information to the ad and the Ad Library. Vendor blogs report automatic labels for Background Generation, Image Generation and Add Animation; C2PA detection going live around June\u2013July 2026; and about 14% of ad rejections due to undisclosed AI (unverified).",
+   "sources": [
+    "https://about.fb.com/news/2026/02/meta-prepares-for-2026-us-midterms/",
+    "https://www.contentgrip.com/meta-ai-ad-labels/",
+    "https://commonthreadco.com/blogs/coachs-corner/meta-ai-ad-labels-mandatory-disclosure-ecommerce-2026"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Provenance signals already embedded by generators: Google watermarks Veo video and every Gemini image with SynthID, and adds C2PA to Nano Banana Pro images. OpenAI says since about May 2026 that its images carry C2PA plus SynthID. C2PA metadata is easily stripped by re-encoding; the watermarks are designed to survive it.",
+   "evidence": "Veo docs: 'Videos are watermarked with SynthID'. Gemini image docs: 'All generated images include a SynthID watermark.' A Google blog says Nano Banana Pro images in the Gemini app, Vertex AI and Google Ads embed C2PA metadata. OpenAI's 'advancing content provenance' post returned 403 to WebFetch; secondary sources dated 2026-05-19/20 say OpenAI added C2PA conformance and SynthID watermarking via a Google partnership, plus a verification tool in preview. Multiple sources note 'C2PA metadata can be stripped from a file'.",
+   "sources": [
+    "https://ai.google.dev/gemini-api/docs/veo",
+    "https://ai.google.dev/gemini-api/docs/image-generation",
+    "https://blog.google/innovation-and-ai/products/ai-image-verification-gemini-app/",
+    "https://openai.com/index/advancing-content-provenance",
+    "https://www.pravinkumar.co/blog/openai-c2pa-synthid-content-provenance-webflow-2026"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "The FTC's Consumer Reviews and Testimonials Rule (16 CFR Part 465) bans testimonials that misrepresent who gave them, including ones attributed to people who don't exist such as AI-generated personas. Civil penalties reach $51,744 per violation, and the FTC sent warning letters in January 2026.",
+   "evidence": "The rule took effect 2024-10-21. That is about 24 months old, so the penalty amount may have been inflation-adjusted since. Covers fake reviews and testimonials, purchased reviews, review suppression and fake social-influence indicators. Food Navigator (2026-01-07) reports the FTC urged 'immediate review' of compliance in warning letters. This directly affects AI 'customer' avatars in app ads.",
+   "sources": [
+    "https://searchengineland.com/ftc-fake-reviews-testimonials-445209",
+    "https://www.foodnavigator.com/Article/2026/01/07/ftc-signals-crackdown-on-fake-reviews-and-testimonials/",
+    "https://frostbrowntodd.com/ftcs-new-rule-on-consumer-reviews-ensuring-compliance-with-human-and-ai-generated-content"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Modeled per-asset generation cost, at 1.5x candidate generation for QA and retries, with LLM script and vision-QA, TTS, captions, AI music and render: 6-slide slideshow $0.15 (Muse Image) to $0.37 (Nano Banana 2.1); 20-s hook-plus-real-app-demo with a 6-s AI hook $0.87 (Veo 3.1 Lite or MiniMax H3) to $1.23 (Veo 3.1 Fast); 30-s avatar UGC $1.87 (HeyGen Avatar IV at $0.05/s), $2.47 (Avatar V), $3.85 (Creatify Aurora 2.0 720p) or $5.47 (Mirage Avatar X); 15-s fully generative clip with native audio $2.05 (MiniMax H3), $3.01 (Veo 3.1 Fast), $8.20 (Kling 3.0 Pro), $9.73 (Veo 3.1 Standard) or $13.78 (Seedance 2.5 1080p).",
+   "evidence": "Computed in /tmp/claude-0/-home-user-fast/c1d0fe0c-b263-51e8-af6d-7c0344c439e2/scratchpad/aigen/calc/cost.py using unit prices verified above. LLM assumptions: Sonnet 5.5 at 6\u20138K input / 2\u20132.5K output tokens per script; Haiku 5.5 vision QA at 8\u201315K input; Opus 5.5 for premium storyboards. ElevenLabs v4 at about 330 characters per 20-s voiceover; gpt-4o-mini-transcribe for caption timing; Eleven Music $0.15/min; Remotion Lambda about $0.02 plus $0.01 license per render. Real app footage comes from a simulator screen recording at no cost.",
+   "sources": [
+    "https://ai-gateway.vercel.sh/v1/models",
+    "https://ai.google.dev/gemini-api/docs/pricing",
+    "https://elevenlabs.io/pricing/api",
+    "https://captions.ai/help/docs/api/pricing.md",
+    "https://docs.creatify.ai/billing.md",
+    "https://www.remotion.pro/license"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Fully loaded cost of 100 short-form assets per day is about $66/day for a lean slideshow-heavy mix, about $156/day for a balanced mix, about $275/day for an avatar-heavy mix and about $1,000/day for all-premium generative video. Optional human review adds about $50/day.",
+   "evidence": "Mixes per day: lean is 90 Nano Banana 2.1 slideshows + 10 Veo-Lite hook-plus-demo clips, $41.6 variable. Balanced is 60 slideshows + 25 hook-plus-demo + 10 HeyGen IV 30-s avatars + 5 Seedance 2.5 15-s clips, $131.3. Avatar-heavy is 40 slideshows + 20 hook-plus-demo + 40 Mirage 30-s avatars, $250.8. Premium is 100 \u00d7 15-s Veo 3.1 Standard, $973. Fixed costs about $24.6/day: Remotion Automators $100/mo minimum, ElevenLabs Pro $99/mo, about $15/day of orchestrator agent LLM spend, $3/day storage and compute. Monthly: about $2.0K, $4.7K, $8.3K and $30K. Excludes creator or poster payments, ad spend and the cost of building the app.",
+   "sources": [
+    "/tmp/claude-0/-home-user-fast/c1d0fe0c-b263-51e8-af6d-7c0344c439e2/scratchpad/aigen/calc/cost.py"
+   ],
+   "confidence": "medium"
+  }
+ ],
+ "implications_for_automation": [
+  "Use Vercel AI Gateway's public GET /v1/models as the system's machine-readable price and capability registry. Poll it daily, diff prices, durations, aspect ratios and audio support, and let the model router choose by price-per-quality. Hard-coded model lists go stale: Sora, Imagen 4 and Nano Banana 2.5 all disappeared in the last 60 days.",
+  "Build a model-router port with automatic fallback and an Artificial Analysis Elo snapshot per model. Defaults by price-performance: MiniMax H3 at $0.08/s (strong on image-to-video), Seedance 2.0 Mini or Grok Imagine 1.5 Lite at $0.03\u20130.08/s for drafts, and Wan 3.0 or Seedance 2.5 for hero clips. Keep Veo 3.1 Lite as a cheap 9:16 option with native audio. Do not rely on any one vendor.",
+  "Run every video generation as an async job: gateway `experimental_startVideo` with a persisted operation, a webhook URL with HMAC verification, and an idempotency key derived from the content brief hash. This prevents double billing on retries. Pass hosted asset URLs, not base64, because of the 300 KiB limit. Download outputs immediately because hosted results expire (Veo server copies last 2 days).",
+  "Make slideshows (TikTok photo carousels, up to 35 images, via the Content Posting API) the default high-volume format. At about $0.15\u20130.37 per asset they cost 3\u201330x less than generated video. Reserve generated video for formats that have already proven themselves in tests.",
+  "Never generate fake app UI. Capture real screens and recordings from the simulator through the Expo MCP or EAS builds, then composite AI backgrounds and overlays with Remotion. This complies with Apple 2.3.3/2.3.4 and avoids misleading ads.",
+  "Run coding agents headless as `claude --bare -p ... --output-format json --json-schema ... --max-budget-usd N --permission-mode dontAsk|auto --permission-prompts none`, or the Agent SDK, routed through the gateway with ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN and ANTHROPIC_API_KEY=\"\". Record total_cost_usd per venture in the ledger. Codex `exec --json --output-schema --sandbox workspace-write` is a drop-in second implementation.",
+  "Install the Expo plugin and MCP in the build sandbox. Keep code signing, provisioning profiles, .pbxproj changes and store submission in deterministic EAS or fastlane scripts behind an approval gate. Agents are documented to fail at these steps.",
+  "Use API-key auth (Anthropic Console or AI Gateway) for every agent; never claude.ai subscription login. Anthropic prohibits third-party products from using claude.ai login, and the HeyGen and Codex docs likewise say OAuth or subscription auth is trial-scale only.",
+  "Disclosure must be enforced by the system, not left to creators: set `is_aigc=true` on every TikTok post with generated visuals, toggle YouTube's altered/synthetic disclosure, use Meta's AI disclosure control, and burn in a visible 'AI-generated' marker for deepfake-like human avatars served to EU audiences (Article 50(4), the Code's optional EU icon).",
+  "Preserve provenance through the pipeline. Rendering through FFmpeg or Remotion strips upstream C2PA manifests, so re-sign the final MP4 or JPEG with a C2PA manifest listing the AI ingredients, and keep the generator's SynthID-bearing originals. Store generator, model ID, prompt and seed per asset for audit and EU compliance.",
+  "Encode the FTC 16 CFR 465 rule as a policy check. AI avatars must never be presented as real customers giving testimonials ('I used this app and\u2026'). Allow avatars only as clearly fictional or brand spokespeople with an AI label. Require stored consent records for any real-person likeness: HeyGen digital twins have a consent flow, but photo avatars have none.",
+  "Music: TikTok business accounts can only use the CML in-app, and the API cannot attach CML sounds to videos. Bake in commercially licensed AI music (Eleven Music on Starter+ at $0.15/min, or Lyria 3.5 at $0.08/song) and keep the license proof per asset. For photo carousels, use `auto_add_music` on DIRECT_POST.",
+  "Treat retries and candidate oversampling as a cost line (1.5x was assumed). Use Haiku 5.5 or Gemini Flash-class vision judges to score frames before human or creator review; slideshow QA costs under $0.01 per asset.",
+  "Batch whatever is not latency-sensitive: Claude batch is 50% off, Gemini image batch is 50% (Nano Banana 2.1 at $0.0168), and gpt-image-2 batch is 50%. Generate the next day's slideshow image pool overnight.",
+  "Budget guardrails: set gateway budgets per project and API key, use per-run `--max-budget-usd` on build agents, and cap daily generation spend per venture, e.g. $66\u2013156/day for 100 assets in the default mixes. Alert on per-asset cost drift above 2x the recipe estimate.",
+  "Vendor accounts need humans once: OpenAI organization verification for GPT Image, HeyGen enterprise indemnity if the consent flow is to be skipped, and TikTok Content Posting API audit (unaudited clients can only post privately). Put these in the human approval queue as one-time onboarding tasks."
+ ],
+ "open_questions": [
+  "Exact HeyGen API per-second rates by engine and resolution: the platform.heygen.com pricing page needs JavaScript and the figures here are secondary ($0.0167\u2013$0.0667/s).",
+  "Ideogram 4.5 official API prices: the ideogram.ai API pricing table loads by JavaScript behind Cloudflare. A `dry_run` call with a real key would give an exact quote.",
+  "Why the gateway's Veo 3.1 Fast price ($0.15/s at 1080p with audio) differs from Google's Gemini API price ($0.12/s), given the gateway's no-markup claim. Possibly Vertex AI versus Gemini API list prices.",
+  "Wan 3.0 audio: the gateway lists generate_audio as null, but it ranks #1 on Artificial Analysis's with-audio text-to-video board. Confirm native audio and voice support through the API.",
+  "Whether OpenAI's May 2026 provenance update (C2PA plus SynthID) applies to all API image outputs, including gpt-image-2.5. The primary page returned 403.",
+  "TikTok's current written Community Guidelines on AI content (realistic labeling threshold, any outright ban on synthetic depictions of private individuals, AI-avatar endorsements): the guidelines pages need JavaScript and the private-individual ban is unverified.",
+  "Whether TikTok's Content Posting API exposes Commercial Music Library sound IDs for videos (a third-party vendor claims a separate CML API), and whether CML tracks can legally be baked into externally rendered MP4s.",
+  "Status of the EU AI Omnibus text in the Official Journal, and whether the 2 Dec 2026 grace period applies to the provider marking obligation (Art 50(2)) only, or also to deployer labeling (Art 50(4)).",
+  "Measured, not modeled, Claude Code token spend for an end-to-end Expo app build (MVP plus paywall plus analytics). This needs an instrumented pilot run using total_cost_usd.",
+  "Arcads, Synthesia and Argil dollar-per-credit and API terms from the vendors' own pages. The current figures are from competitor or aggregator blogs.",
+  "Meta's official 2026 AI ad-labeling rules for non-political app-install ads (Business Help Center), and whether undisclosed AI creative is being rejected at scale.",
+  "Durability of C2PA after TikTok, Meta and YouTube transcoding, and whether platforms read C2PA from MP4s re-signed by the studio's own tooling, as opposed to the generator's original manifest."
+ ]
+}

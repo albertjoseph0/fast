@@ -1,0 +1,422 @@
+{
+ "key": "bier-principles",
+ "summary": "SOURCING AND DATES. I worked from primary material wherever I could get it. (1) The full 25-tweet Jan 12, 2022 UTC thread, pulled from Thread Reader. The user pasted 11 of its tweets; the other 14 add rules on naming, life inflection points, obsessive beachheads, a 7-opens-per-session loop heuristic, 'never build a meetup app' and 'if it requires a partnership, run'. (2) The full Lenny's Podcast transcript (aired 2024-08-25; ChatPRD/lennys-podcast-transcripts on GitHub, file episodes/nikita-bier/transcript.md, whose frontmatter is wrongly labelled 'Nikita Miller'). (3) About 57 of Bier's X posts from 2018-2026, read through the public fxtwitter API mirror of x.com. (4) The leaked 2017 tbh memo as quoted by BuzzFeed News (2018-08-07). (5) TechCrunch 2017, 2023 and 2025 reporting. (6) Apple's App Review Guidelines (page says 'Last Updated: October 16, 2026') and Apple's Nov 4, 2025 Texas age-assurance notice. Quotes from the Out of Office podcast (Lightspeed, 2026-02-10) come second-hand, from an Oct 2026 GitHub playbook built on YouTube auto-captions; I did not verify them against audio. My web-search budget ran out mid-session, so a few leads are unconfirmed (marked low). Most of Bier's tactical record is from 2017-2024, more than 18 months old. Contacts permissions, the App Store #1 install thresholds, SMS invite rules, SnapKit access, Instagram teen-account defaults and the 2026 state age-assurance laws have all changed or may have.\n\nBIOGRAPHY AND TIMELINE. Midnight Labs (founded 2010) built about 15 consumer apps, and 14 were 'basically duds'. Build time per app fell from about 1 year to about 2 weeks. tbh launched Aug 2017 at the one Georgia high school with the earliest US start date. About 40% of that school downloaded it on day one. It rolled out state by state behind geofences and hit #1 in the US by September. At the Oct 16, 2017 Facebook acquisition it had about 5M downloads in 9 weeks, 2.5M DAU and over 1B poll answers; price not disclosed, reported as about $30M to under $100M. Facebook shut it down in July 2018. Gas was a near-clone but needed about 9 relaunches, including renames from Crush and Melt. It was released Aug 29, 2022 and reached #1 in the US in Oct 2022. Reported totals range from 7.4M installs and about $7M consumer spend (Sensor Tower) to 10M downloads and $10-11M in sales (Bier, on Lenny). It ran on credits with no investors and a 4-person team. Discord bought it Jan 17, 2023 and shut it Nov 7, 2023. Later projects: advising Dupe, Saturn, Flip, Protectors and Death Clock, plus Explode (Jan 2025). He joined Lightspeed as Product Growth Partner in Sep 2024 and advised xAI. He announced he was joining X as Head of Product on Jun 30, 2025 and stepped back to adviser on Aug 5, 2026. Wikipedia says his tenure formally ended Oct 2, 2026 (not verified). His current X bio reads 'unemployed. former head of product @x'.\n\nTHE CORE METHOD. A reproducible testing process beats ideas. Seed one dense community so the network-effect precondition (friends on the app) is guaranteed. People need about 3 marketing exposures, so saturate one school with targeted ads plus a private Instagram account that follows every student listing the school, then flips public at the 4:00 PM 'Golden Launch Hour'. Bier stresses this was a TEST method for the first ~100 users, not how the app grew. Remove confounds (density of about 10 friends per tester, 24/7 live chat support) so results are binary. Validate in sequence: core flow, then spread within a group, then hopping between groups, then payment. Keep it to about 4 must-be-true conditions, and execute 100% on the stage under test. Read the result within about 48 hours. Geofence to protect servers and keep the ability to relaunch. Product-market fit is binary: 'If there's any uncertainty, it's not working.' Growth is 'a science'; durable retention is a 'black swan'. The product channels are only one-to-one invites and one-to-many sharing. K must reach 1.0, and 0.99 versus 1.01 often comes down to one extra invite button or ranking contacts correctly. His contacts floor was 70% grant (2021) against an average of about 65% (2024). iOS 18 limited contact access 'nose-dived' consent (Sep 2024), and he called friend-based contact-sync apps 'dead on arrival'. Aha within about 3 seconds; users should see their friends the first night. Use one auth method on the same protocol as invites. Each fragmentation layer adds about 50% failure risk. Sound or voice at signup is a '60% tax' because most installs happen in bed or on the toilet. Avoid 'Spotify Wrapped syndrome': the main feed content must be shareable. Names decide invites: under the Crush name with a pink icon, boys would not invite boys; the black-flame Gas icon raised invites. Ads, in-app community and invite copy must all name the same community.\n\nMONETIZATION, APP STORE AND CRITICISM. tbh's #1 support request was 'can I pay to reveal who sent polls'. Gas monetized exactly that with God Mode, about $6.99/week for hints about voters, priced so most compliments stay anonymous (under 4% opted in, per Bier). Reaching #1 in the US took 80-100K installs/day, some days up to 300K by 2024 (tbh peaked at 360K/day). In 2025 he said only first-time downloads count toward rank. He ranks his own testing by store rank: 'if it's not ranked in the App Store, I change it until it is' (2023). Criticism, all documented: BuzzFeed framed the tbh memo as a 'psychological trick' on teens. Education Week (Dec 2022) said Gas's model 'seems tailor-made to profit off teenage insecurities'; an expert called it 'a little exploitative'; school verification was easy to game. Appfigures called some Gas tactics 'borderline black-hat' (search snippet only). Snap removed Gas from SnapKit, saying it used URL attachments for friend recommendations without the sender's explicit intent; Bier says it worked from contacts, and growth stalled. Explode's promotional Live Activities were criticized as conflicting with Apple guidelines (Wikipedia, citation-needed). Bier's own statements are provocative: 'If your product offends someone, it's probably one version away from something special'. He describes 'Paywall-Ad Arbitrage Apps' as businesses whose model is primarily 'people forgetting to cancel subscriptions'. In his favor: he insists invites must be user-initiated ('we never' auto-texted; server-sent texts are 'egregiously illegal'). He pre-authored positive-only content and boosted users who hadn't been voted on recently. He frames the internet as a 'Gaia hypothesis' that punishes doing users wrong.\n\nWHAT IT MEANS FOR AN AI APP FACTORY. Bier's own 2026 view: AI collapses the $200-250K cost of a production app, so small niches become viable and validation gets faster (OOO, unverified captions). He also posted 'I really quit the viral app business just in time' (Feb 2026) in reply to 'build an app in 3 minutes'. Building is commoditized, so the edge moves to the test harness, the distribution channel and the network graph. Apple rules that bind an automated factory: 5.1.2(v) no contact-based messaging without individualized user initiative and no Select All; 1.2 bans anonymous chat and 'hot-or-not' objectification; 5.6.3 bans chart and referral manipulation; 4.3 bans spam and cloned variants; 4.5.4 requires explicit opt-in for promotional pushes. Teen-first targeting now meets Texas SB2420 age assurance and parental consent from Jan 1, 2026, and Apple's Declared Age Range and Significant Change APIs. Those raise the cost of copying the tbh/Gas teen playbook, and the factory should treat minors as a gated, human-approved segment, not a default wedge.",
+ "findings": [
+  {
+   "claim": "The Jan 2022 thread has 25 tweets, not 11. The other 14 add operational rules: name the app after the first community, target life inflection points, use obsessive audiences as beachheads, aim for 7 new opens per session, never build a 'meetup with friends' app, and walk away from anything needing a partnership.",
+   "evidence": "From the Thread Reader copy of thread 1481118406749220868 (ID decodes to 2022-01-12 04:18 UTC). Tweet 13: 'Never build an app to \"meetup with friends.\"' Tweet 14: 'If your first users are Berkeley students, go ahead & call the app Berkeley Memes... without being obnoxiously relevant.' Tweet 15: 'Great products take off by targeting a specific life inflection point' (Facebook\u2192school, LinkedIn\u21921st job, Slack\u2192starting a company). Tweet 16: 'Audiences that exhibit obsessive behavior... gamers, teens, and hobbyists.' Tweet 17: 'The number of social products that took off among older audiences can be counted on 1 finger.' Tweet 19: 'each app session to trigger 7 new people to open your app.' Tweet 20: 'If your product offends someone, it's probably one version away from something special.' Tweet 21: 'If it's been 6 months and you still haven't tested on an external audience yet...rude awakening.' Tweet 22: 'If your product requires a \"partnership\", run.' Tweet 24: take founders' advice 'with caution\u2014including all the suggestions in this list.'",
+   "sources": [
+    "https://threadreaderapp.com/thread/1481118406749220868.html",
+    "https://x.com/nikitabier/status/1481118406749220868"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The tbh seeding method used a private Instagram account per school that followed every student listing the school, built suspense, then went public at 4:00 PM when school let out. The goal was simultaneous adoption without exhausting broad attention.",
+   "evidence": "Memo quoted by BuzzFeed News (2018-08-07): 'teen Instagram users would frequently list their high school in their bios'; 'crawl the school's place page and then follow all the accounts that contained the school's name'; 'Set the app's Instagram profile to Private'; bio 'You've been invited to the new RHS app\u2014stay tuned!'; 'Wait 24 hours to receive the inbound Follow Requests'; 'At 4:00PM when school gets out (The Golden Launch Hour\u2122), add the App Store URL'; 'make the profile Public'; 'This notified all students at the same time'; 'so you don't prematurely exhaust your audience's attention.' Source is from 2017-2018 (over 18 months old). Instagram teen-account and automation policies have likely changed since; I did not verify the current policies this session.",
+   "sources": [
+    "https://www.buzzfeednews.com/article/ryanmac/facebooks-teens-tbh-psychological-trick-memo",
+    "https://www.bgr.com/business/facebook-secret-memo-tbh-teen-strategy/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Bier says the school-seeding playbook was a TESTING method to remove the density confound for roughly the first 100 users. It was not the growth engine; the app had to grow by itself afterwards.",
+   "evidence": "Lenny's Podcast (2024-08-25), 00:29:37 to 00:31:41: 'you need to see the marketing message three times or so... we ran ads targeted at a particular school'; 'This is not the way we grew the app. This is how we tested apps... for the first 100 users, yes'; 'eliminate that confounding variable... You never want to walk away from an experiment or test and say, \"Well, maybe the execution was bad\"'; 'we would try to get an entire school to adopt, just to know if everyone had 10 friends, would they actually derive value'.",
+   "sources": [
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier",
+    "https://github.com/ChatPRD/lennys-podcast-transcripts (episodes/nikita-bier/transcript.md; frontmatter mislabeled as Nikita Miller, body is Bier)"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "tbh launched at the Georgia school with the earliest US start date. About 40% of it downloaded on day one, it spread to neighboring schools, and it rolled out state by state behind geofences to control server load. Bier predicted #1 in six days.",
+   "evidence": "TechCrunch 2017-09-22: 'Forty percent of the school downloaded it the first day', then 3 schools, then 300; early access limited to a few states to avoid crashes. LP 00:20:08 to 00:22:40: 'We picked the one school that had the earliest start date in the United States'; 'we were doing a state-by-state rollout strategy where every state was geo-fenced'; AWS bill of $120K against $150K in the bank. LP 00:28:35: they geofenced because day-one messages were about 60 per user against 'three or four' on typical messaging apps; 450,000 messages from one school in 7 days. A 2018 SCET write-up says 40% 'within two days', a minor conflict.",
+   "sources": [
+    "https://techcrunch.com/2017/09/22/tbh-app/",
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier",
+    "https://scet.berkeley.edu/how-to-build-a-viral-app-tbh-founder-gives-advice-at-berkeley/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "tbh scale and exit: about 5M downloads in 9 weeks, 2.5M DAU, over 1B poll answers, a 12-answers-per-hour cap, contact upload at onboarding, and no unexpected invites. Facebook bought it Oct 16, 2017 on undisclosed terms and shut it down in July 2018.",
+   "evidence": "TechCrunch 2017-10-16: '5 million downloads', 2.5M DAU (corrected from 4M), '1 billion poll answers', 'shipped it to one school in Georgia'; price reportedly under $100M. TechCrunch 2017-09-22: users 'upload their contacts'; can 'answer 12 questions per hour'; tbh 'doesn't spam your contacts with unexpected invite messages'. Wikipedia: dissolved July 2018 for low usage. Bier later wrote tbh hit '4 million DAU' (X 2023-12-23), which conflicts with TechCrunch's 2.5M.",
+   "sources": [
+    "https://techcrunch.com/2017/10/16/facebook-acquires-anonymous-teen-compliment-app-tbh-will-let-it-run/",
+    "https://techcrunch.com/2017/09/22/tbh-app/",
+    "https://en.wikipedia.org/wiki/Gas_(app)",
+    "https://x.com/nikitabier/status/1738688024253493290"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Gas was not just 'tbh again'. Server-sent invite SMS was no longer viable, so the growth system had to be rebuilt, which took about 9 launches and renames. Each stage was validated in sequence: messages sent, then spread within a school, then hopping schools, then payment.",
+   "evidence": "LP 00:57:38 to 01:00:05: launched 'at the exact same school that we launched tbh on the exact same day five years later'; tbh invites were sent via Twilio, but 'You really can't send texts from a server anymore. It has to be sent from the user's device'; 'it took about I think like nine launches including renaming the app'; stages: 'people send a lot of messages... will it spread within a school?... Will it hop schools?' He adds that auto-texting poll targets is something 'We never did... egregiously illegal'.",
+   "sources": [
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Gas's name and icon measurably moved invite rate. Under 'Crush' with a pink icon, invites dropped because boys invite boys. Renaming to Gas with a black flame icon raised invites. tbh and Gas users skewed 60-65% female.",
+   "evidence": "LP 01:15:52 to 01:16:54: 'invitations dropped significantly under the Crush name... Boys invite boys, girls invite girls to apps. And boys didn't want to invite their friends to an app called Crush with a pink icon'; 'the app indexed about 60 to 65% women... made the icon black with a flame, called it Gas and the invites rate jumped.'",
+   "sources": [
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Gas timeline and numbers. Released Aug 29, 2022 in a subset of US states; #1 on the App Store in Oct 2022; about 300K daily downloads and over 1M actives in Oct; Discord bought it Jan 17, 2023 and shut it down Nov 7, 2023. Revenue figures conflict.",
+   "evidence": "Wikipedia, citing WaPo 2022-11-09: 'over one million active users and 300 thousand daily downloads' (Oct 2022) and 5.1M downloads by early Nov. TechCrunch 2023-01-17 (Sensor Tower): '7.4 million installs and almost $7 million in consumer spending'; 4-person team. On LP, Bier confirmed '$11 million in sales, 10 million downloads' and said they ran on AWS and Mixpanel credits with 'no investors'. An OMR article (2022-10-18) said about 80% of the US was open that week, about $500 was spent on Snap ads, and Gas was listed as a game until Oct 13 to avoid copycats; that is a single secondary source and unconfirmed.",
+   "sources": [
+    "https://en.wikipedia.org/wiki/Gas_(app)",
+    "https://techcrunch.com/2023/01/17/discord-acquires-gas-a-compliments-based-social-media-app-for-teens",
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier",
+    "https://omr.com/de/daily/gas-app-nikita-bier-slay/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Gas monetization (God Mode) came straight from tbh's #1 support request: paying to reveal who voted for you. Hints were priced at about $6.99/week, set so that most compliments stay anonymous.",
+   "evidence": "LP 00:55:48: 'the number one support message we received was can I pay to reveal who sent me polls?' Education Week (2022-12-01): users can 'pony up $6.99 a week' for hints such as 'the first letter of a name'; Bier: 'we priced the reveal feature such that most compliments stay anonymous', under 4% of users opt in. Coins were earned by answering polls (OMR). Pricing is from 2022, over 18 months old, and the app is now defunct.",
+   "sources": [
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier",
+    "https://edweek.org/technology/gas-is-the-latest-app-to-catch-fire-with-kids-what-you-need-to-know-about-it/2022/12",
+    "https://omr.com/de/daily/gas-app-nikita-bier-slay/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Gas's one-to-many share surface was Snapchat stories, and the dependence on that platform nearly killed growth. Bier says Snap pulled Gas from SnapKit after acquisition talks, breaking the app for 7 days. Snap said Gas used URL attachments to make friend recommendations without explicit sender intent.",
+   "evidence": "TechCrunch 2025-01-15: Bier: 'Snapchat kicked our app off the SnapKit platform, abruptly halting our growth'; in 2022 he said 23% of Snapchat's US users had viewed a Gas story and the removal broke the app for seven days. A Snap email told developers Gas used 'URL attachments to make friend recommendations without the sender's explicit intent'. A dcdx newsletter (2022-11-02) described Gas story sharing as a 'near-forced share'.",
+   "sources": [
+    "https://techcrunch.com/2025/01/15/creator-of-gas-and-tbh-makes-an-app-for-disappearing-photos-via-imessage",
+    "https://dcdx.substack.com/p/gas-app-and-the-premise-of-positivity"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Hoax response is part of the playbook. During the Gas trafficking hoax, account deletions peaked at 3% per day. They cut that to 0.1% with a counter-message video on the deletion screen, retractions from schools and police, Apple review removal, and SEO-aligned press. His rule: the app must stay more viral than the hoax.",
+   "evidence": "LP 01:06:20 to 01:09:51: deletions '3% of users deleting their accounts per day... got it down to 0.1%'; 'anytime someone deleted their account, they could watch this video'; called superintendents and police chiefs for retractions; asked Apple to remove review-bombed reviews; insisted the WaPo headline match 'Gas app human trafficking' searches; 'you really have to make sure the hoax is less viral than your app'. They also tried relaunching under another name 'on the other side of the country', but the hoax followed through cross-state invites.",
+   "sources": [
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier",
+    "https://en.wikipedia.org/wiki/Gas_(app)"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Bier ties invites and network effects to age. He uses about 22 as the cutoff for adopting new social apps, says adults 'have no friends', and argues adult-targeted social apps must buy every user with ads.",
+   "evidence": "LP 00:10:55 to 00:17:48: invites from 13 to 18 decline 'almost exponentially'; 'very difficult to get the flywheel spinning for anyone after like 22'; teens 'see each other every day'. Lenny reads out a Bier post: invites 'drops 20% for every additional year of age from 13 to 18. If you build for adults, expect to acquire every user with ads' (original post not located). X 2019-04-02: reluctance to invite or sync contacts 'is simply a function of age'; at a social inflection point. X 2025-02-08: 'adults have no friends.'",
+   "sources": [
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier",
+    "https://x.com/nikitabier/status/1112886629910241280",
+    "https://x.com/nikitabier/status/1888375654850453743"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "His contacts-permission benchmarks: under 70% grant means a social app is DOA (2021); the average across apps is about 65% (2024). iOS 18 limited access (Sep 2024) made friend-based contact sync 'basically dead on arrival', and he suggested LLMs might be 'the new Contact Sync'.",
+   "evidence": "X 2021-06-11: 'less than 70% of your users are granting access to contacts, your app is dead on arrival'. LP 01:24:23: 'you average about 65% approval rate... higher for teens, lower for adults'; with iOS 18's alphabetical select-contacts list, 'you better start thinking about plan B'. X 2024-09-19: 'RIP Social Apps, 2005-2023... consent... has nose-dived'; 'LLMs might be the new Contact Sync.' TechCrunch 2024-06-12 describes the iOS 18 two-step 'Allow Full Access' / 'Select Contacts' flow and the Contact Access Button. All of this is from 2021-2024, over 18 months old; consent rates under iOS 26 are unknown.",
+   "sources": [
+    "https://x.com/nikitabier/status/1403498766737444865",
+    "https://x.com/nikitabier/status/1836612494938509664",
+    "https://techcrunch.com/2024/06/12/ios-18-cracks-down-on-apps-asking-for-full-address-book-access",
+    "https://gigazine.net/gsc_news/en/20241003-ios-18-privacy-change/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Small mechanics decide K-factor. The gap between decline (0.99) and growth (1.01) is often one invite button or correct contact ranking. Username-based friend finding is about 10,000 taps against 1 for contact sync.",
+   "evidence": "X 2022-08-09: 'the difference between exponential decline vs. growth (0.99 vs. 1.01 K-factor) is often an extra invite button or ranking contacts correctly'. LP 01:30:59 to 01:31:27: contact sync 'ranks the people who are not on the app yet but have a bunch of friends on it'; exchanging usernames means 'we're looking at 10,000 taps versus one'. X 2023-11-29 satirizes the 'people can share usernames' argument.",
+   "sources": [
+    "https://x.com/nikitabier/status/1557132295714222080",
+    "https://x.com/nikitabier/status/1729676931858153501",
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Use a single auth method that runs on the same 'protocol' as distribution and friend finding, such as phone auth with SMS invites and contact-based friend finding. Multiple auth methods corrupt the social graph.",
+   "evidence": "X 2023-05-26: 'you should only allow one method\u2014and have that method be on the same \"protocol\" as your distribution & friending system... Phone Number Auth should be paired with SMS Invitations and Contact-based Friendfinding... When you allow multiple methods, it leads to a corrupted social graph.'",
+   "sources": [
+    "https://x.com/nikitabier/status/1662100378500866049"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Activation: show value within about 3 seconds, make social users see their friends on the first night, and 'invert time-to-value'. The Dupe.com URL-prefix trick is his worked example.",
+   "evidence": "LP 01:27:18 to 01:29:05: 'if you can't demonstrate value in the first three seconds, it's over'; 'the first night you have to see all of your friends on the app... otherwise you'll churn'; Dupe: type dupe.com in front of a product URL; 'millions in ARR... under 60 days'. He also says about 50% of the companies he advises hit success and about 50% fail outright.",
+   "sources": [
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The 'toilet test' has a 2025 quantitative form: most installs happen in bed or on the toilet, and requiring sound or voice at signup is a '60% tax' on growth.",
+   "evidence": "X 2025-05-21: 'The majority of new app installs take place in bed or on the toilet. If your app requires sound-on or voice to sign up, you've voluntarily accepted a 60% tax on your growth.' 2022 thread tweet 11: 'There is a graveyard of live video apps that didn't make it because of the attention they require.' The 60% figure is his own estimate, with no data published.",
+   "sources": [
+    "https://x.com/nikitabier/status/1925179335180197902",
+    "https://threadreaderapp.com/thread/1481118406749220868.html"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Habit through exposure on other networks, refined: real viral growth needs the app's main feed content to be shared at high frequency to other networks. One-off share moments ('Spotify Wrapped syndrome') produce 'phantom validation'.",
+   "evidence": "X 2023-12-16: 'You will only achieve true viral growth when the user is sharing your app's content at a high frequency to other networks... I call it Spotify Wrapped syndrome. You might top the charts for a day but that is only going to create phantom validation... What you really need is the main content in your app's feed to be shareable.' His Death Clock thread (2025-01-22) does the same thing: a death-date prediction plus an aging projection became 'personalized content to tell others about the app'.",
+   "sources": [
+    "https://x.com/nikitabier/status/1736067506442326102",
+    "https://threadreaderapp.com/thread/1882152092221222946.html"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Fragmentation tax: each layer or subgroup in an early app adds about 50% to its failure probability. Subgroups should be off the table for new products, and engagement per post is the key health metric.",
+   "evidence": "Thread 2023-01-25: 'For every part of your app that you fragment, expect to increase your app's overall probability of failure by 50%'; 'average engagement per post takes a hit, which is the key metric to track the health of your app'; 'Subgroups should be completely off the table for new products.'",
+   "sources": [
+    "https://threadreaderapp.com/thread/1618294904538685446.html"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Sequencing is his most valuable skill. Validate a chain of conditional thresholds (share rate, then share-to-download conversion, then pay rate), limit it to about 4 conditions, and execute 100% on the stage under test while half-assing the rest.",
+   "evidence": "X 2024-06-05: 'the most valuable skill is an ability to correctly sequence the things that need to validated... 1. Users need to share the app X number times... 2. The shares then need to convert to downloads at X rate 3. Then, X% of users need to pay.' LP 01:11:50 to 01:13:06: 'execute at 100% for the thing you're trying to validate at that specific stage... half-ass the rest'; 'condense it to about like four things that must be true'.",
+   "sources": [
+    "https://x.com/nikitabier/status/1798372438960730423",
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Product-market fit for consumer apps is binary and obvious. Ambiguous results mean it is not working. Most founders' metrics show K near zero, and the only fix is changing the idea.",
+   "evidence": "LP 00:36:06, quoting Roger Dickey: 'If your product's working, you'll know. And if there's any uncertainty, it's not working'; 'Our metric was hourly actives per day.' X 2023-02-01: 'About 95% of founders... show me absolutely devastating metrics. Low engagement, no retention, a K-factor close to zero. There is nothing you can do. Change the idea.'",
+   "sources": [
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier",
+    "https://x.com/nikitabier/status/1620821649888264195"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "He wants testing to be fast, time-boxed, and use the App Store as the scoreboard. That means a 4-month disband rule for a viral-app team, shipping and changing until the app ranks, and paying for unscalable infrastructure to answer the big unknowns quickly.",
+   "evidence": "X 2023-10-01: 'If it doesn't start working by the end of 4 months, we disband.' X 2023-10-04: 'Do you A/B test? No, I just ship the app\u2014and if it's not ranked in the App Store, I change it until it is.' X 2024-02-06: the first Gas prototype at one school cost '$600 in server costs per day\u2014with a userbase of only 800', paid deliberately to learn whether it would resonate, whether people would pay, and whether it would grow. Out of Office 2026 (auto-captions, second-hand): 'usually within 48 hours we'd know if it... was working'.",
+   "sources": [
+    "https://x.com/nikitabier/status/1708513023990645011",
+    "https://x.com/nikitabier/status/1709649178735825175",
+    "https://x.com/nikitabier/status/1754896706880127185",
+    "https://github.com/01ayushgarg/nikita-bier-consumer-app-virality-playbook"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "He tests in small markets: in 2014 he took a concept to Malta, 'the smallest App Store in the world', to see whether it would work at country scale. It reached #1 in 48 hours on $500 of ads.",
+   "evidence": "X 2024-01-15: 'I launched it to the smallest App Store in the world: Malta. I called it \"Maltalk\" and it reached the number one spot in 48 hours with $500 of ads.' Separately (X 2024-01-25) he said he 'will never launch an app in Europe' because of Apple's then-new EU fee structure. EU terms have since changed; not rechecked.",
+   "sources": [
+    "https://x.com/nikitabier/status/1746756081194619066",
+    "https://x.com/nikitabier/status/1750592825060921353"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "App Store ranking: #1 in the US historically took about 80-100K installs/day, rising to about 300K some days by 2024 because of heavy ad spenders. In 2025 he said only first-time downloads count toward rank. Apple publishes no chart formula.",
+   "evidence": "LP 00:24:17: 'It used to be like 80 to 100,000 installs... Between Threads, Temu... some days it's up to 300,000' per day; tbh peaked at 360,000/day. X 2025-09-09: 'only first-time downloads count (and Apple hasn't featured us in years)'; X went from No. 78 to No. 6 two months after he joined. Thresholds are from 2024, over 18 months old. ASO-vendor claims about 'velocity' are inferred, not documented by Apple.",
+   "sources": [
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier",
+    "https://x.com/nikitabier/status/1965421715732759000"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Marketing and in-product growth form one funnel. The ad imagery, in-app community join, and invite copy must all name the same community. Combined with the 'obnoxiously relevant' naming rule, this makes the community identity the unit of launch.",
+   "evidence": "LP 01:33:03 to 01:34:15: 'founders separate marketing and product growth... but they're both the same... If you're targeting a community... you need to build marketing that shows imagery of that community... when you get in the app, you have to be able to join that community. When you invite people from that app, that community needs to be mentioned.' His first move with a founder is to look at the analytics: the 'milestone that a user must hit to become activated and what's getting in the way'.",
+   "sources": [
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "His idea-sourcing heuristic is latent demand. Find people getting a value through a distortive process (e.g., Arabic-only Sarahah at #1 in the US, a 'TBH' Snapchat story game), then remove the harmful part with a constraint (positive-only pre-authored polls).",
+   "evidence": "LP 00:25:04 to 00:28:35: Sarahah was #1 in the US 'and the entire app was in Arabic... the strongest signal'; 'people are trying to obtain a particular value and going through a very distortive process'; 'what if... you just answered polls and we authored those polls so that we ensured everything would always be positive?' X 2025-05-24: 'the \"big idea\"... may just be giving them less freedom'; pre-set positive messages '10x'd messages sent'. X 2024-04-18: products that resonate often 'violate traditional values'; find 'a derivative concept that is a net good'.",
+   "sources": [
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier",
+    "https://x.com/nikitabier/status/1926295017619939743",
+    "https://x.com/nikitabier/status/1780967619199467685"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Simulate the fully populated product before building, and distrust self-selected beta cohorts and dirty analytics. Small-sample Mixpanel hygiene cannot be delegated.",
+   "evidence": "X 2024-06-21: 'simulate what the experience would be like when it's fully populated with content and users'; the Ants map app failed because the 2nd session showed nothing new, which he could have learned from a Figma mock with real data. X 2024-11-15 mocks TestFlight retention from 'self-selected people who jumped through hoops'. X 2025-02-25: founders are misled by dev debugging sessions, untracked logged-out users, and counting share attempts rather than 'final send events'; 'constantly be auditing individual sessions'. X 2023-01-23: product sense means predicting next-screen conversion 'within a 10% margin of error'.",
+   "sources": [
+    "https://x.com/nikitabier/status/1804214914472644975",
+    "https://x.com/nikitabier/status/1857293213624582551",
+    "https://x.com/nikitabier/status/1894468176584610053",
+    "https://x.com/nikitabier/status/1617590526353764353"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "He has turned against 'MVP then judge aggregate data'. He prefers holding a firm thesis, keeping a steady flow of new users, and adding quality components until the value surfaces. This partly tensions with his 'half-ass the rest' sequencing advice.",
+   "evidence": "X 2024-11-16: 'I have lost conviction that \"minimum viable products\" make sense... keep a steady flow of new users as you add components... even those need sufficient quality so there are no confounding factors that distort the signal.'",
+   "sources": [
+    "https://x.com/nikitabier/status/1857896428317630893"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Bier separates durable apps from 'Paywall-Ad Arbitrage Apps' and treats virality as repeatable but retention as luck. He advises against raising outside money for arbitrage apps.",
+   "evidence": "X 2024-10-24: 'B. Paywall-Ad Arbitrage Apps: The business model is primarily people forgetting to cancel subscriptions... retention is basically non-existent... the absolute last thing you should is raise outside funding for Type B.' X 2024-08-16: 'Building a retentive social product is a black swan event... making an app go viral is a science.'",
+   "sources": [
+    "https://x.com/nikitabier/status/1849291216166289772",
+    "https://x.com/nikitabier/status/1824491565622104552"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Post-Gas projects extended the playbook to non-social apps. Death Clock: a rename plus a shareable death-date and aging artifact cut CAC 'to pennies' (his claim). Explode: an iMessage app where only the sender installs, launched Jan 14, 2025 as a 'spite app' against Snap. Protectors: launched in LA and NYC 'at No. 3'.",
+   "evidence": "Thread 2025-01-22: renamed 'from the sleepy name Most Days to Death Clock... picked by mainstream press'; added a survey predicting your death date and 'what you would look like as you age'; 'drove the cost of acquisition down to pennies'. TechCrunch 2025-01-15: Explode is a Messages mini-app, 'Only the sender needs to install'; Explode+ costs $39.99/yr or $7.99/mo. X 2025-02-18: Protectors ('Uber with guns') debuted at No. 3. Appfigures reportedly saw Explode at about 20K downloads, then a dip; that is a search-snippet figure only.",
+   "sources": [
+    "https://threadreaderapp.com/thread/1882152092221222946.html",
+    "https://techcrunch.com/2025/01/15/creator-of-gas-and-tbh-makes-an-app-for-disappearing-photos-via-imessage",
+    "https://x.com/nikitabier/status/1891685562412675284"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "At X (Jun 30, 2025 to Aug 5, 2026), he applied the same funnel-audit method to a mature, interest-graph app. That meant onboarding and new-user ramp work (Starterpacks, Custom Timelines), fixing a missing feedback signal for link posts, small-percentage experiments, and climbing the App Store.",
+   "evidence": "X 2025-06-30: 'I've officially posted my way to the top: I'm joining @X as Head of Product.' X 2026-01-20: interest graph means 'you can't simply \"sync your contacts\"'; 'iterating each day to make it quicker & easier for new accounts to find their interests'. X 2025-10-19: link posts get low reach because the browser covers the post, so 'X doesn't get a clear signal'. X 2026-07-01: 'In a 3% experiment, removing the Top-30 highest paid revenue share accounts from the For You timeline increased both time spent and daily active users'. X 2026-08-05: 'We've climbed 70 spots in the App Store'; rebuilt 'the Timeline, the Android app, onboarding, notifications, chat'; 'nearly 30 new products'. These are his claims, not independently verified.",
+   "sources": [
+    "https://x.com/nikitabier/status/1939723101723574703",
+    "https://x.com/nikitabier/status/2013410692444102793",
+    "https://x.com/nikitabier/status/1979994223224209709",
+    "https://x.com/nikitabier/status/2072203879479910490",
+    "https://x.com/nikitabier/status/2085105586966827343",
+    "https://www.mediapost.com/publications/article/417079/x-head-of-product-steps-down-becomes-advisor.html",
+    "https://thenextweb.com/news/nikita-bier-steps-down-x-head-of-product"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "He is no longer at X. Wikipedia says his tenure formally ended Oct 2, 2026, citing his own Oct 3 post, and his live X bio reads 'unemployed. former head of product @x'.",
+   "evidence": "The fxtwitter author object for @nikitabier (Oct 2026) shows description 'unemployed. former head of product @x, ex-founder @thetbhapp (acq by @meta), ex-founder @gasappteam (acq by @discord)', with 1,353,102 followers. Wikipedia: 'Departure (October 2, 2026)'. I did not fetch the Oct 3, 2026 post itself.",
+   "sources": [
+    "https://en.wikipedia.org/wiki/Nikita_Bier",
+    "https://x.com/nikitabier"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Bier's own 2026 view of the AI era: AI collapses app-building cost and speeds validation, which makes niche markets viable. He also said he 'quit the viral app business just in time' as build times fell to minutes. X launched a Grok app builder for apps that play inside the timeline in July 2026.",
+   "evidence": "X 2026-02-21: 'I really quit the viral app business just in time', quoting '2026: build an app in 3 minutes / 2025: ... 3 days'. X 2026-07-28: 'Today's form of expression is software. Who will create the next viral game or app that plays right inside of the X Timeline? Try the new Grok app builder.' X 2026-09-20: AI 'produces value from probabilistic results'. Out of Office 2026 (second-hand auto-captions): a production app used to cost '200 $250,000'; now 'smaller niche markets can have products built for them'.",
+   "sources": [
+    "https://x.com/nikitabier/status/2025092951014301841",
+    "https://x.com/nikitabier/status/2082140254237241588",
+    "https://x.com/nikitabier/status/2101763620954894647",
+    "https://github.com/01ayushgarg/nikita-bier-consumer-app-virality-playbook"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Out of Office podcast (Lightspeed, 2026-02-10) adds that apps grow only through one-to-one invites or one-to-many sharing beyond word of mouth, that K must reach 1.0 to be truly viral, and that a viral TikTok is 'a press bump' rather than product-led growth.",
+   "evidence": "Per auto-caption quotes in a third-party sourced playbook: 'the only way apps can grow aside from word of mouth is... invitations like onetoone... and then the other is... sharing one to many' [OOO 1:05:50]; 'you need to get to a 1.0 k factor to be truly viral' [OOO 1:05:11]; 'it's kind of like a press bump. true productled growth is where... the mechanics of the product... are actually driving the acquisition' [OOO 1:06:14]. I have not verified these against audio or official transcripts.",
+   "sources": [
+    "https://github.com/01ayushgarg/nikita-bier-consumer-app-virality-playbook",
+    "https://www.youtube.com/watch?v=tF4j4LB-2rk"
+   ],
+   "confidence": "low"
+  },
+  {
+   "claim": "His methods have drawn documented criticism: a 'psychological trick' used to target high schoolers, a monetization model profiting from teen insecurity, school verification that is easy to game, Snap's policy-violation allegation, and promotional Live Activities on Explode.",
+   "evidence": "BuzzFeed (2018) and Boing Boing ('manipulating children') on the tbh memo. Education Week 2022-12-01: the model 'seems tailor-made to profit off teenage insecurities'; Greenhalgh: 'It feels a little exploitative'; Shelton: missing votes are 'telling them nobody likes them'; Common Sense: 'easy to game' school verification. CBC headline: 'One expert warns it monetizes their anxiety' (page 403; headline only). Appfigures called some Gas campaigns 'borderline black-hat' (search snippet; page 403). Wikipedia: Explode criticized for promotional Live Activities, tagged 'citation needed'. Bier's defense: fewer than a dozen misuse complaints after 1.5B polls (EdWeek) and daily messages from users who 'reconsidered suicide'.",
+   "sources": [
+    "https://www.buzzfeednews.com/article/ryanmac/facebooks-teens-tbh-psychological-trick-memo",
+    "https://boingboing.net/2018/08/08/manipulating-children.html",
+    "https://edweek.org/technology/gas-is-the-latest-app-to-catch-fire-with-kids-what-you-need-to-know-about-it/2022/12",
+    "https://amp.cbc.ca/lite/story/1.6718229",
+    "https://appfigures.com/resources/insights/20230120/2-six-months-and-7000000-later-discord-acquires-gas",
+    "https://en.wikipedia.org/wiki/Nikita_Bier"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Bier's own guardrails: invites must be user-initiated and visible, with no server-sent texts to poll targets. Content is positive-only and pre-authored, users who haven't been voted on recently are boosted in polls, and he works from the view that the internet retaliates against products that wrong users.",
+   "evidence": "LP 00:58:15 to 01:03:49: auto-texting people 'egregiously illegal... unethical'; 'I always do things by the book'; 'Gaia Hypothesis... if you do the wrong thing by users, the internet will come back and get even'; 'we put your name in polls at a higher frequency if you weren't being voted on recently'. EdWeek quotes Bier: 'names are surfaced more in polls if a user has not received compliments recently.' Counterpoint, X 2025-05-10: social products should serve 'the network', and urging contact import yields '100x value to the collective network', with values 'closer to that of a communist dictator vs. empathetic therapist.'",
+   "sources": [
+    "https://www.lennysnewsletter.com/p/how-to-consistently-go-viral-nikita-bier",
+    "https://edweek.org/technology/gas-is-the-latest-app-to-catch-fire-with-kids-what-you-need-to-know-about-it/2022/12",
+    "https://x.com/nikitabier/status/1921278141122887970"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Current Apple rules (updated Oct 16, 2026) limit what an automated factory can copy from the tbh/Gas playbook: contact-based messaging, anonymous or 'hot-or-not' mechanics, chart and referral manipulation, cloned app variants, and promotional pushes.",
+   "evidence": "5.1.2(v): 'Do not contact people using information collected via a user's Contacts... except at the explicit initiative of that user on an individualized basis; do not include a Select All option.' 5.1.1(iii): prefer 'the out-of-process picker'. 1.2: apps used for 'random or anonymous chat, objectification of real people (such as \"hot-or-not\" voting)... or bullying do not belong'; UGC apps need filtering, reporting and blocking. 5.6.3: 'Manipulating any element of the App Store customer experience such as charts, search, reviews, or referrals... is not permitted.' 4.3(a)/(b): no multiple bundle IDs of the same app, no near-identical variants. 4.5.4: promotional pushes need explicit opt-in. 3.2.2(x): cannot force rating or review to access functionality. Page footer: 'Last Updated: October 16, 2026'.",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Teen-first wedges now carry new compliance load. Texas SB2420 requires App Store age assurance and parental consent for under-18 downloads and purchases for new Texas accounts from Jan 1, 2026. Apple supplies the Declared Age Range and Significant Change APIs, and more states and countries are slated.",
+   "evidence": "Apple Developer News (2025-11-04), 'Next steps for apps distributed in Texas': from 'January 1, 2026' new Texas accounts need age assurance and 'Parent or guardian consent for minors under 18 for downloads, purchases'; parents can revoke consent, which blocks the app from launching; age bands under 13, 13-15, 16-17, 18+; 'Watch for future tools for Utah, Louisiana, and Brazil.' I did not verify whether litigation has changed Texas enforcement.",
+   "sources": [
+    "https://developer.apple.com/news/?id=2ezb6jhj"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Third-party skill and playbook repos package Bier's rules into agent-ready form. Many of their numeric thresholds (e.g., 40% install-to-first-action, 3-5 pushes/day, 6-screen onboarding) are unsourced or explicitly labelled as the authors' own, not his.",
+   "evidence": "skillsdirectory 'heyimjames nikita-bier-consumer-apps' gives thresholds such as 'aha \u22643s; first share \u226460s; activation \u226540%; \u22646 screens... 3\u20135 pushes/day'; my extraction found most of them uncited. The GitHub playbook (01ayushgarg, last commit 2026-10-08) labels its core-flow thresholds ('YES at 50% or more doing the core action 3+ times on day 1; NO under 20%') as 'our suggestions'.",
+   "sources": [
+    "https://www.skillsdirectory.com/skills/heyimjames-nikita-bier-consumer-apps",
+    "https://github.com/01ayushgarg/nikita-bier-consumer-app-virality-playbook"
+   ],
+   "confidence": "high"
+  }
+ ],
+ "implications_for_automation": [
+  "The numbers below fall into two groups. 'Bier' marks his own figure. 'Proposed' marks a default I derived for the factory, to be recalibrated on its own data. Throughout, 'thread 1' to 'thread 25' refers to the numbered tweets of his Jan 2022 thread.",
+  "P1 Reproducible testing process > any idea (thread 1): the factory's main product is the test harness, not apps. Track throughput as validated tests per month. Targets: idea to live test in 7 days or less (proposed; Bier's last pre-AI app took about 2 weeks), result read in 48 hours or less (Bier, Out of Office podcast, auto-captions). Every test pre-registers its hypothesis, the single variable under test, the sample definition, its validity preconditions, and its pass/kill thresholds before launch. Without that, the launch step is blocked.",
+  "P2 Dead-on-arrival filter (thread 2): before building, the planner lists every condition required for a user to get value: N friends present, content inventory, co-presence, partner supply. The idea gets a 'conditions to value' score. Reject if it needs more than 4 must-be-true conditions (Bier, about 4). Each extra layer of fragmentation (subgroups, two-part identities, conditional steps) adds 50% to estimated failure risk (Bier 2023 heuristic). Reject outright if value depends on a partnership (thread 22) or on 7 or more adult friends adopting together with no deterministic seeding mechanism.",
+  "P2/P7 Simulate before you build: the factory auto-generates a fully populated prototype (fixture users and content in Figma or a web mock). An LLM-judge plus 20-50 target-segment panel testers check whether session 2 shows new information (Bier's Ants lesson). Concepts whose second session repeats the first are killed before any engineering work.",
+  "P3 Wedge selection heuristic (threads 3, 14-17): score each candidate community 0-1 on six factors. (a) Daily physical co-presence (school, campus, team, gym, workplace). (b) Membership that is discoverable and bounded, e.g. a public bio tag or roster. (c) A life inflection point (entering school or college, first job, moving city, new parent, starting a company). (d) Obsessive engagement (gamers, hobbyists, fandoms). (e) Communication urgency, highest roughly at ages 14-21 (Bier). (f) Reachable with a channel the factory owns. Proposed: require a score of at least 4/6. Penalize adult-only network apps unless the plan budgets paid acquisition for every user (Bier: 'expect to acquire every user with ads').",
+  "P3 'Obnoxiously relevant' naming and alignment: auto-generate names, icons and copy that put the community identity in all three surfaces, the ad, the first screen and the invite (Bier). Run name and icon variants as invite-rate tests, not install-rate tests. Gas's renaming from a pink 'Crush' icon to a black-flame 'Gas' icon moved invite rate because of who invites whom. Proposed default: check invite rate by sender gender and segment for each name variant.",
+  "P4 No nationwide tests: a test cell is one dense community, either 500-3,000 people (proposed) or the smallest viable national store. Bier's 2014 Maltalk precedent: Malta, #1 in 48 hours on $500 of ads. Gate access by allowlist, geofence or invite code inside the app; App Store territory selection handles country-level gating. Keep a 'burned audience' registry: no community gets more than 1 concept test per 8 weeks (proposed), so audience attention isn't exhausted.",
+  "P4 Seeding for density: saturate a test cell with at least 3 distinct exposures per target person (Bier: 'three times or so'), using targeted ads, owned social accounts, creator posts and physical assets, then open access at one synchronized moment. Bier's 2017 example was the 4:00 PM dismissal 'Golden Launch Hour'. The factory must NOT automate mass-following or scraping on Instagram, TikTok or Snap. Platform automation and inauthentic-behavior rules and teen-account defaults (not verified this session) make the 2017 mechanic a terms-of-service and ban risk. Use compliant paid geo-targeting and human-run community accounts instead.",
+  "P5 Replication gate (thread 6): Bier's rule is that a product working in one community should work in all, and one failing in three should fail everywhere. Scale only after a pass in 1 cell plus at least 2 of 2 matched replication cells (same community type, similar size, different region). KILL the concept after 3 clean failures, i.e. failures on valid tests. One pass followed by replication failure means a confound, so audit the instrumentation rather than scaling.",
+  "P6 Validity preconditions for a conclusive test (thread 7). A test result counts only if all of these hold. (1) Density: at least 10 friends on the app per tester, for social apps (Bier). (2) Seeding saturation: at least 30-40% of the cell installs within 24-48 hours; tbh hit 40% of a school on day one (Bier), and 30% is a proposed floor. (3) Instrumentation audit passes: internal and dev sessions excluded, logged-out users tracked, share and invite 'final send' events counted rather than attempts (Bier 2025). (4) A support channel monitored live 24/7 by a human or AI agent (Bier). (5) Cohorts are not self-selected: cold target-community traffic, not TestFlight volunteers (Bier 2024). If any fails, the result is INVALID: fix the test harness, never record 'maybe needed more downloads'.",
+  "P6 Binary PMF decision: encode 'if there's any uncertainty, it's not working' as a default. Results in the ambiguous band trigger iterate-or-kill, never scale. Proposed scale signals: the app spreads organically to adjacent untouched cells within 7 days, and K reaches at least 1.0 (Bier: '1.0 k factor to be truly viral'). Hourly actives rising day over day (Bier's 'hourly actives per day') is a strong breakout signal.",
+  "P6 Sequenced validation ladder (Bier 2024): test stages in strict order. S1, the core flow: messages or actions per user on day 1; tbh reached about 60 against a typical messaging app's 3-4 (Bier). S2, spread within a group: invites or shares per user and in-cell penetration. S3, hopping between groups: installs in untouched cells via cross-cell invites. S4, payment: pay rate. Run each stage at 100% execution quality and leave the rest minimal. Proposed kill rule: if S1 fails twice on valid tests, kill. Allow S2 and S3 up to 4-6 variant iterations; Gas took about 9 launches including renames (Bier).",
+  "P7 Distribution-channel filter (thread 8): every idea must declare its product channel: one-to-one invites, one-to-many sharing of the core content unit, or a platform surface (iMessage app, App Clip, X-timeline mini-app via the Grok app builder, launched July 2026), each with a modeled K. Reject if no organic channel exists. Downgrade if the main channel is a rented API (the SnapKit cutoff stopped Gas, breaking the app for 7 days, Bier). Require at least 2 independent share surfaces before scaling.",
+  "P7 K-factor micro-optimization loop: treat K as found in increments. Auto-test invite-button placement and count, contact ranking (rank non-users by number of mutual friends already on the app, Bier), the invite copy's community mention, and recipient-side value before install. A move from 0.99 to 1.01 is the target (Bier 2022). Track K = invites or shares per user \u00d7 conversion per invite, per cohort per day. Thread 19 heuristic: each session should trigger about 7 new opens by other people; use it as an aspirational loop metric.",
+  "P8 Long signup is fine if activation rises (thread 9): optimize onboarding against an activation milestone, not per-screen completion. Example milestone for social apps: saw at least N friends and completed the core action on night 1 (Bier: 'the first night you have to see all of your friends'). Permission and friend-finding screens may add steps when they raise that milestone. Value must appear within about 3 seconds of the first value screen (Bier). Use one auth method on the same protocol as invites (Bier 2023), e.g. phone auth with contact-based friend finding and user-sent SMS from the device.",
+  "P8 Contacts permission targets after iOS 18: track the full-access grant rate, the limited-access count (number of contacts shared), and Contact Access Button usage separately. Bier's 2021 floor was a 70% grant and his 2024 average about 65%, both pre-iOS-18 and over 18 months old. Recalibrate on current iOS. Build at least 2 friend-graph fallbacks: community codes or rosters, QR or deep links, phone-number matching via user-initiated share sheets, and interest-graph starter packs as X did (Bier 2026).",
+  "P8 Predictive conversion model: train a model on factory history to predict next-screen conversion and push opt-in rate from screenshots before shipping. Bier's bar for product sense is accuracy within 10%, and he claims once guessing an opt-in rate within 0.06%. Flag screens whose predicted conversion falls below a threshold for redesign before any users see them.",
+  "P9 Habit through external exposure (thread 10): require that the core content unit produced in every session (poll result, photo, score, found deal) is shareable in 1-2 taps in the destination's native format (story card, link preview), with attribution. Measure shares per weekly active user per week and share-to-install conversion. Treat one-off 'Wrapped' moments as press bumps: exclude them from PMF evidence (Bier: 'phantom validation').",
+  "P10 The 'toilet test' interaction budget (thread 11, Bier 2025): the core loop must work one-handed, sound-off and voice-free (Bier puts the growth cost of sound or voice at signup at '60%'), and be interruptible and resumable. Proposed budget: the core action takes 5 taps or fewer and 15 seconds or less, and a full session can be valuable in 60 seconds or less. Reject concepts that need sustained attention (live video, long-form creation) unless they offer an asynchronous mode. Auto-check by running the prototype with audio muted and one simulated thumb, with random interruptions.",
+  "P11 Core-needs classifier (thread 12): tag every idea as love or mate, make or save money, or play and unplug from reality (Bier's 2024 version). Add utilitarian needs (movement, shelter, safety) as a secondary class. Reject ideas that fit none, and hard-reject 'meet up with friends' apps (thread 13; Bier 2019).",
+  "Monetization rule: mine the support inbox and live chat for the most frequent 'can I pay to\u2026' request and monetize exactly that (God Mode came from tbh's top support request). Price so that core free value persists; Bier priced reveals 'such that most compliments stay anonymous'. Never paywall before the aha moment. Put the 'paywall-ad arbitrage' label (Bier 2024) on apps with no retention, and fund them from cash flow, not outside capital.",
+  "App Store scoreboard: use top-chart rank as the north-star pass/fail at the scale stage (Bier: 'if it's not ranked... I change it until it is'). Only first-time downloads count (Bier 2025). Historical US #1 needed 80-100K installs/day, up to about 300K some days (Bier 2024, over 18 months old), so calibrate with live chart-tracking data. Category #1 and small-country #1 are cheaper intermediate gates. Never buy or incentivize installs, ratings or reviews (Apple 5.6.3, 3.2.2(x)). Use only SKStoreReviewController after peak positive moments (Apple 5.6.1 requires the provided API).",
+  "Time-box and portfolio: each concept gets a fixed budget and a maximum of 4 months to show S1-S3 success (Bier's disband rule), compressed for AI (proposed: 4-6 weeks). Run many concepts in parallel on reusable components: the friend finder, invite system, onboarding, analytics and support built once, with only the interaction model varied (Bier 2021/2023). Expect about a 50% hit rate even with expert guidance (Bier's advisory claim) and far lower for raw ideas; tbh came after 14 failures.",
+  "Breakout operations: pre-build the ability to geofence and throttle growth so an overloaded app can be paused and relaunched (Bier). Auto-scale infrastructure, and expect systems to need replacing about every 3 days at breakout (Bier). Treat the AWS bill against cash as a kill or raise trigger. The tbh AWS bill hit $120K against $150K in the bank (Bier).",
+  "Hoax and platform-risk runbook: monitor app reviews, TikTok, Snapchat and X for safety rumors, and alert when rumor mentions exceed a set share of brand mentions (proposed). Pre-stage a counter-message on the deletion screen and in-app. Escalate to humans for press, school and police retractions and platform takedown requests. Track the deletion rate (Gas peaked at 3%/day and was cut to 0.1%, Bier) and keep the app's virality above the rumor's.",
+  "Hard compliance guardrails, enforced by an automated policy checker before submission (Apple guidelines, Oct 16, 2026). (1) All invites are user-initiated, sent from the user's device with a visible preview, no Select All (5.1.2(v)); never server-texting contacts (Bier calls it illegal). (2) No anonymous free-text messaging and no 'hot-or-not' objectification (1.2). Positive-only, pre-authored content, with report, block and filter features. (3) No duplicate bundle IDs or near-clone variants (4.3). (4) Promotional pushes and Live Activities only with explicit opt-in (4.5.3/4.5.4). (5) No chart, review or referral manipulation (5.6.3).",
+  "Minors policy: exclude under-13s entirely (COPPA; Apple's Kids Category bans third-party analytics and ads). Treat 13-17 as a gated segment that requires human sign-off, Declared Age Range API integration, parental-consent flows where state law requires them (Texas from Jan 1, 2026; Utah, Louisiana and Brazil tooling pending per Apple), and an ethics review of monetization. This means no reveal-style paywalls targeting teen insecurity, which was the core criticism of Gas. Prefer non-minor wedges that meet the same tests: college campuses at the inflection point, new-job cohorts, hobbyist communities.",
+  "Founder-voice distribution: the factory can run a build-in-public account on X, posting one non-obvious insight per day for 6 months. Bier, as X head of product (Sep 2025), said 'we will promote your account to others'. That promise was policy under his tenure, may have changed since his exit, and must not use fake accounts or engagement pods (inauthentic behavior). Use creator content as 'press bumps', not as the product channel.",
+  "AI-native levers Bier highlights: (a) LLM conversation as a replacement for contact-sync activation ('LLMs might be the new Contact Sync', 2024). (b) Probabilistic-output products. (c) Distribution surfaces inside other apps: iMessage extensions where only the sender installs, App Clips, X-timeline mini-apps. His AI guardrail at X: 'a machine should not be talking to a human unprompted' (Bloomberg TBS interview, auto-captions, second-hand). So AI-initiated outreach to non-users is out of bounds."
+ ],
+ "open_questions": [
+  "What are actual contacts-permission grant rates (full vs. limited access) under iOS 26 in 2026? Bier's 65-70% benchmarks are from before iOS 18.",
+  "How many installs a day does the US Top Free #1 or a category #1 take in late 2026? The only figures are Bier's 2024 80-100K and 300K. Apple's chart algorithm is unpublished, and Bier says only first-time downloads count.",
+  "Did Gas use per-school waitlists, or an unlock-at-N-students threshold? I found no primary source. The best-documented mechanisms are state geofences, picking your school from a location-based list, and mutual friend requests.",
+  "Was Gas really listed under Games until Oct 13, 2022 to avoid copycats? Only one secondary source (OMR) says so.",
+  "What exact Gas push-notification copy, cadence and send-time rules were used? Beyond the 'someone in 10th grade picked you' style hint, there is little primary documentation. tbh capped answering at 12 polls an hour.",
+  "The original post behind '20% fewer invites per year of age from 13 to 18' was not located. The figure comes from Lenny reading a Bier post aloud, and Bier didn't dispute it.",
+  "The Out of Office podcast (Feb 2026) quotes (K=1.0 threshold, 48-hour reads, $200-250K pre-AI app cost, X from #78 to #2) need checking against audio or an official transcript.",
+  "Is Texas SB2420 enforcement still in effect, or enjoined? What are the final Utah, Louisiana and Brazil requirements? Both determine whether teen-first wedges are viable for an automated factory.",
+  "What do current Instagram, TikTok and Snapchat policies allow for school-targeted seeding? Instagram Teen Account defaults (private by default) likely break the 2017 mass-follow mechanic. Not verified this session.",
+  "Does X's creator-promotion offer (daily insight posts for 6 months) still hold after Bier left in Aug-Oct 2026?",
+  "What is the 'invite rate' sensitivity to icon and name for non-teen audiences? The Crush-to-Gas evidence is from one teen app.",
+  "Does Bier's view that virality is a science but retention is luck hold for AI-companion or utility apps? He reported 'extraordinary' AI-companion retention from a handful of dashboards but published no numbers.",
+  "How should the factory reconcile his Nov 2024 anti-MVP stance (quality components, a steady flow of users) with his 'execute 100% on the stage under test, half-ass the rest' sequencing? This sets how much polish each test cell gets."
+ ]
+}

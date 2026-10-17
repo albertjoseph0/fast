@@ -1251,6 +1251,8 @@ export interface PlatformLabels {
   other?: { aiLabelInCaption: boolean; adLabelInCaption: boolean };
 }
 
+export type SubmissionChangeArea = "new_app" | "core" | "monetization" | "age_rating" | "data_flows" | "copy" | "other";
+
 export interface StoreProductDef {
   productId: string;
   ladderId: string;
@@ -1282,7 +1284,15 @@ export interface ActionPayloads {
   "store.submit_build": { platform: StorePlatform; easBuildId: string };
   "store.update_listing": { platform: StorePlatform; listing: StoreListing; screenshotPaths: string[] };
   "store.set_territories": { platform: StorePlatform; territories: string[] };
-  "store.submit_review": { platform: StorePlatform; storeBuildId: string; notesForReviewer: string };
+  "store.submit_review": {
+    platform: StorePlatform;
+    storeBuildId: string;
+    notesForReviewer: string;
+    /** What changed since the last approved submission (Apple 2.5.19: core/monetization/age/data changes need a human). */
+    changedAreas?: SubmissionChangeArea[];
+    /** Automated differentiation evidence against store competitors and our own portfolio (Apple 4.3). */
+    differentiationReport?: string;
+  };
   "store.release": { platform: StorePlatform; phased: boolean };
   "store.remove_from_sale": { platform: StorePlatform; reason: string };
   "monetization.configure": { productIds: string[]; entitlementId: string };

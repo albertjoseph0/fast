@@ -1,0 +1,515 @@
+{
+ "key": "risk-compliance",
+ "summary": "Scope and method: about 60 searches and fetches (as of 2026-10-17), using primary sources where possible: TikTok Community Guidelines page data, Apple App Review Guidelines and Developer News, Google Play Help Center and Android blog, FTC press releases, and Apple/Google age-assurance posts. Law-firm alerts were used for statutes and litigation status. Pages that could not be fetched: X's Help Center (Cloudflare 403), TikTok's ads policy, and web.archive.org. X-specific rules are therefore medium or low confidence. Most findings date from 2025 to 2026. Older items still in force are flagged (FTC Endorsement Guides 2023, Consumer Review Rule 2024, NGL 2024, Path 2013, TCPA invite cases 2015-17).\n\nPlatforms: TikTok's guidelines, released 2026-08-25 and effective 2026-09-24, explicitly ban \"automation tools, scripts, or other tricks designed to bypass our systems\". They also ban \"Using automation to run many accounts or send repetitive content\", bot or scripted reviews and comments, buying or selling engagement, and \"Using AI or bot accounts to drive traffic\". Multiple accounts are allowed only if they are not used to deceive. TikTok may \"Ban additional or new accounts you create\". Realistic AI-generated content must be labeled, and commercial content must use the disclosure setting; repeated failure leads to restriction or a ban. Unoriginal, reused or low-quality content is not eligible for the For You feed. YouTube requires an \"AI use\" disclosure for realistic synthetic content and auto-labels content using C2PA metadata. Its spam policy bans \"Using automated tools or AI to churn out high volumes of similar content with minimal changes\", and three strikes in 90 days means termination. A clarification on 2026-07-16 demonetizes template or repetitive content and AI personas discussing health, finance or legal topics. Meta requires AI disclosure for photorealistic video and realistic audio, bans inauthentic assets and enforcement evasion, and since July 2025 cuts reach and monetization for unoriginal reposting. X bans duplicate content across accounts and automated trend manipulation, and was purging up to 208 bots per minute in April 2026. A reported requirement for X's prior written approval of AI reply bots is unverified.\n\nApp stores: Apple tightened guideline 4.3 on 2026-06-09. \"Indistinguishable\" apps are rejected, and saturated categories (dating, fortune telling, wallpaper and others) need a \"meaningfully different\" experience. Existing apps that are not improved can be removed, and repeated low-effort submissions can mean removal from the Developer Program. Guideline 4.2.6 rejects apps built from templates or app-generation services unless the content provider submits them itself. On 2026-10-16 Apple added 2.5.19 (bait-and-switch and hidden features lead to account termination) and 2.3.14 (no unverifiable claims in creative assets). It also extended 1.2 to AI content-creation apps and AI non-consensual intimate imagery; the Feb 2026 update had already put anonymous and random chat apps under 1.2. Apple terminated 193,000 developer accounts in 2025. Guideline 5.1.2(i), in force since 2025-11-13, requires explicit permission before sending personal data to third-party AI. Google Play bans repetitive content and highly similar multi-app portfolios. It terminates \"related\" accounts along with banned ones, and terminates any new account opened after a termination. Its July 2026 policy update restricts anonymous chat, applies the user-data policy to third-party AI, and ties apps to Android developer verification, enforced from 2026-09-30 in BR, ID, SG and TH and globally from 2027.\n\nFTC and subscriptions: the Consumer Review Rule (16 CFR 465, effective Oct 2024) bans fake reviews and testimonials, including those attributed to people who do not exist (for example AI-written). It also bans sentiment-conditioned incentives, review suppression, and buying bot followers or views. Penalties run up to $53,088 per violation. The FTC sent its first warning letters on 2025-12-22, and no civil-penalty suit was found. The 8th Circuit vacated Click-to-Cancel in July 2025. The FTC issued an advance notice of proposed rulemaking (ANPRM) in March 2026, with comments closing 2026-04-13; no proposed or final rule was found. Enforcement under ROSCA (the federal online subscription law) continues: Amazon $2.5B (Sept 2025), Chegg, Shutterstock $35M (May 2026), and Genesis Tech (June 2026). Genesis Tech was a temporary restraining order plus asset freeze against a multi-brand subscription portfolio (ADHD self-help, psychic chats) that used quiz funnels, buried renewal prices, and spread itself across multiple brands, affiliates and shell entities. That is a close analogue of an automated app factory. California's auto-renewal law (amended effective 2025-07-01) requires separate express consent and kept consent records, online cancellation, a click-to-cancel link next to any save offer, and annual reminders. NYC's cancellation rule starts 2026-10-01, Louisiana's 2027-01-01, and the UK subscription regime January 2027.\n\nChildren and teens: the amended COPPA Rule has been fully in force since 2026-04-22. It requires separate parental consent for sharing with third parties or for targeted ads, plus limits on how long data is kept. In a 2026-02-25 policy statement the FTC said it will not bring COPPA cases over data collected solely for age verification. The NGL case (July 2024) and the Sendit complaint (Sept 2025) are the direct precedents for Gas/tbh-style teen apps. Both apps sent fake \"friend\" messages to sell reveal subscriptions and failed to disclose recurring charges; NGL was banned from offering such apps to anyone under 18. Texas SB 2420 has been enforceable since 2026-06-04: the 5th Circuit stayed the injunction, the Supreme Court denied emergency relief on 2026-07-06, and the merits appeal is pending. Developers must assign age ratings, receive and enforce age category and parental consent, and notify the store of significant changes. Apple provides the Declared Age Range and PermissionKit Significant Change APIs. Utah's law was delayed to 2027-05-06 with enforcement through private lawsuits only. California AB 1043 (an OS-level age signal) starts 2027-01-01. The EU Commission found on 2026-02-06 that TikTok's infinite scroll, autoplay and push notifications are addictive design breaching the DSA. Australia's under-16 social media ban has applied since 2025-12-10. UK Online Safety Act children's codes have been enforceable since 2025-07-25, and Ofcom says self-declared age is insufficient for porn.\n\nAI-specific: California SB 243 (effective 2026-01-01) requires AI disclosure, break reminders every 3 hours for known minors, a published crisis protocol, and annual reporting from 2027-07-01. It allows private lawsuits at $1,000 per violation. SB 1119 (\"Adam's Law\", signed 2026-09-10, operative 2027-07-01) adds child defaults (time caps, memory and push notifications off) and annual risk assessments. About 12 states had companion-chatbot laws by mid-2026; NY's took effect 2025-11-05. Illinois and Nevada ban AI therapy. The FTC sent 6(b) information orders to companion-chatbot makers (Sept 2025), and Character.AI settled teen-harm suits in January 2026. EU AI Act Art. 50 transparency applies from 2026-08-02, with a grace period to 2026-12-02 for marking outputs of systems already on the market. The Code of Practice was found adequate in July 2026 and the Commission's guidelines were published 2026-07-20; AI-generated ads need labels. NY requires disclosure of synthetic performers in ads from 2026-06-09. Overall: what gets accounts and companies terminated is scaled inauthenticity (account and app farms, bots, duplicate content, ban evasion), fabricated social proof, undisclosed AI or ads, and deceptive subscriptions. Those are exactly the default growth levers of a naive autonomous viral-app system, so they must be hard-blocked rather than tuned.",
+ "findings": [
+  {
+   "claim": "TikTok explicitly prohibits automation to bypass systems, automation to run many accounts, bot-driven engagement, and buying or selling engagement. Ban evasion can lead to bans of 'additional or new accounts you create'.",
+   "evidence": "TikTok Community Guidelines, 'Deceptive Behaviors and Fake Engagement' (Released August 25, 2026; Effective September 24, 2026, from the page's embedded data). Quotes: 'We strictly prohibit automation tools, scripts, or other tricks designed to bypass our systems... If your account is restricted or banned, you may not create or use another account to get around it.' Spam: 'Using automation to run many accounts or send repetitive content'; 'Buying or selling followers or engagement'; 'Using bots or scripts to write fake reviews or comments, or to increase likes or shares'. Not allowed: 'Using AI or bot accounts to drive traffic'. 'You can have multiple accounts... but not to deceive others or break the rules.' Enforcement: 'Ban your account; Ban additional or new accounts you create; Restrict your account... FYF'.",
+   "sources": [
+    "https://www.tiktok.com/community-guidelines/en/integrity-authenticity",
+    "https://www.tiktok.com/safety/en/policies-and-engagement/integrity-authenticity"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "TikTok requires labels on AI-generated or significantly edited realistic content, bans AI content that misleads (including fake product endorsements by public figures), and requires its commercial content disclosure setting. Repeated non-disclosure leads to posting restrictions or a ban. Unoriginal or low-effort content is not eligible for the For You feed.",
+   "evidence": "Same 2026-H2 guidelines: 'we require creators to label AI-generated or significantly edited content that shows realistic-looking scenes or people. Unlabeled content may be removed, restricted, or labeled by our team.' Not allowed: 'Using the likeness of private figures without consent'; 'A public figure taking political stances, supporting products... they haven't actually addressed'. Commercial: 'If you're posting commercial content on TikTok, you must clearly disclose it using the content disclosure setting... Repeated failure to make a disclosure can lead to your account being temporarily restricted from posting content, or can lead to an account ban.' Not eligible for the For You feed: 'Reused or unoriginal content posted without creative edits'; 'Low-quality or minimally edited content'; 'Content that tries to manipulate people into... inflating likes or follows'.",
+   "sources": [
+    "https://www.tiktok.com/community-guidelines/en/integrity-authenticity"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "TikTok reportedly began requiring an AI disclosure toggle on realistic AI-generated ad creative, including AI 'UGC' avatars, around July 2026. The exact date and wording were not confirmed from TikTok's own pages.",
+   "evidence": "Vendor blogs (Common Thread Collective, Stellar Search) cite 2026-07-21 and an Ads Manager 'AI-generated content' toggle. Other vendors cite January or April 2026 policy versions. The TikTok ads policy page returned 'article no longer exists'.",
+   "sources": [
+    "https://commonthreadco.com/blogs/coachs-corner/tiktok-ai-ad-disclosure-rules-ecommerce-2026",
+    "https://www.stellarsearch.co.uk/insight/tiktoks-ai-ad-disclosure-rules-are-live-what-brands-running-ai-creative-need-to-do-now"
+   ],
+   "confidence": "low"
+  },
+  {
+   "claim": "YouTube requires disclosure of realistic altered or synthetic content and may auto-label it via C2PA or detection. Its spam policy bans AI mass-production of near-duplicate content, and three strikes in 90 days terminates a channel.",
+   "evidence": "YouTube Help 14328491: disclosure required to make a real person appear to say or do something, alter real events, or create realistic scenes. AI-assisted scripts, titles and thumbnails do not need disclosure. Consistent failure to disclose leads to a manual label, content removal or YouTube Partner Program (YPP) suspension. Auto-labels apply for C2PA metadata. Help 2801973: prohibited 'Using automated tools or AI to churn out high volumes of similar content with minimal changes'; 'offering rewards in exchange for likes, views, or subscribers'; 'If you get 3 strikes within 90 days, your channel may be terminated.' Policy applies to 'coordinated networks of channels'.",
+   "sources": [
+    "https://support.google.com/youtube/answer/14328491?hl=en",
+    "https://support.google.com/youtube/answer/2801973?hl=en"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "On 2026-07-16 YouTube clarified that three kinds of 'inauthentic content' cannot be monetized: generic, repetitive or template-based content (including mass-produced AI), off-putting or distressing bait, and AI personas of real people discussing finance, legal, health or medical topics.",
+   "evidence": "TechCrunch 2026-07-20 reporting quotes from YouTube trust and safety chief Matt Halprin. A channel with too much such content loses YPP. This builds on the July 15, 2025 rename of 'repetitious content' to 'inauthentic content'.",
+   "sources": [
+    "https://techcrunch.com/2026/07/20/youtube-clarifies-policies-around-ai-slop-and-upsetting-videos/",
+    "https://metricool.com/youtube-ai-content-rules-monetization/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Meta bans inauthentic assets used to deceive about identity or origin or to evade enforcement. It requires its AI disclosure tool for organic photorealistic video and realistic audio, with penalties possible. Since July 2025 it penalizes unoriginal reposting with lost monetization and reduced reach.",
+   "evidence": "Meta Inauthentic Behavior policy (change log: Dec 11, 2025 and 'Today'): 'creation, use, or claimed use of Inauthentic Meta Assets... to deceive Meta or our users about the identity, or origin of an audience... evade enforcement'. Meta's Feb 2026 midterms post: people must use the disclosure tool for photorealistic video or realistic-sounding audio and 'may apply penalties'. From 2026-06-01, ad media is auto-detected and labeled 'AI Info'. July 2025: repeat reusers 'lose access to Facebook monetization programs... reduced distribution'. About 10M impersonator accounts were removed in H1 2025, and about 500k spam or fake-engagement accounts were actioned.",
+   "sources": [
+    "https://transparency.meta.com/policies/community-standards/inauthentic-behavior",
+    "https://about.fb.com/news/2026/02/meta-prepares-for-2026-us-midterms/",
+    "https://about.fb.com/news/2025/02/gen-ai-transparency-metas-ads-products/",
+    "https://techcrunch.com/?p=3027715"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "X's automation rules (reportedly updated April 2026) bar automated spam, posting identical content across multiple accounts, and automated trend manipulation. Violations can lead to suspension of associated accounts and loss of API access. X ran a large bot purge in 2026. A rule that AI reply bots need X's prior written approval is reported but unverified.",
+   "evidence": "The search snippet of help.x.com/en/rules-and-policies/x-automation says X may filter or suspend accounts, suspend 'associated X accounts', and 'rate limit, suspend, or terminate' API access; 'you may not automatically post about trending topics'. The Developer Agreement lists identical content across accounts as spam. The page itself returned 403 and a Cloudflare block, so it could not be read directly. Vendor sites (opentweet.io) claim AI reply bots need prior written approval. Nikita Bier said in April 2026 that X suspends up to 208 bots per minute; Bier stepped down as Head of Product on 2026-08-06.",
+   "sources": [
+    "https://help.x.com/en/rules-and-policies/x-automation",
+    "https://docs.x.com/developer-guidelines",
+    "https://roboin.io/article/en/2026/04/09/x-continues-massive-ban-wave-removing-208-bots-per-minute/",
+    "https://www.shacknews.com/article/150270/nikita-bier-steps-down-as-x-head-of-product",
+    "https://opentweet.io/how-to/x-api-rules-for-ai-agents-2026"
+   ],
+   "confidence": "low"
+  },
+  {
+   "claim": "Apple tightened guideline 4.3 (spam) on 2026-06-09. Indistinguishable apps are rejected, saturated categories need a 'meaningfully different' experience, existing apps that are not improved or do not attract customers can be removed, and repeated low-effort submissions can mean removal from the Developer Program.",
+   "evidence": "App Review Guidelines 4.3(b): 'Don't submit apps that are indistinguishable from what's already widely available... dating, flashlight, sound effects, wallpaper, simple timers, and fortune telling... will not accept new submissions unless they offer a meaningfully different or improved experience.' MacRumors 2026-06-09: Apple may remove apps 'not updated, improved, or do not attract customers'; repeated submissions 'may lead to removal from the Apple Developer Program'. 4.3(a): don't create multiple Bundle IDs of the same app.",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/",
+    "https://www.macrumors.com/2026/06/09/app-store-guidelines-low-quality-apps/",
+    "https://appcompliance.io/blog/apple-2026-app-review-guideline-changes/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Apple guideline 4.2.6 rejects apps built from commercialized templates or app-generation services unless the content provider submits them directly. Apple says it has no rule specifically against 'vibe-coded' apps; they are judged under 2.1, 4.2, 4.3 and 5.1.1.",
+   "evidence": "4.2.6: 'Apps created from a commercialized template or app generation service will be rejected unless they are submitted directly by the provider of the app's content... Another acceptable option for template providers is to create a single binary to host all client content in an aggregated or picker model.' Apple told MacRumors it 'does not have any rules specifically against vibe coding apps' (via secondary coverage). In March 2026 Apple blocked updates to the Replit and Vibecode builder apps under 2.5.2.",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/",
+    "https://modall.ca/blog/apple-rejecting-vibe-coded-apps"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Apple's 2026-10-16 update added 2.5.19 (hidden, dormant or undocumented features and bait-and-switch lead to removal and termination of the developer account) and 2.3.14 (creative assets may not carry unverifiable product claims or pricing). It also expanded 1.2 to AI content apps and AI non-consensual intimate imagery (NCII).",
+   "evidence": "Developer News 2026-10-16: '2.5.19: New guideline clarifies long-standing policy on hidden, dormant, or undocumented features'. Bait-and-switch is described as apps that 'misrepresent their purpose during review and then change after approval'. Guideline text: 'Attempting to hide undocumented features... is grounds for removal of your app... and termination of your developer account.' 2.3.14: no 'unverifiable product claims, or specific or discounted pricing information.' Guidelines page shows 'Last Updated: October 16, 2026'.",
+   "sources": [
+    "https://developer.apple.com/news/",
+    "https://developer.apple.com/app-store/review/guidelines/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Apple's Developer Code of Conduct (5.6) bans manipulating charts, search, reviews or referrals and custom review prompts. It treats excessive refunds and negative reviews as quality failures. Repeated manipulative conduct terminates the account.",
+   "evidence": "5.6: 'Repeated manipulative or misleading behavior or other fraudulent conduct will lead to your removal from the Apple Developer Program'; apps must not 'trick them into making unwanted purchases, force them to share unnecessary data'. 5.6.1: 'we will disallow custom review prompts.' 5.6.3: 'Manipulating any element of the App Store customer experience such as charts, search, reviews, or referrals... is not permitted.' 5.6.4: 'excessive customer reports... negative customer reviews, and excessive refund requests' indicate failure.",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Apple's 2025 enforcement scale: 193,000 developer accounts terminated for fraud, 138,000+ enrollments rejected, and about 2.09M of 9.1M submissions rejected.",
+   "evidence": "Apple Newsroom, May 2026 ('The App Store stopped over $2.2 billion in fraudulent transactions in 2025'). Rejections cited 'bait-and-switch', 'hidden features', 'cloned apps, spam submissions'. Secondary sources say 418 apps were removed under 4.3.0 and 279 under 4.1.0; that figure is not verified against Apple.",
+   "sources": [
+    "https://www.apple.com/au/newsroom/2026/05/the-app-store-stopped-over-2-point-2-billion-usd-in-fraudulent-transactions-in-2025/",
+    "https://www.securityweek.com/apple-rejected-2-million-app-store-submissions-in-2025-for-security-and-fraud-prevention/",
+    "https://developer.apple.com/news/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Apple 1.2 (user-generated content) now covers social, UGC and AI content-creation apps. These need filtering, reporting, blocking and published contact information. Random or anonymous chat and 'hot-or-not' apps 'do not belong'. Failing to fix violations after notice is a Code of Conduct violation.",
+   "evidence": "1.2 text: 'This includes social media, user-generated content platforms, and AI content creation apps. To prevent abuse, such apps must include: A method for filtering objectionable material... A mechanism to report offensive content and timely responses... The ability to block abusive users... Published contact information.' 'Chatroulette-style experiences, random or anonymous chat, objectification of real people (such as hot-or-not voting)... do not belong on the App Store.' 'Egregious or repeated behavior is grounds for immediate removal... and from the Apple Developer Program.' Updates dated 2026-02-06 (anonymous chat) and 2026-10-16. 1.2.1(a): creator apps need verified or declared age restriction.",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/",
+    "https://developer.apple.com/news/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Apple's privacy rules restrict contact-graph growth: use the picker rather than full Contacts access, build no contact databases, contact people only at the user's explicit, individualized initiative, offer in-app account deletion, and get explicit permission before sharing personal data with third-party AI (since 2025-11-13).",
+   "evidence": "5.1.1(iii): 'use the out-of-process picker or a share sheet rather than requesting full access to protected resources like Photos or Contacts.' 'Do not use information from Contacts... to build a contact database'; 'Do not contact people using information collected via a user's Contacts or Photos, except at the explicit initiative of that user on an individualized basis.' 5.1.1(v): account deletion in-app. 5.1.1(ix): healthcare and other regulated services must be submitted by a legal entity. 5.1.2(i): 'including with third-party AI, and obtain explicit permission before doing so' (added Nov 13, 2025 per iGeeksBlog and others).",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/",
+    "https://www.igeeksblog.com/apple-app-store-ai-data-disclosure-guidelines"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Apple's subscription and claims rules: auto-renewing subscriptions must last at least 7 days and provide ongoing value. Bait-and-switch subscription tricks lead to removal and possible program expulsion. Medical apps get extra scrutiny. 'For entertainment purposes' does not cure fake functionality.",
+   "evidence": "3.1.2(a): 'Apps that attempt to scam users will be removed... trick users into purchasing a subscription under false pretenses or engage in bait-and-switch... you may be removed from the Apple Developer Program.' 3.1.2(c): 'clearly describe what the user will get for the price.' 1.4.1: disclose methodology for health measurement claims; 'remind users to check with a doctor'. 1.1.6: 'Stating that the app is for entertainment purposes won't overcome this guideline. Apps that enable anonymous or prank phone calls or SMS/MMS messaging will be rejected.'",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Apple's age-rating system adds 13+, 16+ and 18+. From September 2026 the questionnaire must be answered for submissions and now asks about social media capabilities, which drive a Social Media Time Allowance and a new content descriptor.",
+   "evidence": "Developer News 2026-07-09: social media capability means the ability to 'redistribute, amplify, or interact with user-generated content through a social feed or similar discovery method'. Responses are required from September 2026 for new submissions and updates. If social features are disabled for under-13 users, the app is excluded from the allowance for them. The earlier deadline was 2026-01-31 for the updated questions.",
+   "sources": [
+    "https://developer.apple.com/news/?id=tlur8uvi",
+    "https://developer.apple.com/news/upcoming-requirements/?id=07242025a"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Google Play bans repetitive content and multiple highly similar apps, and bans sending messages on a user's behalf without letting the user confirm content and recipients. Termination extends to 'related' developer accounts, and new accounts opened after termination are terminated without refund.",
+   "evidence": "Spam policy 9899034: 'We don't allow apps that merely provide the same experience as other apps already on Google Play'; multiple apps with highly similar functionality, content and UX violate it. Message spam: apps that 'send SMS, email, or other messages on behalf of the user' are not allowed unless the user can confirm content and recipients. Help 2491922: 'any related Google Play Developer accounts are also terminated'; 'Do not attempt to register for a new Google Play Developer account'. Enforcement page: 'termination of individual or related Google Play Developer accounts'. Google does not define 'related'.",
+   "sources": [
+    "https://support.google.com/googleplay/android-developer/answer/9899034?hl=en",
+    "https://support.google.com/googleplay/android-developer/answer/2491922?hl=en",
+    "https://support.google.com/googleplay/android-developer/answer/9899234"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Google Play's 2026-07-15 policy update restricts anonymous and random chat apps and bars them from targeting children. It confirms the user-data policy covers third-party AI integrations, requires app registration for Android developer verification, and disallows unrated apps. Generative AI apps must prevent prohibited content.",
+   "evidence": "Policy announcement 2026-07-15 (at least 30 days to comply): anonymous and random chat restrictions; Families policy bars anonymous chat targeting children; 'User data and AI: The user data policy also covers third-party AI integrations'; unregistered apps risk global removal. The AI-Generated Content policy (14094294) covers chatbots, image generators and real-person voice or video, and bans content encouraging self-harm, bullying, NCII deepfakes, and so on. In-app reporting is referenced by secondary sources but was not visible in the fetched text.",
+   "sources": [
+    "https://support.google.com/googleplay/android-developer/answer/17134731?hl=en-GB",
+    "https://support.google.com/googleplay/android-developer/answer/14094294?hl=en"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Android developer verification (legal name, address, email, phone) is enforced from 2026-09-30 on certified devices in Brazil, Indonesia, Singapore and Thailand, regardless of where the app was downloaded, with global rollout in 2027 and later.",
+   "evidence": "Android Developers Blog (June 2026) and developer.android.com verification guides. Sideloading via adb or an 'advanced flow' remains possible.",
+   "sources": [
+    "https://android-developers.googleblog.com/2026/06/android-developer-verification.html?hl=es_CL",
+    "https://developer.android.com/developer-verification/guides?hl=bn"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The EU DSA requires app developers to declare trader status and show their address, phone and email. Apple removed about 135k EU apps without trader status on 2025-02-18.",
+   "evidence": "TechCrunch 2025-02-18; Appfigures data. DSA Arts. 30-31. Older than 18 months, but the requirement is ongoing.",
+   "sources": [
+    "https://techcrunch.com/2025/02/18/apple-purges-apps-without-contact-info-from-eu-app-store-as-dsa-deadline-hits"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The FTC Consumer Review and Testimonials Rule (16 CFR 465, effective Oct 2024) bans fake reviews, including those attributed to non-existent people (for example AI-generated). It also bans sentiment-conditioned incentives, undisclosed insider reviews, company-controlled 'independent' review sites, review suppression, and buying or selling fake social-media indicators (bot or hijacked followers or views). Penalties run up to $53,088 per violation. The first warning letters went out on 2025-12-22; no civil-penalty lawsuit was found.",
+   "evidence": "FTC press release 2024-08-14: bans reviews that 'misrepresent that they are by someone who does not exist'; 'fake indicators of social media influence, such as followers or views generated by a bot or hijacked account'. FTC press release 2025-12-22: warned 10 companies, 'civil penalties of up to $53,088 per violation'. Searches through Oct 2026 found no filed suit.",
+   "sources": [
+    "https://www.ftc.gov/news-events/news/press-releases/2024/08/federal-trade-commission-announces-final-rule-banning-fake-reviews-testimonials",
+    "https://www.ftc.gov/news-events/news/press-releases/2025/12/ftc-warns-10-companies-about-possible-violations-agencys-new-consumer-review-rule"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Under the FTC Endorsement Guides (2023 revision, still binding guidance), disclosures must be 'clear and conspicuous' within the content itself, and platform disclosure tools alone may not suffice. Brands must train and monitor paid creators. Virtual or AI influencers count as endorsers. Claims of a new 2026 FTC 'AI double disclosure' rule are unverified.",
+   "evidence": "FTC 'Endorsement Guides: What People Are Asking': text in a TikTok description is 'unlikely' to be clear and conspicuous, so superimpose it on the video. Visual endorsements need at least a visual disclosure, and livestreams need repeated disclosures. A platform tool 'doesn't guarantee compliance'. '#ad' at the start is likely effective; '#ambassador', 'partner' and 'Gifted' are ambiguous. Brands need training, monitoring and pre-approval, and must keep monitoring for months after a contract ends. Vendor blogs claiming a 2026 FTC AI-disclosure rule could not be confirmed. Note: guides date from June 2023 (>18 months), but there is no indication they changed.",
+   "sources": [
+    "https://www.ftc.gov/business-guidance/resources/ftcs-endorsement-guides-what-people-are-asking",
+    "https://revisionlegal.com/internet-law/virtual-influencer-ftc-compliance-guide/",
+    "https://blog.promise.legal/startup-central/ftc-ai-disclosure-rules-creators-2026/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Click-to-Cancel remains vacated (8th Circuit, July 2025). The FTC restarted rulemaking with an ANPRM in March 2026 (comments closed 2026-04-13), and no proposed or final rule was found as of Sept-Oct 2026. Enforcement under ROSCA (the federal online subscription law) and the FTC Act's Section 5 continues and treats the vacated rule's requirements as de facto standards.",
+   "evidence": "Jones Day (May 2026): ANPRM issued in March 2026, about 100 comments; cites Care.com $8.5M, Amazon $2.5B, and NextMed, where vacated-rule requirements were treated as Section 5 violations. Gibson Dunn and Kelley Drye on the relaunch. Alston (Oct 2025): Amazon $1B penalty plus $1.5B redress; cancellation must use the same medium as sign-up. Shutterstock $35M (May 2026).",
+   "sources": [
+    "https://www.jonesday.com/en/insights/2026/05/ftc-revives-clicktocancel-rule-new-risks-for-subscription-businesses",
+    "https://www.gibsondunn.com/ftc-restarts-negative-option-rulemaking-after-eighth-circuit-vacatur-enforcement-under-rosca-continues/",
+    "https://www.cooley.com/news/insight/2025/2025-07-11-click-to-cancel-just-got-cancelled-eighth-circuit-vacates-entirety-of-ftcs-negative-option-rule",
+    "https://www.alston.com/en/insights/publications/2025/10/ftc-settlement-prime-subscription-practices"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The FTC's June 2026 Genesis Tech action targets a multi-brand digital subscription portfolio (ADHD self-help, psychic chats, fitness, PDF tools). It obtained a temporary restraining order and asset freeze over quiz-funnel dark patterns, buried renewal prices, unconsented upsells, cancellations that were not processed, and spreading activity across multiple entities, affiliates and shell companies.",
+   "evidence": "BakerHostetler, 2026-09-11: the FTC alleged a 'repeatable enterprise-wide model deployed across multiple brands and entities' and that the defendants opened new companies, used affiliates to conceal identities, and moved proceeds through 'shell companies'. Ads led users into quizzes before material terms were disclosed. Trial prices were prominent while renewal prices sat in fine print. Upsells were treated as new subscriptions without consent. The FTC sought a temporary restraining order and asset freeze against corporate and individual defendants.",
+   "sources": [
+    "https://www.bakerlaw.com/insights/ftcs-genesis-tech-complaint-signals-more-than-another-rosca-case/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "California's Automatic Renewal Law as amended by AB 2863 (effective 2025-07-01) requires express affirmative consent to auto-renewal terms, kept consent records, online cancellation for online sign-ups, a prominent 'click to cancel' next to any save offer, annual reminders, and notice of price changes. It covers free-to-paid conversions.",
+   "evidence": "Fenwick, DWT and Barnes & Thornburg alerts: consent records kept for 3 years or 1 year after termination, whichever is longer. Save offers are allowed only with a 'prominently located and continuously and proximately displayed' click-to-cancel link. Price-change notice 7-30 days before (fewer sources). Annual reminder.",
+   "sources": [
+    "https://fenwick.com/insights/publications/california-tightens-requirements-for-automatically-renewing-subscriptions",
+    "https://dwt.com/insights/2024/10/ab-2863-updates-california-automatic-renewal-law",
+    "https://btlaw.com/en/insights/alerts/2025/california-expands-automatic-renewal-law-new-requirements-now-in-effect"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "New subscription and cancellation rules continue to arrive: the NYC DCWP Click-to-Cancel rule takes effect 2026-10-01, Louisiana's Click-to-Cancel Act (HB 750) requires compliance by 2027-01-01, Connecticut amendments took effect 2026-07-01, and about 30 states have auto-renewal laws. The UK DMCCA subscription regime is expected in January 2027, and the UK fake-review ban has been in force since April 2025 with Competition and Markets Authority (CMA) fines up to 10% of global turnover.",
+   "evidence": "Kelley Drye 'Summer 2026 Autorenewal Roundup'; Shook Hardy (Aug 2026). NYC penalties: $525, $1,050 and $3,500. UK government confirmed January 2027 on 2026-08-09 per TLT and Stephenson Harwood; Lewis Silkin had earlier said spring 2027.",
+   "sources": [
+    "https://www.kelleydrye.com/viewpoints/blogs/ad-law-access/summer-2026-autorenewal-roundup-nyc-and-louisiana-enact-new-regulatory-requirements",
+    "https://www.shb.com/intelligence/newsletters/pds/pedersen-straus-hansen-aug-2026-click-to-cancel",
+    "https://www.tlt.com/insights-and-events/insight/dmcc-act-subscription-contracts-regime-brought-forward-by-the-pm-what-do-businesses-need-to-know",
+    "https://www.lewissilkin.com/en/insights/2026/04/02/consumer-law-update-subscriptions-regime-delayed-again-to-spring-2027-102mops"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "New York's synthetic performer law (GBL \u00a7396-b, effective 2026-06-09) requires advertisers to disclose AI-generated 'synthetic performers' in visual or audiovisual ads when they have actual knowledge of their use. Penalties are $1,000 for a first violation and $5,000 for each subsequent one.",
+   "evidence": "Cooley (2026-01-29), Hunton, Ashurst, Croke Fairchild. Definition: a digitally created asset that gives the impression of a human performance by someone who is not an identifiable person. Audio-only ads and expressive works are exempt. Disclosure does not cure right-of-publicity consent problems.",
+   "sources": [
+    "https://www.cooley.com/news/insight/2026/2026-01-29-new-york-enacts-synthetic-performer-disclosure-law-for-advertisements-including-those-using-generative-ai",
+    "https://www.ashurstperkinscoie.com/en/insights/new-york-requires-disclosure-of-synthetic-performers-in-ads/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The FTC continues 'AI-washing' cases over false AI capability claims (Operation AI Comply 2024; Workado resolved 2026; Growth Cave 2026-01-27; Air AI pending), though under current leadership its focus is narrower.",
+   "evidence": "DLA Piper (Feb 2026); NatLawReview. The July 2025 AI Action Plan asked the FTC to review investigations that might 'unduly burden AI innovation'. An Aug 2026 consent orders item was not verified.",
+   "sources": [
+    "https://www.dlapiper.com/en/insights/publications/2026/02/ftc-resolves-another-case-involving-ai-washing",
+    "https://natlawreview.com/press-releases/ftc-brings-dozen-ai-washing-enforcement-cases-2025-targeting-overstated-ai"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "The amended COPPA Rule took effect 2025-06-23 and has required full compliance since 2026-04-22. It requires separate parental consent before disclosing children's data to third parties, including for targeted ads, bans indefinite retention, adds biometric and government IDs to personal information, and requires direct notices to name third parties. A 2026-02-25 FTC policy statement says the FTC will not enforce COPPA against general or mixed-audience operators that collect data solely for age verification, subject to conditions. A further rule review is planned.",
+   "evidence": "FTC press release (Jan 2025): 'opt in to targeted advertising'; 'cannot retain the information indefinitely'. The proposed push-notification limits were not finalized. Mayer Brown and Hogan Lovells (Feb 2026) on the policy statement; the age-verification workshop was held 2026-01-28. Disney $10M COPPA settlement approved (Dec 31, 2025).",
+   "sources": [
+    "https://www.ftc.gov/news-events/news/press-releases/2025/01/ftc-finalizes-changes-childrens-privacy-rule-limiting-companies-ability-monetize-kids-data",
+    "https://www.mayerbrown.com/ja/insights/publications/2026/02/ftc-issues-policy-statement-on-age-verification-technologies-under-coppa",
+    "https://bbbprograms.org/media/insights/blog/coppa-amended"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "FTC precedents for viral teen apps: NGL (July 2024) and Sendit (Sept 2025) were charged over fake 'friend' messages used to sell identity-reveal subscriptions, undisclosed recurring charges, false AI-moderation claims (NGL), and COPPA violations. NGL and its founders were banned from offering anonymous messaging apps to anyone under 18.",
+   "evidence": "NGL: 'sent fake messages that appeared to come from real people'; $4.5M redress plus a $500k civil penalty (LA DA); 'AI often failed to filter out harmful language and bullying'; the refund process ran in 2026 (deadline 2026-04-06). Sendit (FTC 2025-09-29; DOJ complaint, C.D. Cal.): many messages were generated by the company, some provocative or sexual; 'Diamond Membership' charged up to $9.99 per week without clear disclosure; more than 116,000 users self-reported as under 13 in 2022. Outcome still pending. NGL is from July 2024 (>18 months) but remains the controlling precedent.",
+   "sources": [
+    "https://www.ftc.gov/news-events/news/press-releases/2024/07/ftc-order-will-ban-ngl-labs-its-founders-offering-anonymous-messaging-apps-kids-under-18-halt",
+    "https://www.ftc.gov/news-events/news/press-releases/2026/01/ftc-announces-refund-claims-process-ngl-users-affected-deceptive-tactics-unauthorized-charges",
+    "https://www.ftc.gov/news-events/news/press-releases/2025/09/ftc-alleges-sendit-app-its-ceo-unlawfully-collected-personal-data-children-deceived-users-about"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Texas SB 2420 (App Store Accountability Act) has been enforceable since 2026-06-04. The district court's injunction (2025-12-23) was stayed by the 5th Circuit (2026-05-28), and the Supreme Court denied emergency relief on 2026-07-06; the merits appeal (No. 25-51073) is pending. Developers must rate apps, notify the store of significant changes, receive and apply age category and parental consent, and limit and delete age data.",
+   "evidence": "Apple Developer News 2026-06-03: 'Update for Apps Distributed in Texas': the injunction was lifted and changes take effect June 4, 2026. Covers age assurance and parental consent for under-18 downloads, in-app purchases and significant changes, plus consent revocation. Tools: Declared Age Range API, Significant Change API (PermissionKit), StoreKit ageRatingCode, and server notifications. Ashurst (2026-07-14): four statutory categories (<13, 13-15, 16-17, 18+), notify significant changes, use age data only for permitted purposes and delete it. Violations are deceptive trade practices and private suits are allowed; secondary sources say penalties reach $10,000 per violation. Google's English Texas page still said 'pausing', which conflicts with the Spanish version.",
+   "sources": [
+    "https://developer.apple.com/news/",
+    "https://developer.apple.com/news/?id=2ezb6jhj",
+    "https://www.ashurstperkinscoie.com/en/insights/supreme-court-green-lights-the-texas-age-verification-law-for-app-stores/",
+    "https://www.infolawgroup.com/insights/2026/7/7/supreme-court-clears-the-way-texass-app-store-accountability-act-is-now-enforceable",
+    "https://support.google.com/googleplay/android-developer/answer/16569691?hl=en"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Utah's App Store Accountability Act was amended (HB 498): operational requirements are delayed to 2027-05-06, the Attorney General's enforcement power was removed, and only private suits remain (greater of $1,000 per violation or actual damages). A 'significant change' includes adding in-app purchases or ads. Louisiana's version (HB 570, amended by HB 977) may take effect in 2027. California's Digital Age Assurance Act (AB 1043, operating-system-level age signal) starts 2027-01-01, and receiving the signal can create 'actual knowledge' that a user is a minor.",
+   "evidence": "Wiley (2026-04-30); JD Supra: Utah challenge dismissed 2026-04-21. Ashurst (2026-07-14) on Louisiana and California. Apple's Feb 2026 post had said age categories would be shared for Utah from 2026-05-06 and Louisiana from 2026-07-01. The start date for Utah private suits after the amendment was not confirmed.",
+   "sources": [
+    "https://www.wileyconnect.com/utah-amends-app-store-accountability-act-asaa-key-obligations-delayed-until-may-6-2027",
+    "https://www.jdsupra.com/legalnews/challenge-to-utah-s-app-store-6173927/",
+    "https://developer.apple.com/news/?id=f5zj08ey",
+    "https://www.ashurstperkinscoie.com/en/insights/supreme-court-green-lights-the-texas-age-verification-law-for-app-stores/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Google Play Age Signals: since 2026-01-01, its data may be used only to provide age-appropriate experiences or meet legal obligations. The API is live in Brazil, expanded to Australia and Canada by mid-August 2026, and is due to roll out globally later in 2026.",
+   "evidence": "Android Developers Blog 2026-07-29; Play Console help pages.",
+   "sources": [
+    "https://android-developers.googleblog.com/2026/07/google-play-age-signals-api-safer-experiences.html",
+    "https://developer.android.com/google/play/age-signals/notify-significant-changes"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "EU DSA child protection: Art. 28 guidelines (2025-07-14) expect private-by-default accounts for minors and age assurance for high-risk services. The Commission preliminarily found on 2026-02-06 that TikTok's infinite scroll, autoplay, push notifications and personalized recommender are addictive design that breaches the DSA, with possible fines up to 6% of turnover. An EU age-verification Recommendation followed on 2026-04-29.",
+   "evidence": "EC press release 2026-02-06: proposed remedies include 'disabling key addictive features such as infinite scroll over time, implementing effective screen time breaks, including during the night'. FPF on the Art. 28 guidelines and the 2026-04-29 Recommendation. Micro and small platforms are exempt from DSA Section 3 (Arts. 20-28) under Art. 19, but Art. 16-17 notice-and-action duties apply to all hosting services. That exemption point comes from the regulation text, which was not fetched this session.",
+   "sources": [
+    "https://digital-strategy.ec.europa.eu/en/news/commission-preliminarily-finds-tiktoks-addictive-design-breach-digital-services-act",
+    "https://fpf.org/blog/the-eu-commissions-approach-to-age-verification-mobile-apps-dsa-enforcement-and-challenging-national-social-media-bans/",
+    "https://digitalpoland.org/en/blog/2025/07/european-commission-publishes-dsa-article-28-guidelines-on-protection-of-minors"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "UK Online Safety Act: children's safety duties have been enforceable since 2025-07-25 for services likely to be accessed by children. Ofcom says self-declared age is not enough for porn and has fined AVS \u00a31M, 8579 LLC \u00a31.35M and 4chan \u00a350k. In March 2026 Ofcom and the ICO told user-to-user services to make minimum-age rules work in practice. Maximum fines are \u00a318M or 10% of global revenue.",
+   "evidence": "RPC, SCL and Ofcom pages; the categorisation register was planned for around July 2026 (outcome not confirmed). The 10% / \u00a318M maximum is statutory and was not re-fetched.",
+   "sources": [
+    "https://www.ofcom.org.uk/online-safety/protecting-children/ofcom-fines-porn-company-1million-for-not-having-robust-age-checks",
+    "https://www.rpclegal.com/snapshots/technology-digital/autumn-2026/online-safety-act-ofcom-fines-two-adult-sites-for-age-verification-failures/",
+    "https://www.scl.org/regulators-warn-tech-platforms-that-age-assurance-must-actually-work/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Australia's social media minimum age (under 16) has applied since 2025-12-10, with fines up to about A$49.5M. eSafety is investigating Facebook, Instagram, Snapchat, TikTok and YouTube. A new teen social app launched in Australia would likely be an age-restricted platform.",
+   "evidence": "Mediaweek and AdNews (2026); ABC coverage (Dec 2025). 4.7M accounts were removed by mid-December 2025 and 310k more by March 2026. Whether small new apps fall in scope was not verified.",
+   "sources": [
+    "https://www.adnews.com.au/news/facebook-instagram-snapchat-tiktok-and-youtube-named-over-age-law-compliance",
+    "https://abc7.com/18251734/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "US kids' design codes and federal bills: after the 9th Circuit ruling of 2026-03-12, California's Age-Appropriate Design Code is partly enforceable (its data-use and dark-pattern provisions were found likely vague). Vermont's code takes effect 2027-01-01. In Congress, Senate Commerce advanced KOSA (Aug 2026) and the House passed the KIDS Act (H.R. 7757, 2026-06-29); neither is law.",
+   "evidence": "Cooley 2026-03-30; Holland & Knight 2026-03-19; Hunton on Vermont; Washington Times 2026-08-05.",
+   "sources": [
+    "https://www.cooley.com/news/insight/2026/2026-03-30-netchoice-v-bonta-ninth-circuit-narrows-injunction-against-californias-ageappropriate-design-code-act",
+    "https://www.hunton.com/privacy-and-information-security-law/vermont-enacts-age-appropriate-design-code",
+    "https://www.washingtontimes.com/news/2026/aug/5/kids-online-safety-bills-head-full-senate-yearslong-effort-rein-big/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Gas/tbh history (high-schooler polling apps): tbh was acquired by Facebook in Oct 2017 and shut in July 2018 for low usage. Gas launched in Aug 2022, was acquired by Discord in Jan 2023, and was shut in Oct or Nov 2023. A viral human-trafficking hoax in Sept-Oct 2022 caused waves of deletions, and Bier blamed a fake review.",
+   "evidence": "Wikipedia (tbh, Gas) citing The Verge and The Information; Lead Stories fact check (Nov 2022). Historical (>18 months). The rule changes since then (Apple 1.2 anonymous chat, Feb 2026; NGL/Sendit precedents; age-assurance laws) make a 2026 Gas clone materially riskier.",
+   "sources": [
+    "https://Www.Wikipedia.org/wiki/Tbh",
+    "https://Www.wikipedia.org/wiki/Gas_(app)",
+    "https://leadstories.com/hoax-alert/2022/11/fact-check-gas-app-not-used-by-sex-traffickers-to-kidnap-ensnare-kids.html"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "California SB 243 (companion chatbots), effective 2026-01-01: clear AI disclosure if a reasonable person could be misled. For known minors: AI disclosure, break reminders every 3 hours, and reasonable measures against sexually explicit content. A suicide and self-harm protocol must be published, with annual reports to the Office of Suicide Prevention from 2027-07-01. Private right of action: the greater of actual damages or $1,000 per violation, plus fees.",
+   "evidence": "Skadden (Oct 2025), FPF, Gunderson. One source claiming $250k penalties conflicts with the others and is disregarded.",
+   "sources": [
+    "https://skadden.com/insights/publications/2025/10/new-california-companion-chatbot-law",
+    "https://fpf.org/blog/understanding-the-new-wave-of-chatbot-legislation-california-sb-243-and-beyond/",
+    "https://www.gunder.com/en/news-insights/insights/client-insight-california-sb-243-new-compliance-requirements-for-operators-of-ai-companion-chatbots"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "California SB 1119 ('Adam's Law', signed 2026-09-10, key provisions operative 2027-07-01) adds requirements for companion chatbots that allow child users. These include parental notification in crisis protocols, defaults that only a linked parent account can change (persistent memory off, push notifications off, time limits; reportedly 1 hour per session and 2 hours per day), annual child-safety risk assessments, and limits on ads and on selling or sharing data. Operators must determine every user's age or apply minor protections to all users.",
+   "evidence": "Fenwick, ZwillGen, Akin Gump, Common Sense Media. Sources conflict on audit timing (AG standards vs. 'starting 2029').",
+   "sources": [
+    "https://www.fenwick.com/insights/publications/california-enacts-comprehensive-child-safety-laws-targeting-ai-chatbots",
+    "https://www.akingump.com/print/v2/content/1136628/california-enacts-companion-chatbot-child-safety-requirements-sb-1119.pdf",
+    "https://www.commonsensemedia.org/press-releases/governor-newsom-signs-adams-law-setting-first-real-safety-standard-for-kids-and-chatbots"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "About 12 states had enacted companion-chatbot laws by mid-2026 (CO, GA, IA, NY, RI, CA, ID, NE, OR, CT, WA, among others). Common elements are AI-status reminders every 3 hours (all users in some states; hourly for minors in CT and WA), crisis protocols with 988 referral, and, for minors, bans on sexual content, romantic interactions, emotional manipulation and addictive engagement. NY's law took effect 2025-11-05.",
+   "evidence": "MultiState.ai Vol. 105 (2026-06-26); MoFo (2025-11-20). Per-state effective dates vary (for example Iowa SF 2417 2026-07-01, Georgia SB 540 2027-07-01; several 2027-01-01).",
+   "sources": [
+    "https://www.multistate.ai/updates/vol-105-state-ai-companion-chatbot-laws",
+    "https://www.mofo.com/resources/insights/251120-new-york-and-california-enact-landmark-ai",
+    "https://www.multistate.us/insider/2026/4/30/state-childrens-online-safety-laws-expand-beyond-social-media-in-2026"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "AI mental-health restrictions: Illinois' WOPR Act (2025-08-04) bans AI from providing therapy or making therapeutic decisions (fines up to $10k). Nevada AB 406 (2025-06-05) bans AI chatbots presented as mental-health care (up to $15k). Utah (2025) requires disclosure for mental-health chatbots. Texas and Pennsylvania use existing consumer-protection and licensing law.",
+   "evidence": "Quartz guide (July 2026); eWeek; HeplerBroom. The Utah bill number HB 452 was not confirmed by these sources.",
+   "sources": [
+    "https://qz.com/state-laws-restricting-ai-mental-health-care-guide-072826",
+    "https://www.eweek.com/news/illinois-bans-ai-mental-health-therapy/",
+    "https://heplerbroom.com/blog/illinois-passes-legislation-on-using-ai-in-delivering-mental-health-services/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Federal and litigation pressure on AI companions: in Sept 2025 the FTC sent 6(b) information orders to Alphabet, Character.AI, Instagram, Meta, OpenAI, Snap and xAI covering monetized engagement, character design and children's data. Character.AI banned open-ended chat for under-18s in Nov 2025 and settled five teen-harm suits with Google in Jan 2026. 42 state attorneys general warned that missing safeguards 'may violate our respective laws'.",
+   "evidence": "Bitdefender and Decrypt (Sept 2025); CNN via KVIA (2026-01-07); Bloomberg Law.",
+   "sources": [
+    "https://decrypt.co/339213/ai-giants-face-ftc-inquiry-into-chatbot-safety-and-child-protections",
+    "https://kvia.com/news/business-technology/cnn-business-consumer/2026/01/07/character-ai-and-google-agree-to-settle-lawsuits-over-teen-mental-health-harms-and-suicides/",
+    "https://news.bloomberglaw.com/antitrust/character-ai-google-agree-to-settle-teen-chatbot-harm-lawsuits"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "EU AI Act Art. 50 has applied since 2026-08-02: chatbots must disclose they are AI (50(1)), generative outputs need machine-readable marking (50(2)), and deployers must label deepfakes and AI text on matters of public interest (50(4)). The Omnibus gives systems already on the market before 2026-08-02 until 2026-12-02 for 50(2) marking, with watermark-detection interoperability by 2027-02-02. The Code of Practice (published 2026-06-10) was found adequate on 2026-07-08/09, and Commission guidelines were published 2026-07-20. AI ads require labeling. Fines are up to \u20ac15M or 3% of turnover.",
+   "evidence": "Reed Smith (2026-07-28): AI advertising examples 'all require standard labeling'; 'an AI image that makes the product look better than reality is a deepfake'; repeat disclosure in audio; images and video generated before 2026-08-02 need no label; geo-blocking the EU limits exposure; signing the Code may mitigate fines. Gibson Dunn (2026-05-27): Omnibus agreement, a new Art. 5 ban on non-consensual intimate imagery (NCII) and child sexual abuse material (CSAM) 'nudifier' systems with transition to 2026-12-02, and a softened AI-literacy duty. The regulation number '2026/1744' appears only in ActuIA and is unverified.",
+   "sources": [
+    "https://www.reedsmith.com/our-insights/blogs/viewpoints/102nbz0/transparency-obligations-for-ai-generated-content-the-code-of-practice-adequacy/",
+    "https://www.gibsondunn.com/eu-ai-act-omnibus-agreement-postponed-high-risk-deadlines-and-other-key-changes/",
+    "https://digital-strategy.ec.europa.eu/en/faqs/signing-code-practice-transparency-ai-generated-content",
+    "https://www.actuia.com/en/news/ai-act-obligations-in-force-and-delays-under-omnibus-2026-1744/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "FDA's January 6, 2026 updated General Wellness and Clinical Decision Support guidances are deregulatory and clarify low-risk wellness claims. Mental-health 'treatment' claims still risk regulation as a medical device. No AI-mental-health-specific FDA rule was found.",
+   "evidence": "CRS Insight IN12657 (2026-02-17); Foley. They supersede the 2019 wellness and 2022 CDS guidances.",
+   "sources": [
+    "https://www.everycrsreport.com/reports/IN12657.html",
+    "https://www.foley.com/p/102meea/digital-health-policy-fda-relaxes-restrictions-over-wearables-and-ai-decision-ma/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "The CCPA regulations on automated decision-making technology (ADMT), risk assessments and cybersecurity audits were approved by the Office of Administrative Law (OAL) on 2025-09-23 and took effect 2026-01-01. ADMT compliance for significant decisions is due 2027-01-01, risk assessments start now with first filings due 2028-04-01, and audits are staggered from 2028 to 2030. Separately, the CCPA requires opt-in to sell or share data of users under 16.",
+   "evidence": "White & Case, Baker McKenzie, Paul Hastings alerts. The under-16 opt-in comes from statute text and was not re-fetched.",
+   "sources": [
+    "https://www.whitecase.com/insight-alert/cppa-finalizes-rules-admt-risk-assessments-and-cybersecurity-audits-requirements",
+    "https://connectontech.bakermckenzie.com/new-california-requirements-on-ai-risk-assessments-and-cybersecurity-cppa-adopts-expanded-regulations/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Contact-book and invite precedents: in 2013 the FTC settled with Path ($800k) over auto-uploading address books without consent and COPPA, with a 20-year privacy program. The Belgian DPA fined Twoo \u20ac50k, finding that invite messages to non-users need the recipient's consent under ePrivacy and that the platform is the controller (the household exemption was rejected). US TCPA cases from 2015-17 (Life360, Lyft, Poshmark, Shopkick) held that invites needing several affirmative user steps are user-initiated, but Warciak v. Nikil (Down to Lunch) went the other way.",
+   "evidence": "FTC Path press release (Feb 2013); IAPP and Osborne Clarke on Twoo (decision date not confirmed, c. 2020-21); Manatt and Winston summaries of TCPA cases. All older than 18 months, and later TCPA or FCC developments were not checked, so the posture may have changed.",
+   "sources": [
+    "https://www.ftc.gov/news-events/news/press-releases/2013/02/path-social-networking-app-settles-ftc-charges-it-deceived-consumers-improperly-collected-personal",
+    "https://iapp.org/news/a/tell-a-friend-but-only-with-your-friends-consent",
+    "https://marketinglaw.osborneclarke.com/data-and-privacy/thats-not-friends/",
+    "https://www.winston.com/en/blogs-and-podcasts/privacy-law-corner/courts-find-mobile-shopping-app-operators-did-not-send-texts-and",
+    "https://www.tatango.com/resources/tcpa-videos/text-message-marketing-lawsuit-review-warciak-v-nikil/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Apple's App Tracking Transparency (ATT): from iOS 27.2 an alternative EU prompt is available, and it is mandatory in DE, FR, IT, PL and RO. The rules on when permission is needed are unchanged. Fingerprinting is prohibited, and SDKs must declare required-reason APIs in privacy manifests, which feed the privacy nutrition labels.",
+   "evidence": "Apple Developer News 2026-09-16 'Updates to App Tracking Transparency in the European Union'. Privacy-manifest and fingerprinting rules date from 2023 (>18 months) per AppsFlyer and TelemetryDeck summaries; current enforcement detail is not verified.",
+   "sources": [
+    "https://developer.apple.com/news/",
+    "https://www.appsflyer.com/glossary/apple-privacy-manifest/",
+    "https://telemetrydeck.com/blog/att-ios17"
+   ],
+   "confidence": "medium"
+  }
+ ],
+ "implications_for_automation": [
+  "HARD BLOCK on fake engagement: the agent may never buy followers, views, likes or reviews; never run engagement bots, pods or auto-like/follow/comment; never use 'growth' vendors. The cited violations are TikTok's 'Using AI or bot accounts to drive traffic', the FTC rule on fake social-media indicators, and Apple 5.6.3. Enforce this in code with an allowlist of outbound platform API actions (publish own content, reply to inbound comments or DMs on the brand's own account). Every engagement endpoint that targets others is denied.",
+  "ONE AUTHENTIC IDENTITY PER APP PER PLATFORM: no account farms, phone or device farms, purchased or aged accounts, or networks of persona accounts. Never open a replacement account after a ban or restriction (TikTok bans 'additional or new accounts', Google terminates new accounts, Meta treats it as evasion). Creating any new social account, developer account, or legal entity requires HUMAN APPROVAL plus a registry entry linking it to the parent legal entity.",
+  "NO DUPLICATE OR TEMPLATE CONTENT AT SCALE: run perceptual-hash and semantic near-duplicate checks across all posts and accounts. Block identical cross-posting across multiple accounts (X), cap template-variant volume per account per day (YouTube 'high volumes of similar content with minimal changes', TikTok unoriginal content excluded from the For You feed), and require a human-in-the-loop creative element per batch so YouTube Partner Program income is not lost.",
+  "MANDATORY AI LABELING PIPELINE: any realistic AI person, scene or voice automatically gets the TikTok AIGC label, the YouTube 'AI use' flag and Meta AI disclosure. Embed C2PA metadata and keep it intact (no screenshot re-encoding). Ads with synthetic humans carry on-screen 'AI-generated' text (NY GBL 396-b, EU AI Act Art. 50(4), and the reported TikTok ads toggle). Add an EU geo-switch: if Art. 50 compliance is not implemented, do not serve to the EU.",
+  "NO FABRICATED HUMANS OR TESTIMONIALS: ban AI-generated 'customer' testimonials and reviews, fake before/after results, AI personas giving health, finance or legal advice (YouTube demonetization, FTC Section 5), and any real-person likeness or voice without written consent. Using any real-person likeness requires HUMAN APPROVAL plus a stored consent record.",
+  "COMMERCIAL DISCLOSURE AUTOMATION: always set TikTok's content disclosure toggle or Meta's paid-partnership label on owned promotional posts. For paid creators, require '#ad' or 'Ad' at the start of captions, superimposed on video, spoken in audio, and repeated in livestreams. Platform tools alone are not treated as sufficient.",
+  "PAID CREATOR PROGRAM GATES: every creator contract, brief and payment requires HUMAN APPROVAL. Contracts must require disclosure and accurate claims. Compensation is never conditioned on sentiment. Pre-approve posts (practically necessary for Stories), and monitor tagged posts during the contract and for at least about 3 months after.",
+  "REVIEW HYGIENE: request ratings only through SKStoreReviewController or the Play In-App Review API. Offer no incentives for reviews, never write, seed or suppress reviews, and use no review gating that misrepresents sentiment. Employees and insiders must disclose. Log all review-related actions for audit (FTC 16 CFR 465 penalties are per violation).",
+  "NO DECEPTIVE IN-APP SOCIAL PROOF: hard-ban fake 'friend' messages, fake notifications, fake 'X people are looking at you', and any bot content that looks like a real user (the NGL and Sendit patterns). Bot or AI participants must be labeled as AI. Never sell 'reveal who sent it' features unless the data shown is true.",
+  "APP PORTFOLIO GOVERNANCE (Apple 4.3, 4.2.6 and 4.1; Google repetitive content): the agent may not submit a new app without HUMAN APPROVAL plus an automated 'meaningful differentiation' report comparing it to the top store competitors and to the company's own portfolio. Ban near-duplicate apps under different bundle IDs (consolidate variants via in-app purchases or content packs). Default-deny saturated categories (fortune telling, astrology, dating, wallpaper, timers, soundboards, drinking games) unless approved. Cap new submissions per developer account per month.",
+  "NO BAIT-AND-SWITCH (Apple 2.5.19, which leads to account termination): the reviewed binary must equal the shipped behavior. Remote-config or server-driven changes that alter core functionality, add in-app purchases or ads, or change the age rating need HUMAN APPROVAL plus resubmission, and are also treated as a 'significant change' under Texas SB 2420 and Utah's law (call the PermissionKit Significant Change API and notify the store).",
+  "SINGLE TRUTHFUL DEVELOPER IDENTITY: one legal entity with a D-U-N-S number and accurate EU trader status (DSA address, phone and email shown publicly), plus completed Android developer verification. Never share devices, payment instruments, IPs or staff with any banned entity, because Google terminates 'related' accounts. Do not create shell entities or affiliates to spread risk; the FTC treated this as an aggravating factor in Genesis Tech (asset freeze).",
+  "QUALITY TRIPWIRES: monitor refund rate, chargebacks, share of 1-star reviews, support complaints, and platform warnings per app. When thresholds are crossed, automatically pause paid acquisition and paywall experiments and escalate to a human (Apple 5.6.4 treats excessive refunds and negative reviews as a Code of Conduct signal; Genesis Tech shows that notice of harm increases liability).",
+  "PAYWALL COMPLIANCE LINTER (blocks deploy): before billing details are collected, show price, billing period, auto-renewal, the date a trial converts to paid, and how to cancel, with the renewal price as prominent as the trial price. Use a separate, unticked consent control for auto-renewal (California), send a confirmation email with terms and a cancel link, send trial-end and annual reminders, and offer online cancellation in the same medium as sign-up. Save offers only with a visible click-to-cancel next to them. Weekly plans are never presented as one-time. Upsells never create unconsented extra subscriptions. Store consent logs for at least 3 years. No quiz funnels that collect significant time or data before price disclosure. Each new paywall template or price point requires HUMAN/LEGAL APPROVAL; the agent may A/B test only within approved templates.",
+  "AGE ASSURANCE INTEGRATION BY DEFAULT: integrate Apple Declared Age Range, PermissionKit, StoreKit ageRatingCode and App Store server notifications (consent revocation), and Google Play Age Signals. Use age data only for age-appropriate experiences and delete it after use. Answer age-rating questionnaires truthfully, including social-media capability. Geo-block Texas (and later Utah, Louisiana and California) if not integrated.",
+  "CHILDREN DEFAULT POLICY: the factory builds general-audience 18+ (or 16+/13+ with a full minor regime) apps only. No child-directed apps without a HUMAN-approved COPPA program. If a user signals under 13, block or route to parental consent and turn off third-party ad and analytics SDKs. Never sell or share data of users under 16 (CCPA opt-in). Keep a written data-retention policy.",
+  "TEEN SOCIAL APPS ARE A RED CATEGORY: anonymous or random chat, polling or rating of real classmates ('hot-or-not'), high-school-targeted compliment or confession apps, and contact-graph social apps aimed at minors require HUMAN APPROVAL plus legal review covering Apple 1.2, Google Families, NGL/Sendit precedent, the Australian under-16 ban, UK OSA risk assessments, state app-store and design-code laws, and moderation staffing. The default is to not build them.",
+  "NO ADDICTIVE DESIGN FOR MINORS: for users under 18 or of unknown age, disable infinite scroll and autoplay by default, turn off night-time push notifications, add screen-time breaks, and avoid streak-loss pressure (EU TikTok preliminary findings 2026-02-06, California SB 1119, state chatbot laws, the CA Age-Appropriate Design Code where enforceable).",
+  "CONTACTS AND INVITES: never auto-upload the address book. Use the iOS picker or limited access with a just-in-time explanation, hash numbers for matching, and keep no non-user contact data beyond matching (Path, Apple 5.1.1, Twoo). Each invite must be individually chosen and sent by the user, who sees the exact message and recipients first (Google message-spam policy, TCPA 'affirmative choices' doctrine, EU ePrivacy). No server-sent reminder SMS to non-users and no 'invite all' button. Enabling any contacts or SMS growth loop requires HUMAN APPROVAL.",
+  "PRIVACY DISCLOSURES FROM GROUND TRUTH: generate Apple privacy labels, Google Data safety answers and the privacy policy from an automated inventory of SDKs and network traffic in CI; a mismatch blocks release. No tracking before ATT consent and no fingerprinting; use the EU alternative ATT prompt where required. Provide in-app account deletion and handle data-subject requests.",
+  "THIRD-PARTY AI CONSENT: show an explicit consent screen before sending any personal data (prompts, photos, voice) to an external LLM or AI vendor (Apple 5.1.2(i), Google user-data policy), with vendor data-processing agreements and no training on user data without opt-in. Adding a new AI or data vendor requires HUMAN APPROVAL.",
+  "COMPANION AND CHAT APP SAFETY KIT (required for any conversational persona): disclose AI status at the start and every 3 hours (hourly for minors in CT and WA). Run self-harm detection with 988 or local crisis routing and publish the protocol on the website. No sexual or romantic content for minors or users of unknown age. No emotional-manipulation retention tactics (guilt messages, FOMO from the AI). Log for California SB 243 annual reporting from 2027-07-01. Plan for California SB 1119 defaults by 2027-07-01 (1 hour per session, 2 hours per day, memory and push notifications off for children) or exclude minors.",
+  "HEALTH, MENTAL-HEALTH AND ASTROLOGY CLAIMS: forbid therapy, diagnosis or treatment claims, and block AI 'therapist' features in IL and NV. Frame as wellness with doctor reminders (Apple 1.4.1). Astrology and fortune apps carry no health, financial or legal predictions; 'entertainment only' disclaimers do not cure fake functionality (Apple 1.1.6). No pay-per-reveal 'psychic chat' (Genesis Tech). Any health or mental-health concept requires HUMAN APPROVAL.",
+  "CLAIM SUBSTANTIATION REGISTRY: every marketing claim ('#1', 'AI that predicts', 'clinically', 'X users') must map to stored evidence before use in ads, store screenshots (Apple 2.3.14 bans unverifiable product claims) or creator briefs. Block superlatives and AI-capability claims without substantiation (FTC AI-washing cases).",
+  "USER-GENERATED CONTENT AND GENERATIVE AI MODERATION BASELINE: pre-publication filters, report and block functions, published contact information, a response-time target, and hash-matching for CSAM and NCII. Generative-image features must block nudification and sexual deepfakes (EU AI Act Art. 5 Omnibus ban; Apple 1.2, Oct 2026) and apply C2PA plus watermarks (Art. 50(2) by 2026-12-02). Provide DSA notice-and-action with statements of reasons. Escalate to humans for CSAM, credible threats and self-harm.",
+  "JURISDICTION LAUNCH GATE: launching in a new country or US state requires HUMAN APPROVAL plus a compliance checklist (EU: AI Act Art. 50, DSA trader status and notice-and-action, GDPR consent age 13-16; UK: OSA children's access and risk assessments, ICO Children's Code, DMCCA from January 2027; Australia: under-16 social media ban; US states: Texas SB 2420 now, NYC cancellation rule 2026-10-01, Louisiana and Utah 2027, California Digital Age Assurance Act 2027-01-01, Vermont design code 2027-01-01). The default is to geo-restrict until the checklist passes.",
+  "HUMAN APPROVAL REQUIRED (summary list): (1) creating or changing any legal entity, developer account, store listing ownership or social account; (2) each new app submission and any update changing core function, monetization, age rating or data flows; (3) any red-category app (minors or teens, anonymous chat, companion, mental health, dating, health or finance, astrology or psychic, gambling-like mechanics); (4) new paywall templates, prices, trials or cancellation-flow changes; (5) creator or influencer contracts, payments and any ad budget above a set limit; (6) any real-person likeness or voice use; (7) enabling contact upload or SMS/email invite loops; (8) adding third-party data or AI vendors; (9) responses to platform strikes, rejections, regulator letters, legal threats and appeals; (10) incident response (CSAM, self-harm events, data breaches); (11) launching in new jurisdictions; (12) resuming marketing after a quality tripwire fires.",
+  "AUDIT AND KILL-SWITCH: keep an immutable log of every agent action (posts, submissions, paywall changes, messages) with model and version, prompt and approver. Provide a global kill-switch per app, account and channel that a human or automated tripwire (platform strike, FTC or AG letter, refund spike) can trigger instantly. On any platform strike, freeze all automation on that platform until a human reviews it."
+ ],
+ "open_questions": [
+  "X: what is the exact current text of the Automation Rules (said to be updated April 2026), and do AI reply bots really need prior written approval? help.x.com could not be fetched (Cloudflare 403).",
+  "TikTok: what are the official date and wording of the AI-generated content disclosure requirement for ads (reported 2026-07-21)? Is posting through TikTok's official Content Posting API by an AI agent considered permitted automation or 'automation to bypass systems'? Not verified.",
+  "Do Apple and Google judge an AI app factory's whole portfolio (many differentiated apps from one entity) as 4.3 / repetitive-content spam even when each app is unique? There is no public threshold. How Google decides that developer accounts are 'related' is undisclosed.",
+  "Has the FTC filed its first civil-penalty case under the Consumer Review Rule since the Dec 2025 warning letters? None found as of 2026-10-17. What is the 2026 inflation-adjusted penalty figure?",
+  "FTC negative-option rulemaking: has a proposed rule issued after the March 2026 ANPRM? None found through Sept-Oct 2026.",
+  "COPPA: what will the FTC's announced rule review (Feb 2026) propose, possibly relaxing separate consent for third-party sharing? What is the outcome of the Sendit (Iconic Hearts) litigation?",
+  "Texas SB 2420: when will the 5th Circuit rule on the merits (No. 25-51073)? Exactly when may Utah private lawsuits be filed after HB 498, and what is Louisiana's operative date after HB 977 (2026 or 2027)?",
+  "EU: confirm the Digital Omnibus regulation number (2026/1744 is cited only by ActuIA) and its entry into force. What are the national penalty regimes for Art. 50? Is Ofcom's categorisation register (planned for around July 2026) published?",
+  "California SB 1119: when do the audits start (AG standards vs. 2029)? What are the effective dates and age-assurance triggers state by state for the about 12 companion-chatbot laws?",
+  "Australia: do small new social apps fall under the under-16 minimum-age obligations automatically, or only after eSafety designation or rules?",
+  "UK DMCCA subscription regime: is it January 2027 (government statement of 2026-08-09) or spring 2027, and what do the secondary-legislation details on reminder cadence and exit mechanisms say?",
+  "Meta: what concrete penalties apply for failing to use AI disclosure on organic Instagram content, and what are the official Instagram limits on automation and multiple accounts in 2026?",
+  "TCPA: are there any post-2017 court decisions or FCC actions on app-initiated friend-invite SMS? Only 2015-17 cases were found.",
+  "Not researched: payment processor and card-network chargeback-monitoring thresholds (for example Visa's acquirer monitoring program) for high-churn subscription apps."
+ ]
+}

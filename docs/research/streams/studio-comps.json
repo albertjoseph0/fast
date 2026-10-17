@@ -1,0 +1,412 @@
+{
+ "key": "studio-comps",
+ "summary": "Scope and caveat: I ran about 50 searches and fetches on 2026-10-17. Most hard numbers about individual apps are self-reported by founders or come from vendors (Superwall, RevenueCat, Adapty, viral.app), so read them as directional, not audited. The cohort studied here is Vert (the comparable target), the Blake Anderson / Zach Yadegari apps (RizzGPT/Plug AI, Umax, Cal AI), Quittr, Nikita Bier's tbh and Gas, Locket, BeReal, Codeway, HubX and Bending Spoons. They share one repeatable stack: (1) a narrow AI-wrapper or \"verdict\" product tied to a core need (looks, weight, dating, addiction, faith, astrology), with a camera-in/answer-out moment that films well in under 3 seconds; (2) distribution bought mainly from micro-creators and owned faceless TikTok/IG accounts, paid by views ($1\u20135 CPM), with paid ads (Meta Advantage+, TikTok, Apple Ads) layered on after organic winners are found; (3) a long onboarding quiz (10\u201315 screens, sign-in moved to the end) that ends in a hard or near-hard paywall with weekly pricing and a short trial, tuned through constant remote paywall experiments (Superwall); (4) a portfolio approach that expects most launches to fail, and an exit or portfolio-ops plan because hits decay.\n\nVert: vert.nyc (fetched today) claims 8 apps, 15M+ users, $25M+ annual revenue, $0 funding, 23 people, about 2 years old. LinkedIn says $30M+ ARR, and a 2024 job post said 4M users and $8M. Known Vert-linked apps are Astra (seller Vert Ventures LLC; 4.7 stars from 39K ratings; IAP $6.99\u2013$19.99), Haven Bible (seller E12 Holdings LLC, whose Wyoming filing lists the same founders, per a May 2026 Substack), and Plug AI. Plug AI appears to be RizzGPT renamed, and co-founder Evan Dray lists a prior role at RizzGPT, so Vert is likely an offshoot of the Blake Anderson playbook. In Aug 2024 Haven was observed running about 100 TikTok slideshow accounts, and it is also promoted by paid Christian influencers. Haven has drawn billing complaints.\n\nCal AI is the best-documented case. It launched in April/May 2024 and was bootstrapped. In May 2025 it had about 250 influencers on fixed monthly retainers (top creators earned \"tens of thousands\"/month for 4 posts), \"mid six figures\" monthly influencer spend, 17 staff with half on marketing and creator management, 20\u201330K downloads/day, and 20\u201325% of first sessions converting to a trial or purchase. Pricing was a 3-day trial and about $29.99/yr. Its Superwall program ran 123 experiments, 424 variants and 46 placements, and lifted trial-to-paid 31%: 87% of users see a paywall, 57% start a transaction and 63% complete it. Influencer-led growth plateaued around $2M/month. By Jan 2026 it was spending more than $1M/month on paid social against $5.7M monthly revenue, and a MrBeast sponsorship did not pay back. MyFitnessPal bought it (closed Dec 2025, announced Mar 2, 2026; more than $40M trailing-12-month sales and 15M downloads; price undisclosed). Blake Anderson's earlier apps used the same playbook: RizzGPT launched Jul 2023 and reached $80K MRR in its first month from two $50 faceless-account promos; Umax launched Dec 2023 and reached about $500K MRR within about 6 weeks after $50K upfront exclusive deals with creators. Quittr used a 12-page quiz (99% completion), a hard paywall, $2\u20133 CPM creator deals with view guarantees and 20% paid upfront, and $40K/month of Meta ads at a claimed 3\u20134x return, reaching about $250K MRR in 4 months. One 9.9M-view video reportedly made about $100K in 65 hours.\n\nBier's own record shows both the method and its limits. Of his 15 apps, 14 failed, and his build time fell to about 2 weeks. tbh and Gas were each seeded in one Georgia high school: about 40% of the school installed within 24 hours, and the first 100 users came from private Instagram accounts for the school. Growth was then controlled with geofencing state by state. Gas reached #1 in the US App Store within days, with about 300K daily downloads, and earned money from a $6.99 \"God Mode\" (about $7M per Sensor Tower, or about $11M per Bier). Both apps were sold within months (tbh to Facebook in Oct 2017 for about $100M est.; Gas to Discord on Jan 17, 2023) and shut down within about 10 months of each sale. He reports that iOS 18 contact consent is about 65%, and that teen invite rates drop about 20% per year of age from 13 to 18. These are high-risk mechanics (minors, hoaxes, server costs) that are hard for an autonomous system to run safely. Locket shows the other retention path: a home-screen widget gives repeated passive exposure, which matches Bier's habit principle. A viral TikTok tutorial led to 2M users in 2 weeks, and by Oct 2025 it had 90M downloads, 9M DAU, 14 staff and was profitable.\n\nThe studios (scale-up comparables) run the same machine as paid-UA factories. Codeway (Istanbul) is self-funded and profitable with $400M+ ARR and 356 staff, per a job post removed in Apr 2026. It runs paid ads from day zero, has 200\u2013500 active creatives per ad account per month across about 10 accounts, uses AI UGC actors, and reuses one paywall template with a soft paywall, 7-day trial and weekly-only pricing. Hits decay: Ask AI peaked at $3\u20135M/month and is now about $700K/month. HubX (Izmir; Aug 31, 2026) raised $50M+$25M from Point72 at a $1.2B pre-money valuation, with 40+ products, 600M downloads, 370+ staff, a \"hub-to-studio\" model and a plan to buy apps. Bending Spoons (S-1, Jun 2026) shows the end-game of buying decaying apps and running them as a portfolio: 2025 revenue $1.31B (+95%) and $278M operating profit, from acquisitions, price increases and layoffs.\n\n2025\u20132026 monetization benchmarks:\n- RevenueCat SOSA 2026 (115K apps, $16B): hard paywall Day-35 conversion 10.7% vs 2.1% for freemium. The metric is described as both download-to-paid and trial-to-paid in different places. Revenue per install at Day 60 is $3.09 vs $0.38, and year-1 retention is roughly the same (27% vs 28%). Medians are $5.99/week and $34.80/year. 55.4% of 3-day-trial cancellations happen on Day 0. Health & Fitness converts 2.9% of downloads to paid. AI apps have 41% higher year-1 LTV but churn faster.\n- Adapty 2026 (16K apps, 2025 data): weekly plans are 55.5% of revenue. A weekly plan with a trial has a $54.50 year-1 LTV vs $7.40 without one. The best paywall was weekly at $5.99 with a 3-day trial. 58% of new apps earn under $1K in year one, and the top 10% take 94.5% of revenue.\n- Superwall: multi-page onboarding paywalls convert 12.41% vs 9.07% for single-page (40M opens, Feb\u2013May 2026).\n- Creator rates (Oct 2026): UGC median $16/video, $500/month base, $1 CPM. Whop clipping median $1.00\u20131.30 CPM.\n- Apple Ads US (Adapty Jul 2026): $1.58 CPT, $2.51 CPA, 62.7% tap-to-install.\n\nPlatform and API constraints decide what an AI can automate:\n- TikTok: the Content Posting API only posts privately until the client passes an audit, and it has is_aigc and branded-content flags. TikTok's guidelines ban bulk automation of account registration or operation and artificial engagement.\n- Instagram: about 100 API posts per 24 hours, an is_ai_generated flag, and trial_params for Trial Reels (testing with non-followers).\n- Meta: the Marketing API supports Advantage+ app campaigns, and smart_promotion_type is deprecated from v25.0.\n- Apple Ads: the Platform API launched Aug 14, 2026, the old API shuts down Jan 26, 2027, and more search ad slots opened Mar 3, 2026.\n- Apple review: 4.3 spam and 4.2.6 template rules, 3.1.2 subscription clarity, 5.1.2(i) consent before sharing data with third-party AI, 5.1.2(v) no \"select all\" contacts, and a Section 3 ban on review manipulation. US-storefront external payment links are allowed.\n- FTC: the fake-review rule (effective Oct 21, 2024) explicitly covers AI-generated testimonials.",
+ "findings": [
+  {
+   "claim": "Vert (vert.nyc) self-reports 8 apps, 15M+ users, $25M+ annual revenue, $0 funding, a 23-person team and about 2 years of operation, and says it builds and markets all apps in-house.",
+   "evidence": "vert.nyc homepage (fetched 2026-10-17): 'Vert is a startup that makes startups'; 15M+ users; 8 apps; $25M+ annual revenue; $0 funding; 23 people. LinkedIn: '$30M+ ARR', founded 2024. A 2024 job post (as Vert Ventures): 4M users, $8M annual revenue, 'We charge for all our products', edge is distribution. A May 2026 Substack quotes the earlier site copy as '11 Million Users'.",
+   "sources": [
+    "https://vert.nyc/",
+    "https://www.linkedin.com/company/vert-ventures",
+    "https://joshbensonthewriter.substack.com/p/tarot-cards-drugs-and-millions-in"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Known Vert-linked apps are Astra (AI astrology/life advice), Haven (AI Bible study chatbot, published under the separate entity E12 Holdings LLC) and Plug AI (AI texting/rizz assistant). Plug AI appears to be RizzGPT renamed, which suggests Vert grew out of the Blake Anderson RizzGPT ecosystem.",
+   "evidence": "App Store: 'Astra - Life Advice', seller Vert Ventures LLC, 4.7 stars from 39K ratings, IAP $6.99\u2013$19.99. Google Play lists the developer as Vert Media Partners LLC. Substack (May 20, 2026): the Wyoming filing for E12 Holdings lists Leiman, Dray and Olson, and Haven costs $12.99\u2013$19.99/month after a trial. RocketReach: Evan Dray's prior roles at RizzGPT and HyperWrite. Kickstart page: RizzGPT 'rebranded to Plug AI after a name conflict'.",
+   "sources": [
+    "https://apps.apple.com/us/app/-/id6473748536",
+    "https://play.google.com/store/apps/details?id=com.vertmedia.astra&hl=en",
+    "https://joshbensonthewriter.substack.com/p/tarot-cards-drugs-and-millions-in",
+    "https://rocketreach.co/evan-dray-email_517515803",
+    "https://kickstartsidehustle.com/how-to-make-80k-mrr-within-the-first-month-on-your-app-3-times-demo/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Haven (a Vert app) ran a multi-account TikTok slideshow operation of about 100 accounts and also used paid niche (Christian) influencers.",
+   "evidence": "Shortimize (Aug 31, 2024): Haven App, #28 in the App Store, 'runs about 100 accounts' in a 'multi-account slideshow game'. Substack (May 2026): Haven is promoted by a 'multitude' of Christian influencers, and the author notes 'obvious paid advertisements' and billing complaints. The Shortimize source is more than 18 months old, so current tactics may differ.",
+   "sources": [
+    "https://shortimize.com/blog/christiantiktok-a-massive-traffic-opportunity-from-tiktok",
+    "https://joshbensonthewriter.substack.com/p/tarot-cards-drugs-and-millions-in"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Cal AI's early engine was about 250 micro and mid-size influencers on fixed monthly retainers, with half of a 17-person team managing creators and marketing.",
+   "evidence": "Latka interview (May 15, 2025): about 250 influencers on monthly fixed fees; the largest earned 'tens of thousands per month' for four posts; monthly influencer spend was 'mid six figures'; flat fees beat commission because 'brands compete for influencers'; 17 full-time staff with about half in marketing; 20\u201330K downloads/day; 20\u201325% of users convert to paid or trial in the first session; $29/yr plan; 3-day trial.",
+   "sources": [
+    "https://getlatka.com/interviews/cal-ai-zach-yadegari-2025",
+    "https://www.meer.com/en/112673-how-zach-yadegari-turned-side-projects-into-millions",
+    "https://founderpath.com/resources/zach-yadegari-cal-ai-onboarding-tests-and-influencer-marketing"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Cal AI's onboarding wins were extra quiz questions, a personalized 'you'll lose weight faster' screen, animated screens, and moving sign-in to the end of onboarding, which removed the largest drop-off.",
+   "evidence": "Latka (May 2025) and Founderpath: 'adding extra onboarding questions raised conversion' because users invest more time; sign-in moved to the end cut the largest drop-off. Experiments were tracked in Mixpanel, starting around Jan 2025.",
+   "sources": [
+    "https://getlatka.com/interviews/cal-ai-zach-yadegari-2025",
+    "https://founderpath.com/resources/zach-yadegari-cal-ai-onboarding-tests-and-influencer-marketing"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Cal AI ran paywall experiments at industrial scale (123 experiments, 424 variants, 46 placements) and lifted trial-to-paid conversion by 31%. 87% of new users see a paywall, 57% of viewers start a transaction and 63% of those complete it.",
+   "evidence": "Superwall case study (Apr 15, 2026): 123 A/B tests; 160 designs; 424 variants; 46 trigger points; about 5 experiments/month; 61 onboarding-paywall experiments. Tactics included spin-the-wheel discounts, video paywalls, transaction-abandon recovery, feature gates, win-back offers and Stripe web checkout. Revenue path: $28K in month 1, $115K in month 2, $1M MRR within 6 months, about $40M annual within 18 months. The seller is 'Viral Development LLC'.",
+   "sources": [
+    "https://superwall.com/case-studies/cal-ai",
+    "https://apps.apple.com/us/app/cal-ai-calorie-tracker/id6480417616"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Cal AI's influencer channel plateaued around $2M/month. Paid social (Meta, TikTok) then became the main driver at more than $1M/month of spend by Jan 2026, against $5.7M monthly revenue. A MrBeast sponsorship did not pay back.",
+   "evidence": "Yuanchang blog summary (Mar 7, 2026) of the My First Million interview: 2025 revenue about $30M; Jan 2026 $5.7M; ad spend over $1M/month; MrBeast was 'brand awareness' and did not pay back. The plateau and ad-spend figures come from the blog's narrative, not a direct quote.",
+   "sources": [
+    "https://yuanchang.org/en/posts/zach-yadegari-cal-ai-50m-exit/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "MyFitnessPal acquired Cal AI (closed Dec 2025, announced Mar 2, 2026). Cal AI had more than $40M trailing-12-month sales and 15M+ downloads, and the price was not disclosed.",
+   "evidence": "Fitt Insider, AP and Pulse2: 'generated more than $40 million in sales in the last 12 months and has surpassed 15 million downloads'; terms not disclosed; the app stays standalone. A '$100M' price on the Kickstart page is unverified.",
+   "sources": [
+    "https://insider.fitt.co/myfitnesspal-acquires-rival-food-tracker-cal-ai/",
+    "https://pulse2.com/myfitnesspal-acquires-cal-ai-to-expand-ai-powered-nutrition-tracking-portfolio",
+    "https://techcrunch.com/?p=3168701"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Blake Anderson's playbook repeated three times: tiny paid promos on faceless or niche TikTok accounts, then exclusive creator deals, view-based pay, internal owned UGC accounts, and weekly pricing. The governing rule is that RPM (revenue per 1K views) must exceed CPM.",
+   "evidence": "RizzGPT launched Jul 2023: two faceless accounts (50\u2013100K followers) paid $50 per promo; $80K MRR in Aug 2023; $200K MRR in Sep 2023; $7/week after free credits. Umax launched Dec 2023: $50K upfront exclusive deals with creators; about $500K MRR by late Jan 2024; later about $350\u2013400K/month. Cal AI targeted about a $5 CPM with referral codes. Outreach yield is about 1 reply per 1,000 DMs. Tip: 'a 1M-view video at 1% beats a 100k-view video at 5%'. Anderson said 'influencers are our most profitable strategy' alongside internal UGC and Meta/TikTok ads. Figures are founder-reported and partly secondhand, from 2023\u20132024 (older than 18 months).",
+   "sources": [
+    "https://kickstartsidehustle.com/how-to-make-80k-mrr-within-the-first-month-on-your-app-3-times-demo/",
+    "https://whop.com/blog/looksmaxxing-blake-anderson/",
+    "https://x.com/blakeandersonw/status/1842349939088925146"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Quittr combined a 12-page commitment quiz, a hard paywall, and creator deals priced at $2\u20133 CPM with view guarantees to reach about $250K MRR four months after launch.",
+   "evidence": "Startup Spells (Mar 1, 2025): 12-page quiz with 99% completion and about 2% drop-off per screen; App Store review prompt before the paywall; hard paywall (freemium failed); $12.99/mo or $45/yr; retainers of $2K\u2013$10K plus bonuses such as $500 per 500K views; CPM $2\u20133; contracts with usage rights, 20% upfront, prorated if views fall short; one 9.9M-view video made about $100K in 65 hours; Meta ads about $40K/month at about 3\u20134x return. A claimed '25% onboarding CVR' likely includes trials. Superwall (Nov 2025) cites a Quittr annual plan at $39.96/yr. The source is about 19 months old.",
+   "sources": [
+    "https://startupspells.com/p/porn-addiction-app-quittr-250k-mrr-4-months",
+    "https://superwall.com/blog/our-no-code-apps-made-usd50m-using-this-paywall"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Nikita Bier's method: a reproducible test process, very fast builds, single-school seeding, one go/no-go signal, and the expectation that most launches fail (14 of his 15 apps were duds).",
+   "evidence": "Lenny's Podcast transcript (Aug 2024; more than 18 months old): build time fell from about a year to about 2 weeks; tbh was seeded in one Georgia school and about 40% installed within 24 hours; first 100 users came via a school-specific Instagram account; rollout was geofenced state by state; 'If your product's working, you'll know. And if there's any uncertainty, it's not working'; aim to show value within about 3 seconds; one contact sync replaces about 10,000 username-exchange taps.",
+   "sources": [
+    "https://raw.githubusercontent.com/ChatPRD/lennys-podcast-transcripts/main/episodes/nikita-bier/transcript.md",
+    "https://twitter.com/nikitabier/status/1754896706880127185?lang=en"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Invite and contact-sync loops are weaker than they were in tbh's time. iOS 18 limited contact access gives roughly 65% consent, invites must be sent from the user's device, and teen invite rates fall about 20% per year of age from 13 to 18.",
+   "evidence": "Bier (Lenny's transcript): tbh sent invites via Twilio SMS, later rules required device-sent texts, and invite volume fell for Gas, which took about 9 launches to rebuild growth systems. iOS 18 average consent is about 65%. Renaming 'Crush' to Gas, with a black flame icon instead of a pink one, raised invite rates. Apple guideline 5.1.2(v): no 'Select All' or default selection of all contacts.",
+   "sources": [
+    "https://raw.githubusercontent.com/ChatPRD/lennys-podcast-transcripts/main/episodes/nikita-bier/transcript.md",
+    "https://developer.apple.com/app-store/review/guidelines/",
+    "https://techcrunch.com/2024/06/12/ios-18-cracks-down-on-apps-asking-for-full-address-book-access"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Gas and tbh show a spike, sell and decay pattern. Both hit #1 in the US App Store and were acquired within months, then shut down within about 10 months of acquisition.",
+   "evidence": "Gas launched Aug 2022, hit #1 in Oct 2022 with about 300K daily downloads and 1M+ actives; God Mode cost $6.99/week; Sensor Tower: 7.4M installs and about $7M spend (Bier says about $11M from about 10M downloads). Discord acquired it Jan 17, 2023 and shut it down Nov 7, 2023. A TikTok hoax drove 3% daily uninstalls. tbh launched Aug/Sep 2017, was #1 in Oct 2017, was bought by Facebook in Oct 2017 for about $100M (est.) and was shut in Jul 2018 for 'low usage'.",
+   "sources": [
+    "https://en.wikipedia.org/wiki/Gas_(app)",
+    "https://techcrunch.com/2023/01/17/discord-acquires-gas-a-compliments-based-social-media-app-for-teens",
+    "https://en.wikipedia.org/wiki/Tbh",
+    "https://en.wikipedia.org/wiki/Nikita_Bier"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Locket grew from a viral TikTok tutorial and retains users with a home-screen widget capped at 20 friends. It reached 90M downloads and 9M DAU with a 14-person team, and is profitable.",
+   "evidence": "VnExpress (Aug 22, 2026): launched Jan 1, 2022; 2M users in 2 weeks; 30M+ accounts by end of 2022; 90M+ downloads and 9M DAU by Oct 2025; up to 20 connections; 14 staff; profitable; $12.5M raised; ad revenue +87%. Moss claims 10M DAU and more than $10M ARR, with 25M TikTok views cited for the #1 ranking in 30+ countries.",
+   "sources": [
+    "https://e.vnexpress.net/news/tech/personalities/how-a-gift-for-his-girlfriend-changes-locket-founder-matt-moss-s-life-5106478.html",
+    "https://www.moloco.com/case-studies/locket-widget",
+    "https://x.com/thefuturematt/status/1953130438178029684"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "BeReal's 2022 college rollout relied on paid student ambassadors and download-gated parties.",
+   "evidence": "Sacra: $30 per successful referral and $50 per download plus review; campuses included Brown, Harvard, Rice, UT Austin and Georgetown; DAU was 2.9M in Apr 2022 and 5M+ in Jul 2022. BestColleges: free party entry for users who downloaded the app and added 5 friends. A job posting lists Voodoo as BeReal's parent company. Sources are from 2022 (stale).",
+   "sources": [
+    "https://sacra.com/q/how-did-bereal-get-so-popular/",
+    "https://bestcolleges.com/news/2022/04/22/social-network-bereal-college-students/",
+    "https://wellfound.com/jobs/3138833-student-ambassador"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Codeway is the scaled paid-UA version of the model: self-funded, $400M+ ARR, paid ads from day zero, very high creative volume, one reused paywall template, weekly pricing. Hits decay quickly.",
+   "evidence": "Codeway job post (removed Apr 6, 2026): '$400M+ ARR, profitable, self-funded'; 356 employees; 15+ products. Sparrow (Apr 8, 2026): Sensor Tower about $25M/month; Ask AI peaked at $3\u20135M/month and is now about $700K/month; 200\u2013500 active creatives per account per month across about 10 accounts; Meta, TikTok, Google and Apple Ads plus influencers; defensive Apple Ads brand bids; short onboarding, soft paywall, 7-day trial, weekly-only pricing, one UI template. Growth Hacking Lab (Jul 2025): 6,000+ TikTok ads in a month; AI UGC actors; discount cascade (close \u2192 discount \u2192 scratch card); ranks #1 for 'storage cleaner'.",
+   "sources": [
+    "https://builtin.com/job/director-finance/8619077",
+    "https://blog.sparrowapps.io/p/how-codeway-built-a-25m-month-app-empire",
+    "https://thegrowthhackinglab.com/case-studies/codeway-150-million-revenue-16-apps/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "HubX, another Turkish AI app factory, became a unicorn in Aug 2026 with 40+ products and 600M downloads, and plans to buy apps alongside building them.",
+   "evidence": "Press release (Aug 31, 2026): Point72 invested $50M plus a $25M option at a $1.2B pre-money valuation; first external funding; founded 2022; 40+ products (Nova, Wiser, DaVinci, Lotus Flow); 600M+ downloads; 190+ countries; 370+ employees; 'remains profitable'; 'hub-to-studio' model with an AI Lab; global acquisition platform.",
+   "sources": [
+    "https://www.newsfilecorp.com/release/312135",
+    "https://www.dailysabah.com/business/tech/mobile-sector-optimistic-as-hubx-becomes-turkiyes-8th-unicorn"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Bending Spoons shows the portfolio-ops end state: buy aging or decaying apps, cut costs, raise prices and run them for cash. 2025 revenue was $1.31B with $278M operating profit.",
+   "evidence": "Coverage of the Jun 2026 S-1 (Fortune, Sifted, Renaissance): 2025 revenue $1.31B (+95%); operating profit $278M; Q1 2026 revenue $601M; IPO terms 58M shares at $26\u201328 (about $19B). Appfigures estimates: WeTransfer mobile revenue rose from about $830K/month to $4.6M/month by Jan 2026; Evernote personal plan up 63%.",
+   "sources": [
+    "https://www.fortune.com/2026/06/08/bending-spoons-italian-aol-evernote-wetransfer-files-us-ipo/",
+    "https://sifted.eu/articles/bending-spoons-files-for-us-ipo",
+    "https://appfigures.com/resources/insights/the-company-squeezing-money-from-apps-you-used-to-love"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "RevenueCat SOSA 2026: hard paywalls convert about 5x better than freemium (10.7% vs 2.1% at Day 35) and earn about 8x revenue per install at Day 60, with roughly equal year-1 retention.",
+   "evidence": "RevenueCat (published Mar 19, 2026; 115K+ apps; $16B+): hard paywall 10.7% (12.1% the prior year) vs freemium 2.1%; Day-60 revenue per install $3.09 vs $0.38; year-1 retention 27% vs 28%. Write-ups disagree on whether 10.7% is download-to-paid or trial-to-paid. Annual-plan cancellation in year 1 is about 72%, with 35% of annual cancellations in month 1.",
+   "sources": [
+    "https://www.revenuecat.com/blog/growth/subscription-app-trends-benchmarks-2026",
+    "https://www.revenuecat.com/state-of-subscription-apps",
+    "https://www.rocketshiphq.com/revenuecat-state-of-subscription-apps-2025-summary/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Trial and pricing benchmarks (RevenueCat 2026): weekly median $5.99 and yearly $34.80. Longer trials convert better (17\u201332 days: 42.5%; \u22644 days: 25.5%), but short trials front-load cancellations onto Day 0.",
+   "evidence": "RevenueCat SOSA 2026: 55.4% of 3-day-trial cancellations happen on Day 0 and 84% by Day 1; 46.5% of apps use trials of under 4 days. Health & Fitness: download-to-trial 6.9%, trial-to-paid 37.7%, download-to-paid 2.9% (top quartile 6.2%). About 50.6% of conversions happen on Day 0 (another chart conflicts). Web revenue is 3.2% of the global total and 4.9% in North America. AI apps: year-1 LTV $30.16 vs $21.37 for non-AI, with faster churn.",
+   "sources": [
+    "https://www.revenuecat.com/state-of-subscription-apps",
+    "https://www.revenuecat.com/blog/growth/subscription-app-trends-benchmarks-2026"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Adapty 2026: weekly plans are now 55.5% of subscription revenue. A weekly plan with a trial yields about 7x the year-1 LTV of a weekly plan without one, and the best paywall was weekly at $5.99 with a 3-day trial.",
+   "evidence": "Adapty State of In-App Subscriptions 2026 (16K+ apps, $3B, 2025 data): weekly share 43.3% \u2192 55.5%; weekly with trial $54.50 vs $7.40 without; install-to-trial 11.2%; trial-to-paid 27.8%; North America install-to-trial 14.5%; hard paywalls about 21% higher LTV while soft paywalls convert about 50% better; localization tests give the biggest LTV uplift; refund panel 8.3% (up to 14% of revenue); iOS about 85% of subscription revenue; AI apps install-to-trial 5.31% vs 10.92%; US web paywall install-to-paid 1.10% vs 1.60% in-app; 58% of new apps earn under $1K in year 1 and 7.9% reach $100K; top 10% take 94.5% of revenue.",
+   "sources": [
+    "https://adapty.io/state-of-in-app-subscriptions-report/",
+    "https://ppc.land/95-of-app-subscription-revenue-goes-to-top-10-adaptys-2026-benchmark-report/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Multi-page onboarding paywalls convert about 37% better than single-page ones. Two-step trial-toggle flows and discount mechanics (spin wheel, transaction-abandon offers) are standard in this cohort.",
+   "evidence": "Superwall (40M+ onboarding paywall opens, Feb\u2013May 2026): 12.41% vs 9.07%; only 24% of opens were multi-page. Rizz God case (Jan 26, 2026): a two-step flow with the trial toggle off by default gave +10% onboarding conversion and +10% trial conversion. Vahe Baghdasaryan (Nov 20, 2025): Rizz trial toggle of 7-day trial at $9.99/week vs no trial at $6.99/week, with about 10% choosing no trial; transaction-abandon offers of 80% off annual with a trial and 90% off without; one entertainment app went from 1.1% to about 4% install-to-paid. Other cases: Daily Horoscope +183% trial starts from localized paywalls; BuyBye +25% proceeds per user after a 50% price increase. All are vendor-reported and observational.",
+   "sources": [
+    "https://superwall.com/blog/new-postmulti-page-onboarding-paywalls-convert-37-better-than-single-page-heres-why",
+    "https://superwall.com/case-studies/rizz-god",
+    "https://superwall.com/blog/our-no-code-apps-made-usd50m-using-this-paywall",
+    "https://superwall.com/case-studies"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Creator-content market rates in Oct 2026 are about $1 per 1,000 views (CPM), $16 per video, and a $500/month base. Hit-app founders paid more ($2\u20135 CPM or large retainers) for proven creators.",
+   "evidence": "viral.app live jobs (as of Oct 2026): median $16/video ($14\u201325); $500 monthly base ($360\u2013690); $1 CPM ($1\u20131.50); $300 top bonus; Productivity CPM $1.40; Germany $1.50. Whop clipping trackers: median $1.00 (Sep 28, 2026; 50 campaigns) and $1.30 (Oct 12, 2026; 100 campaigns), with a 10% Whop fee to the brand. Joseph Choi (Nov 2024): $1,000 per 1M views plus a base; $500\u2013$3,000/month for daily posts; target creators under 50K followers. Quittr: $2\u20133 CPM. Cal AI: about $5 CPM target.",
+   "sources": [
+    "https://viral.app/ugc-rates",
+    "https://www.builtbyfoundry.io/blog/what-is-clipping-1-dollar-per-1000-views-50-campaigns",
+    "https://openclip.app/guides/whop-clipping-guide",
+    "https://subclub.com/episode/how-to-go-viral-on-tiktok-and-profit-from-it-joseph-choi-viral-app-founders",
+    "https://startupspells.com/p/porn-addiction-app-quittr-250k-mrr-4-months"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "The operating cadence for creator and owned-account content: warm up new accounts for about a week, post 1\u20133 times per day per account, expect 30+ attempts per winner, keep 5 or fewer accounts per device, and test one variable at a time.",
+   "evidence": "Consumer Startups (Apr 15, 2025): week 1 warm-up (watch, comment, follow); week 2 post UGC cross-posted to Reels and Shorts; 1\u20133 videos/day; up to 3/day after a winner 'to avoid shadow bans'; '30+ attempts'; \u22645 accounts per device; micro-creators with 1K\u201350K followers and about 50K average views; 20\u201360% outreach response. Choi: RizzGPT runs 'dozens of accounts'; avoid 'link in bio' CTAs and weave the app into the story. Warm-up practice is anecdotal and vendor-driven, with no controlled evidence.",
+   "sources": [
+    "https://consumerstartups.substack.com/p/million-dollar-ugc-playbook-for-consumer",
+    "https://subclub.com/episode/how-to-go-viral-on-tiktok-and-profit-from-it-joseph-choi-viral-app-founders",
+    "https://influencermarketinghub.com/tiktok-account-warm-up/"
+   ],
+   "confidence": "low"
+  },
+  {
+   "claim": "An AI agent can already run the TikTok/IG slideshow loop (research, generate, overlay, post as draft, read analytics, iterate). The public example produced many views but little revenue, which shows views do not equal revenue for generic faceless content.",
+   "evidence": "Larry skill (Oliver Henry, OpenClaw; 2026): 6-slide 9:16 carousels; gpt-image-1.5; node-canvas text overlays; at least 3 posts/day; uploads go to TikTok drafts and a human adds trending audio; the daily report combines platform analytics with RevenueCat (high views + low conversions means fix the CTA; low views + high conversions means fix the hooks). Reported results: 7\u20138M views and about $670\u2013$714 MRR, with months of 'handholding'. Compare one Quittr creator video (9.9M views) at about $100K in 65 hours.",
+   "sources": [
+    "https://github.com/Upload-Post/upload-post-larry-marketing-skill",
+    "https://clawhub.ai/olliewazza/larry",
+    "https://www.luminarylane.app/blog/from-larry-to-lane/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "No reliable public benchmark exists for views-to-install ratios. Published figures are anecdotes that vary by orders of magnitude.",
+   "evidence": "Indie Hackers: about 2,000 views led to 11 downloads (about 5.5 per 1K views; one anecdote). The Larry agent's 8M views led to about $700 MRR. RizzGPT's two $50 promos produced 'millions of views and hundreds of thousands of downloads'. Ladder found quiz completions tracked App Store conversion closely enough to bid on them through the TikTok Pixel. A vendor claims hook choice alone moves CPI 2\u20134x and UGC creative fatigues in about 7.6 days (unverified).",
+   "sources": [
+    "https://www.indiehackers.com/post/day-10-11-downloads-2-000-tiktok-views-and-the-mistake-that-killed-my-us-conversions-1dcfbbeff5",
+    "https://whop.com/blog/looksmaxxing-blake-anderson/",
+    "https://www.betterlaunch.co/playbooks/episodes/greg-stewart-ladder-tiktok",
+    "https://vmobify.com/blog/tiktok-app-install-campaigns"
+   ],
+   "confidence": "low"
+  },
+  {
+   "claim": "Apple Ads US benchmarks (2026): $1.58 cost per tap, $2.51 cost per download, 9% tap-through and about 62.7% tap-to-install. Cost per download varies about 30x by niche. Apple added more search ad slots from Mar 3, 2026.",
+   "evidence": "Adapty (updated Jul 13, 2026; 1M+ ad groups across 90 countries): US CPT $1.58; CPA $2.51; TTR 9.0%; CR 62.71%. Health & Fitness CPT $1.64 / CPA $3.02; AI niche $1.55 / $2.32; Exam Prep CPA $10.34; Screen Recorder CPA $0.34. US install-to-paid: Health & Fitness 7.80%, Education 5.87%. Apple: multiple ad positions per search query from Mar 3, 2026 (iOS/iPadOS 26.2+), with position set by auction, not bid.",
+   "sources": [
+    "https://adapty.io/blog/apple-ads-benchmarks-2026/",
+    "https://appleinsider.com/articles/25/12/18/more-ads-are-coming-to-the-app-store-in-2026",
+    "https://www.emarketer.com/content/apple-expands-app-store-search-ads-reach-high-intent-users"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "The Apple Ads API is changing: the new Apple Ads Platform API (released Aug 14, 2026) replaces Campaign Management API v5, which sunsets Jan 26, 2027. The new API exposes keyword Search Popularity (1\u2013100) and recommended Target CPA bids.",
+   "evidence": "Adapty: the Platform API is 'a new API, not a version bump'; it adds Search Popularity, Change History, bulk keyword operations, suggestions, a recommended Target CPA bid, programmatic ad account creation, and Apple Maps as a surface. v5.5 (Feb 2026) added a Maximize Conversions bid strategy; v5.6 removed lifetime budgets.",
+   "sources": [
+    "https://adapty.io/blog/apple-ads-platform-api/",
+    "https://9to5mac.com/2026/04/02/apple-details-plan-to-sunset-ads-campaign-management-api-in-2027/",
+    "https://developer.apple.com/documentation/apple_ads/apple-search-ads-campaign-management-api-5.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "ASO levers in 2025\u20132026: custom product pages can now rank in organic search for assigned keywords (WWDC25), and the custom product page limit doubled to 70 (Oct 29, 2025). Apple 2.3.7 bans trademark and keyword stuffing.",
+   "evidence": "Adapty and MobileAction: keywords from the keyword field (not title or subtitle) can be assigned to a custom product page; each keyword combination maps to one page, and this does not expand the keyword index. Limit went from 35 to 70 on Oct 29, 2025. Apple 2.3.7: app names are limited to 30 characters, and metadata must not be packed with 'trademarked terms, popular app names'.",
+   "sources": [
+    "https://adapty.io/blog/custom-product-pages-app-store/",
+    "https://helpcenter.mobileaction.co/en/organic-cpp-results",
+    "https://developer.apple.com/app-store/review/guidelines/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Meta Advantage+ app campaigns can be created entirely through the Marketing API. The legacy smart_promotion_type field is deprecated from v25.0, and iOS 14+ campaigns must choose AEM or SKAdNetwork attribution.",
+   "evidence": "Meta developer docs: objective APP_INSTALLS; optimization goals APP_INSTALLS, OFFSITE_CONVERSIONS, APP_INSTALLS_AND_OFFSITE_CONVERSIONS or VALUE; bid strategies lowest cost, bid cap or min ROAS; campaign_attribution AEM or SKADNETWORK; one ad set per campaign; asset_feed_spec with up to 5 primary texts and 5 titles; up to 50 manual creative combinations.",
+   "sources": [
+    "https://developers.facebook.com/docs/app-ads/advantage-app-campaigns"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "TikTok's Content Posting API restricts unaudited apps to private posts, supports photo (slideshow) posts, rate-limits post initialization, and exposes AI-generated and branded-content disclosure flags.",
+   "evidence": "TikTok developer docs: 'All content posted by unaudited clients will be restricted to private viewing mode'; photo posts via /v2/post/publish/content/init/ with photo_images from verified domains; 6 init requests/min per user token; a daily cap error 'spam_risk_too_many_posts'; 'reached_active_user_cap'; flags is_aigc, brand_content_toggle and brand_organic_toggle; scope video.publish.",
+   "sources": [
+    "https://developers.tiktok.com/doc/content-posting-api-get-started",
+    "https://developers.tiktok.com/doc/content-posting-api-reference-direct-post"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Instagram's Content Publishing API allows about 100 API posts per 24 hours per account (the docs also say 50 in one place), carousels of up to 10 items, an is_ai_generated flag, paid-partnership labels, and Trial Reels (testing with non-followers) through trial_params.",
+   "evidence": "Meta docs: '100 API-published posts in a 24-hour moving period' (the carousel section says 50); professional account required; is_ai_generated=true on the container; branded_content_sponsor_ids and is_paid_partnership. The Instagram Platform changelog and Ayrshare/bundle.social docs describe trial_params.graduation_strategy as MANUAL or SS_PERFORMANCE (graduation is otherwise manual, in the app).",
+   "sources": [
+    "https://developers.facebook.com/docs/instagram-platform/content-publishing",
+    "https://developers.facebook.com/docs/instagram-platform/changelog",
+    "https://www.ayrshare.com/apis/post/social-networks/instagram",
+    "https://9to5mac.com/2024/12/10/instagrams-new-trial-reels-feature-lets-creators-test-content-with-non-followers"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "TikTok's integrity rules ban bulk automation of account registration or operation and artificial engagement. Running multiple accounts is allowed only when it is not deceptive, and realistic AI people or scenes need an AI-generated label.",
+   "evidence": "TikTok Community Guidelines (updated, effective Sep 13, 2025): prohibits 'bulk automation for registering or operating accounts', high-volume commercial distribution, 'artificially increasing engagement signals'; multiple accounts are fine but not for deceptive purposes; presenting as a nonexistent person to mislead is prohibited. 85%+ of removals are automated. AIGC label required for realistic AI depictions (secondary sources; the date of the ad-policy expansion is disputed).",
+   "sources": [
+    "https://www.tiktok.com/community-guidelines",
+    "https://www.tiktok.com/safety/en/policies-and-engagement/integrity-authenticity",
+    "https://www.mediapost.com/publications/article/408219",
+    "https://www.cinerads.com/blog/tiktok-ai-content-policy"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "App Store rules that most directly threaten an automated app factory: 4.3 spam (near-duplicate apps, multiple bundle IDs, saturated categories such as fortune telling and dating), 4.2.6 (apps from template or app-generation services), 3.1.2 subscription clarity, 5.1.2(i) third-party AI data-sharing consent, and Section 3 review manipulation.",
+   "evidence": "Apple guidelines (fetched 2026-10-17). 4.3(b): fortune telling and dating 'will not accept new submissions unless they offer a meaningfully different or improved experience'. 4.2.6: 'Apps created from a commercialized template or app generation service will be rejected unless submitted directly by the provider of the app's content'. 3.1.2(a): subscription period at least 7 days; bait-and-switch leads to removal. 5.1.2(i): disclose sharing 'including with third-party AI, and obtain explicit permission'. Section 3: paid, incentivized or fake ratings can lead to expulsion. 3.1.1(a): external purchase links allowed in the US storefront. Forum reports describe 4.3(a) rejections that link apps across accounts.",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/",
+    "https://developer.apple.com/forums/thread/774789",
+    "https://developer.apple.com/forums/thread/769509"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The FTC rule banning fake reviews and testimonials, including AI-generated ones, took effect Oct 21, 2024, with civil penalties of about $52K per violation. Paid creator endorsements must also be disclosed under the Endorsement Guides.",
+   "evidence": "FTC press release (Aug 14, 2024): bans writing, creating, selling or buying fake reviews or testimonials, including those created by generative AI; covers fake social indicators bought knowingly; civil penalties. Commentary: the FTC may treat each fake review as a separate violation. Endorsement Guides were updated Jul 2023.",
+   "sources": [
+    "https://www.ftc.gov/news-events/news/press-releases/2024/08/federal-trade-commission-announces-final-rule-banning-fake-reviews-testimonials",
+    "https://dwt.com/insights/2024/08/ftc-finalizes-rule-banning-fake-consumer-reviews"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "US external payment links (web checkout) have been allowed since the April 2025 Epic v. Apple contempt ruling, but early data shows web paywalls convert lower on install-to-paid, and the commission question is unresolved.",
+   "evidence": "Apple guideline 3.1.1(a): link-out entitlements are not required on the US storefront. Ninth Circuit (Dec 2025) largely upheld the ruling but allowed Apple to pursue a 'reasonable commission' (secondary sources). Adapty US early data: install-to-paid 1.10% web vs 1.60% in-app; month-1 retention 64.5% vs 46.2%; month-6 retention 20% vs 30%. RevenueCat: web is 4.9% of North American revenue. Cal AI added Stripe web checkout.",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/",
+    "https://www.revenuecat.com/blog/growth/apple-anti-steering-ruling-monetization-strategy",
+    "https://adapty.io/state-of-in-app-subscriptions-report/",
+    "https://superwall.com/case-studies/cal-ai"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "AI companion apps are a growing but highly concentrated category in mobile spending.",
+   "evidence": "Appfigures via TechCrunch (Aug 12, 2025): $82M consumer spending in H1 2025, on pace for more than $120M in 2025; lifetime $221M as of Jul 2025 (+64% YoY); about 220M downloads; the top 10% of apps take 89% of revenue. No reliable revenue data was found for 'brainrot' apps.",
+   "sources": [
+    "https://techcrunch.com/2025/08/12/ai-companion-apps-on-track-to-pull-in-120m-in-2025"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Studios this lean run with marketing and creator operations as the main headcount, and engineering is small.",
+   "evidence": "Cal AI: 17 staff, about half on marketing and influencers (May 2025); 7 joined MyFitnessPal. Vert: 23 people for 8 apps. Locket: 14 people for 9M DAU. Gas: a 4-person team at its peak. Codeway: 356 staff for 15+ products. HubX: 370+ staff for 40+ products. Cal AI's founder wanted to hire someone whose 'only job is just paywall experiments'.",
+   "sources": [
+    "https://getlatka.com/interviews/cal-ai-zach-yadegari-2025",
+    "https://vert.nyc/",
+    "https://e.vnexpress.net/news/tech/personalities/how-a-gift-for-his-girlfriend-changes-locket-founder-matt-moss-s-life-5106478.html",
+    "https://builtin.com/job/director-finance/8619077",
+    "https://www.newsfilecorp.com/release/312135",
+    "https://en.wikipedia.org/wiki/Gas_(app)"
+   ],
+   "confidence": "high"
+  }
+ ],
+ "implications_for_automation": [
+  "Build a portfolio of many cheap launches, not one big bet. Bier hit 1 of 15 apps and got builds down to about 2 weeks. Adapty shows 58% of new apps earn under $1K in year 1 and only 7.9% reach $100K, and the top 10% take about 95% of revenue. The pipeline should go from idea to signed binary in days and run several distribution tests per week, with kill and scale thresholds set before launch (Bier: 'if there's any uncertainty, it's not working').",
+  "Screen ideas before building. Keep only ideas that (a) serve a core need (love/dating, money, play, or self-improvement such as looks, weight, addiction, faith, astrology), (b) have a visual 'aha' that shows in 3 seconds or less on camera (photo to calories, selfie to score, screenshot to reply), and (c) have a reachable creator niche with high-view micro-creators. Score these with an LLM rubric plus TikTok/IG search data, and check against Apple 4.3(b) saturated categories (fortune telling and dating need a 'meaningfully different' angle).",
+  "Use one shared onboarding and paywall template whose content the AI generates per app: a 10\u201315 screen personalization quiz (Quittr: 12 pages, 99% completion), a 'you'll reach your goal X% faster' result screen, an optional review prompt, sign-in at the end (or none), then a multi-page hard paywall (+37% vs single-page). Default to weekly $5.99 with a 3-day trial, alongside an annual anchor of about $30\u201340. Keep the visual design different per app to avoid 4.3 spam flags.",
+  "Manage paywalls remotely (Superwall-style) with an always-on experiment scheduler: about 5 experiments per app per month (Cal AI's pace), trial toggle, transaction-abandon discount, spin-wheel offer, localized paywalls (localization gave the largest LTV uplift in Adapty's data), and price-point matrices. Optimize revenue per install (RevenueCat Day-60) and refund-adjusted LTV, not conversion alone.",
+  "Distribution has three tiers, each with its own unit economics. Tier 1: owned brand accounts with AI-generated slideshows and short videos, at 1\u20133 posts/day per account across TikTok, IG and Shorts. This is cheap, but conversion per view is low (Larry: about 8M views for about $700 MRR). Tier 2: paid micro-creators (under 50K followers, about 50K average views) on about $500/month base plus $1\u20133 CPM, prorated view guarantees and 20% upfront. This is where hits like Quittr, Cal AI and Umax came from. Tier 3: paid amplification of proven winners only (Spark/Partnership ads, Meta Advantage+ via the Marketing API, Apple Ads). Gate everything on Blake Anderson's rule: revenue per 1K views (RPM) must exceed cost per 1K views (CPM), tracked per creator, per hook and per account.",
+  "Automate the creator-ops back office, which was about half of Cal AI's headcount. That means sourcing creators by niche and view history, outreach at volume (expect about 1 reply per 1,000 cold DMs, or 20\u201360% for well-targeted micro-creators), briefs that require a specific CTA and product placement within the first 15 seconds, per-creator promo codes or links for attribution, view verification, prorated payouts, and dropping creators who underperform. Whop Content Rewards (about $1\u20131.30 median CPM, 10% fee) can serve as an off-the-shelf pay-per-view rail.",
+  "Put hook-testing velocity at the center of the system. Generate many hook variants per app, aiming for at least 30 attempts per winning format. Use Instagram Trial Reels via the API's trial_params (MANUAL or SS_PERFORMANCE) to test with non-followers. Apply Larry's matrix daily: high views with low conversions means fix the CTA or paywall; low views with high conversions means fix the hook; both high means make 3 variations and pay to boost. Send quiz-completion events to the TikTok/Meta pixels as early conversion signals, as Ladder did.",
+  "Respect API gates. TikTok's Content Posting API posts only privately until the client passes an audit, so plan for the audit or a draft-plus-human-publish step (Larry uploads drafts and a person adds trending audio). Instagram allows about 100 API posts per 24 hours per account. Meta's smart_promotion_type is deprecated from v25.0, so build on advantage_state. Apple Ads Campaign Management v5 dies Jan 26, 2027, so build directly on the Apple Ads Platform API and use its Search Popularity and recommended Target CPA endpoints for automated keyword bidding.",
+  "Build compliance in as hard constraints, not optional extras. Set is_aigc (TikTok) and is_ai_generated (IG) on AI content, and set brand_content_toggle or is_paid_partnership on paid creator posts. Never generate fake reviews, testimonials or engagement (FTC rule; about $52K per violation; Apple Section 3 expulsion). Do not bulk-automate account registration, operation or engagement (TikTok bans this); automate content creation, not fake activity. Disclose third-party AI data sharing and get explicit consent (Apple 5.1.2(i)). Make trial terms clear and cancellation easy (3.1.2), because billing complaints of the kind Haven drew are a reputational and review risk.",
+  "Reduce Apple 4.3 and 4.2.6 risk. Shared templates and code across many apps are an explicit spam trigger, and so are near-identical apps spread across multiple developer accounts. Vert publishes through separate LLCs (Vert Ventures, E12 Holdings, Vert Media Partners), but that alone does not protect against 4.3(a). Each app needs a distinct core feature, UI and assets, and the factory should keep evidence of originality (design history, git history) for appeals.",
+  "Plan for decay and exit from day one. Ask AI fell from $3\u20135M/month to about $700K. tbh and Gas were each shut within about 10 months of acquisition. Cal AI's influencer channel plateaued at $2M/month before paid ads took over. The system should forecast when a hit will peak, switch hits to paid UA and price optimization, and automatically flag the window for a sale (tbh sold within weeks; Gas in about 5 months; Cal AI in about 20 months) or move the app into a Bending Spoons/HubX-style portfolio-ops mode (price increases, cost cuts, cross-promotion).",
+  "For retention, build in recurring passive exposure (Bier's habit principle). Use home-screen widgets (Locket: 20-friend cap, 9M DAU), shareable result cards and recaps that push content back onto TikTok/IG (Choi: milestone badges, visual recaps), and Live Activities only within Apple guidelines (Bier's 2025 'Explode' app drew criticism for promotional live activities).",
+  "Treat Bier-style school-by-school social launches as a separate, human-gated module, not a default. It works (40% of a school within 24 hours, #1 in the App Store within days), but it targets minors and carries hoax, abuse, COPPA and server-cost risk ($600/day for 800 users in Gas's first test). iOS 18 contact consent is about 65%, invites must be device-sent and individually selected (5.1.2(v)), and invite rates drop about 20% per year of age. The safe parts to automate are geofenced staged rollouts and controlled-scarcity launch timing (e.g., accept all follow requests at 3pm).",
+  "Keep shared measurement plumbing across all apps: Mixpanel- or Amplitude-style funnels per onboarding screen, RevenueCat/Superwall webhooks feeding a central data store, per-post request_ids from posting APIs joined to installs via promo codes, deep links and custom product pages (up to 70 per app, assignable to organic keywords). The portfolio allocator should move budget toward apps and channels by marginal revenue per install minus CAC, with payback as the guardrail (Ladder ran on payback period, not LTV)."
+ ],
+ "open_questions": [
+  "What are Vert's other ~5 apps, and what is each app's channel mix (owned slideshow farms vs paid creators vs paid ads)? Only Astra, Haven and Plug AI are confirmed. Is Plug AI the renamed RizzGPT bought from or spun out of Blake Anderson's company? That is inferred, not confirmed.",
+  "Is RevenueCat's 10.7% hard-paywall figure download-to-paid or trial-to-paid? Write-ups conflict, so confirm in the full SOSA 2026 report before using it as a kill threshold.",
+  "What are real views-to-install and views-to-paid ratios for creator UGC vs faceless slideshows vs AI-generated video in 2026? No credible dataset was found, and the gap between Larry's ~8M views for ~$700 MRR and Quittr's 9.9M views for ~$100K suggests a 100x+ spread driven by creator fit and audience intent.",
+  "Will TikTok's Content Posting API audit approve a client that posts AI-generated marketing to many brand accounts, and what are the actual daily post caps per creator and active-user caps per client? The docs give no numbers.",
+  "How strictly does Apple enforce 4.3, 4.2.6 and 5.1.2(i) against AI-generated app factories in 2026, and does using separate LLCs or developer accounts (as Vert does) trigger the 'multiple accounts' spam linkage?",
+  "How did the TikTok US joint venture (Oracle/Silver Lake/MGX) and US-only retraining of the algorithm change organic reach for brand and faceless accounts in 2026? I could not confirm post-close reporting.",
+  "Will a commission on US external payment links be set after the Ninth Circuit's Dec 2025 decision and any Supreme Court review? This changes the economics of web paywalls.",
+  "What was Cal AI's acquisition price? The ~$100M figure is unverified, and the 'over $50M annualized' figure is a run rate, not a price. Also, what share of Cal AI's 2025 revenue came from paid ads vs creators?",
+  "What current account-farm and warm-up practices still work without bans after TikTok's Sep 2025 guideline update? Evidence is vendor anecdote only, and the practice may itself violate TikTok's ban on bulk automation of account operation.",
+  "Is there any confirmed revenue data for 'brainrot' AI apps, or recent (2025\u20132026) verified examples of successful school-by-school social launches? Only press-release claims (e.g., Locksy) were found.",
+  "Several key sources are older than 18 months and may be stale: Bier's Lenny's Podcast (Aug 2024), Bier's thread (Jan 2022), Choi's Sub Club (Nov 2024), Shortimize's Haven observation (Aug 2024), Blake Anderson's RizzGPT/Umax data (2023\u20132024), BeReal's ambassador program (2022), and RevenueCat's hard-vs-soft paywall article (2023\u20132024)."
+ ]
+}

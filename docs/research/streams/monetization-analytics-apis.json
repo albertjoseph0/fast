@@ -1,0 +1,494 @@
+{
+ "key": "monetization-analytics-apis",
+ "summary": "Scope and method: about 60 primary-source fetches and searches on 2026-10-17. Sources were mostly official docs: RevenueCat .md docs and llms.txt, Superwall markdown docs plus its full OpenAPI spec (202 paths), Adapty llms.txt, PostHog .md docs, Amplitude/Mixpanel/AppsFlyer/Branch/Dub/OneSignal/FCM docs, Apple developer-docs JSON for AdAttributionKit, AdServices, ActivityKit, APNs, App Clips, Contacts and the App Store Connect API, and the App Review Guidelines (Last Updated Oct 16, 2026). Most vendor doc pages carry no date, so treat them as \"current as fetched 2026-10-17\". Older or secondary items are flagged: Google Play Instant shutdown news (June 2025), the WWDC23 App Clip session, Branch's undated API page, and Statsig's undated sequential page. The sample-size, sequential-width and peeking numbers are my own computations from standard formulas (Python script) and are labelled as such.\n\nMonetization: an agent can configure all three major paywall/subscription stacks end to end without a dashboard.\n- **RevenueCat REST API v2.** Base https://api.revenuecat.com/v2, Bearer v2 secret key with per-key permissions. Rate limits: Project Configuration 60/min, Charts & Metrics 25/min, Customer 480/min. It covers:\n  - Creating projects (POST /projects), apps (type enum app_store / play_store / stripe / rc_billing / paddle / roku / amazon / mac_app_store), products, entitlements (actions/attach_products), offerings and packages.\n  - Pushing a product into App Store Connect (POST /projects/{id}/products/{id}/create_in_store; subscriptions need a duration enum ONE_WEEK..ONE_YEAR and subscription_group_name).\n  - Full paywall CRUD, versioning and publish/unpublish, plus font and media upload.\n  - Webhook integration CRUD.\n  - A Charts API launched 2026-02-05: GET /projects/{id}/charts/{chart_name} over 41 charts, including trial_conversion_rate, paywall_conversion, cohort_explorer and ltv_per_customer.\n- **RevenueCat MCP and CLI.** Experiments are not a REST v2 resource. They are exposed through the hosted MCP server (https://mcp.revenuecat.ai/mcp, OAuth or v2 key, about 120 tools): create/start/pause/resume/stop-experiment and get-experiment-results. The MCP also has async AI paywall generation (create-paywall-ai, edit-paywall-ai), render-paywall-screenshot, App Store/Play store-state plans and submit-products-to-store. RevenueCat also ships the `rc` CLI (`rc schema`, `--json`, `rc setup apple/google`, `rc paywalls generate`).\n- **RevenueCat Experiments.** 2\u20134 variants, Bayesian \"Chance to Win\" with 95% credible intervals, Pro and Enterprise plans only. Customers created via REST before the SDK are not enrolled.\n- **Superwall.** A public REST API (https://api.superwall.com/v2, org API keys with scopes, OpenAPI at api.superwall.com/openapi.json), MCP (https://mcp.superwall.com/mcp), CLI, and a paywalls-as-code \"Framework\" (superwall create/dev/push/promote/publish).\n  - Campaigns are created via POST /v2/campaigns with rule_conditions compiled into CEL.\n  - Per-audience variants and weights are settable, with variant_optimization 'none' or 'ucb1_bandit'.\n  - A per-variant readout endpoint returns confidence intervals.\n  - A ClickHouse SQL endpoint: POST /v2/organizations/{org}/query.\n- **Adapty.** Server-side API v2 (profiles, access levels, paywall get/update), an Analytics Export API (analytics/cohort/conversion/funnel/LTV/retention) and a Developer CLI (apps, products, paywalls, flows, placements, segments, RevenueCat migration). I found no programmatic A/B-test creation for Adapty.\n\nAnalytics:\n- **PostHog** is the most automatable stack.\n  - HogQL via POST /api/projects/:id/query/: 240/min, 2,400/hr, 3 concurrent, 10 s max, 50k-row cap.\n  - Ingestion via /i/v0/e/ and /batch/; flags via POST /flags?v=2.\n  - Hosted MCP at https://mcp.posthog.com/mcp with about 1,100 tools, including experiment-create/launch/results-get/calculate-running-time/ship-variant, create-feature-flag and execute-sql.\n  - Two stats engines: Bayesian (default; 95% chance-to-win counts as decisive, minimum 50 exposures per variant), and frequentist Welch t-test with optional sequential testing (Waudby-Smith et al. confidence sequences, tuning parameter default 5,000). The running-time calculator defaults to a 30% MDE, with N = 16\u03c3\u00b2/d\u00b2.\n- **Amplitude.** MCP at https://mcp.amplitude.com/mcp (45 tools including create_experiment, query_experiment and create_flags; page updated 2026-10-14). Export API GET /api/2/export (365-day max, about 2 h latency, 360 req/hr). Dashboard REST API with cost-based limits. Experiment Management API at https://experiment.amplitude.com (100 req/s, 100k/day).\n- **Mixpanel.** MCP at mcp.mixpanel.com/mcp (plus EU and IN hosts), 600 requests/hr per user. Experiments and feature-flag tools are in open beta. Raw export at data.mixpanel.com/api/2.0/export, 60 queries/hr.\n\nAttribution and links:\n- **AdAttributionKit (iOS 17.4+) is the Apple path.** Three conversion windows (days 0\u20132, 3\u20137, 8\u201335). Postbacks arrive 24\u201348 h after the first window and 24\u2013144 h after the later ones. Up to 5 non-winning install postbacks. Postback fields include country-code and a hierarchical source-identifier.\n- **iOS 18.4 additions to AdAttributionKit.** Conversion tags for overlapping re-engagements, and Info.plist AdAttributionKitConfigurations with AttributionWindows (view 1\u20137 days, click 1\u201330 days) and AttributionCooldown.\n- **SKAdNetwork** is still documented, but its older methods are deprecated and Apple points new work to AdAttributionKit.\n- **Apple Ads attribution.** AAAttribution.attributionToken() gives a token with a 24 h TTL, sent as POST text/plain to https://api-adservices.apple.com/api/v1/.\n- **Fingerprinting.** Apple explicitly bans it (\"you may not derive data from a device for the purpose of uniquely identifying it\"), so probabilistic deferred deep linking on iOS is a policy risk.\n- **Firebase Dynamic Links** shut down on Aug 25, 2025; links now return 404.\n- **Replacements.** Branch (POST https://api2.branch.io/v1/url plus a bulk endpoint), AppsFlyer OneLink API v2 (v1 sunset June 1, 2026; 1,000 rps; 7.5M writes/month; access via CSM), Dub (deep links on Pro plan; hosts AASA and assetlinks; /track/open), or self-hosted. Self-hosted options: universal links (AASA fetched by Apple's CDN within 24 h, devices recheck about weekly) and Android App Links with server-side dynamic rules (Android 15+). Deterministic deferred deep linking is possible via the Play Install Referrer (90-day availability) and via the App Clip-to-full-app shared container or keychain.\n- **App Clips.** Up to 100 MB on iOS 17+ for digital invocations, if the clip does not support iOS 16. The App Store Connect demo link allows 100 MB plus physical invocations (App Clip Codes, NFC, QR).\n- **Android Instant Apps** were reported shut down in December 2025 (press, June 2025; not confirmed in Google docs).\n\nInvites and retention surfaces:\n- **iOS 18 limited contacts access.** CNAuthorizationStatus.limited, ContactAccessButton and contactAccessPicker.\n- **Android 17 contact picker.** Intent.ACTION_PICK_CONTACTS, no READ_CONTACTS needed (Google blog).\n- **App Review Guideline 5.1.2(v)** forbids \"Select All\" or defaulting to all contacts, and requires showing how the message will appear. 5.1.1 prefers out-of-process pickers and the share sheet. 4.5.4 requires explicit opt-in for promotional push. 5.6.3 bans manipulating referrals.\n- **SMS invites** go through MFMessageComposeViewController or the sms: URL scheme; the user must press send.\n- **Live Activities.** apns-push-type liveactivity; push-to-start tokens (iOS 17.2+); broadcast channels (apns-channel-id; channel management at api-manage-broadcast.push.apple.com:2196). Limits: 8 h active plus 4 h on the Lock Screen (12 h max), 4 KB payload, an hourly push budget (priority-5 updates don't count against it), and scheduled starts with startDate.\n- **FCM HTTP v1.** 600k messages/min per project; Android per-device caps of 240/min and 5,000/hr.\n- **OneSignal.** POST https://api.onesignal.com/notifications?c=push with an \"Authorization: Key \u2026\" header, plus a Live Activity start endpoint.\n\nStatistics (my computations, alpha 0.05 two-sided, power 0.8, users needed per arm):\n- **D1 retention.** At a 35% baseline: about 2,978 per arm for a 10% relative lift, 758 for 20%, 342 for 30%. At a 25% baseline: about 1,251 for 20%.\n- **Paywall-view to trial at 15%.** About 2,402 per arm for 20%, 1,106 for 30%.\n- **Install to paid, freemium at 2%.** About 21,109 per arm for 20%. In practice this is untestable at small scale, so test trial start or paywall conversion as proxies.\n- **K-factor tested as per-user \"installs generated\" (overdispersed count, CV about 4).** About 6,280 per arm for 20%, 2,791 for 30%.\n- **Always-valid confidence sequences** (GrowthBook/PostHog formula) are about 1.55x wider than a fixed-horizon interval at the tuning point. That is roughly 2.4x the sample for equal precision at a single look, though large effects can stop early.\n- **Peeking.** A simulated A/A test with daily peeks over 14 days, stopping when \"chance to win\" exceeds 95% or falls below 5%, gave about a 40% false-positive rate. A single look gave about 10%, because that two-sided 95%/5% rule is effectively alpha = 0.10.\n- **Recommendations for small samples.**\n  - Test big swings (MDE of 30% or more).\n  - Use upstream proxy metrics.\n  - Use pre-registered group-sequential designs or always-valid inference, not naive Bayesian peeking.\n  - Use CUPED-style covariates where pre-exposure data exists.\n  - Use bandits (for example Superwall's UCB1) only to exploit, not to infer.\n  - Use cluster or holdout designs for invite/K-factor tests, because of network interference.",
+ "findings": [
+  {
+   "claim": "RevenueCat REST API v2 basics: base URL https://api.revenuecat.com/v2, Bearer secret keys whose permissions are set per key, and per-domain rate limits. API v1 keys do not work.",
+   "evidence": "Docs: 'API v1 keys will not work with REST API v2'. Rate limits per minute: Customer Information 480, Charts & Metrics 25, Project Configuration 60, Virtual Currencies 480. A 429 includes Retry-After and backoff_ms. Pagination uses limit (default 20) and starting_after, forward only. 'Developer API (2.0.0)'.",
+   "sources": [
+    "https://www.revenuecat.com/docs/api-v2",
+    "https://www.revenuecat.com/docs/api-reference/llms.txt"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "RevenueCat v2 lets an agent create the whole catalog from zero: project, apps, products, entitlements, offerings and packages. It can also push products into App Store Connect.",
+   "evidence": "Endpoints:\n- POST /projects (permission project_configuration:projects:read_write; body {name}).\n- POST /projects/{project_id}/apps, with type enum paddle | roku | rc_billing | stripe | play_store | mac_app_store | app_store | amazon.\n- GET /projects/{id}/apps/{app_id}/public_api_keys and /store_kit_config.\n- POST /projects/{id}/products.\n- POST /projects/{id}/products/{id}/create_in_store ('Push a product to the App Store'). Subscriptions require store_information.duration (ONE_WEEK, ONE_MONTH, TWO_MONTHS, THREE_MONTHS, SIX_MONTHS, ONE_YEAR) plus subscription_group_name. IAPs need no body.\n- POST /projects/{id}/entitlements/{id}/actions/attach_products.\n- POST /projects/{id}/offerings.\n- POST /projects/{id}/offerings/{id}/packages.\n- POST /projects/{id}/packages/{id}/actions/attach_products.",
+   "sources": [
+    "https://www.revenuecat.com/docs/api-v2/project.md",
+    "https://www.revenuecat.com/docs/api-v2/app.md",
+    "https://www.revenuecat.com/docs/api-v2/product.md",
+    "https://www.revenuecat.com/docs/api-v2/entitlement.md",
+    "https://www.revenuecat.com/docs/api-v2/offering.md",
+    "https://www.revenuecat.com/docs/api-v2/package.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "RevenueCat paywalls are fully API-manageable: CRUD, versions, publish/unpublish, attaching offerings, and font/media upload.",
+   "evidence": "- GET/POST /projects/{id}/paywalls. POST requires offering_id.\n- PATCH /projects/{id}/paywalls/{paywall_id}. It needs the current 'revision' (409 on mismatch) and takes components_config, components_localizations, exit_offers and state_declarations.\n- Publishing actions: /actions/attach_offering, detach_offering, duplicate, publish, unpublish; POST /paywalls/{id}/versions; GET /paywalls/{id}/versions/{version_id}.\n- Assets: GET/POST /projects/{id}/fonts and /media_assets.\n- Permission: project_configuration:offerings:read_write.",
+   "sources": [
+    "https://www.revenuecat.com/docs/api-v2/paywall.md",
+    "https://www.revenuecat.com/docs/api-v2/paywall/publishing.md",
+    "https://www.revenuecat.com/docs/api-v2/paywall/assets.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The RevenueCat Charts API, announced 2026-02-05, exposes 41 dashboard charts programmatically, including trial, paywall, cohort, LTV and ad charts.",
+   "evidence": "- GET /projects/{project_id}/charts/{chart_name}. Params: realtime, filters (JSON array), selectors, aggregate, currency, resolution, start_date, end_date, segment, limit_num_segments, include_annotations.\n- GET .../charts/{chart_name}/options.\n- GET /projects/{id}/metrics/overview.\n- GET /projects/{id}/metrics/revenue (revenue_type = revenue | revenue_net_of_taxes | proceeds).\n- Chart names include actives, mrr, churn, trial_conversion_rate, trial_cancellation, initial_conversion, conversion_to_paying, ltv_per_customer, cohort_explorer, prediction_explorer, refund_rate, paywall_encounter, paywall_conversion, paywall_ltv, paywall_abandonment, ad_revenue and ad_arpdau.\n- Permission: charts_metrics:charts:read. Limit: 25 req/min.",
+   "sources": [
+    "https://www.revenuecat.com/docs/api-v2/charts-and-metrics.md",
+    "https://www.revenuecat.com/release/access-your-revenuecat-chart-data-via-api-2026-02-05"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "RevenueCat Experiments (A/B tests of offerings, prices and paywalls) are not a REST v2 resource. They can be created and controlled through the official hosted MCP server.",
+   "evidence": "- The API v2 resource list has no Experiments section.\n- MCP server URL is https://mcp.revenuecat.ai/mcp, with auth by OAuth or a v2 API key. The tools reference lists about 120 tools.\n- Experiment tools: list-experiments, get-experiment, get-experiment-results ('per-variant performance data \u2026 filtered by platform, country, or paywall view status'), create-experiment ('Creates a draft experiment'), start-experiment, pause-experiment, resume-experiment, stop-experiment, update-experiment.\n- Other tools: get-benchmarks, create-project, create-app, create-product-store-state-plan, apply-product-store-state-plan, submit-products-to-store, create-paywall-ai and edit-paywall-ai (async task IDs), render-paywall-screenshot, publish-paywall, create-targeting-rule, assign-customer-offering, grant-customer-entitlement.\n- Note: 'create-product \u2026 only registers a product with RevenueCat; it does not create anything in the underlying store'.",
+   "sources": [
+    "https://www.revenuecat.com/docs/tools/mcp.md",
+    "https://www.revenuecat.com/docs/tools/mcp/tools-reference.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "RevenueCat ships an agent-oriented CLI (`rc`) and an AI Toolkit (plugin + skills + MCP) for Claude Code, Codex, Cursor and Gemini CLI.",
+   "evidence": "- 'Every command describes itself at runtime through `rc commands` and `rc schema`\u2026 every command supports `--json`'.\n- `rc setup apple` / `rc setup google` connect store credentials 'with no manual key downloads or console clicking'.\n- `rc paywalls generate` and `rc paywalls edit` work from a prompt.\n- `rc rico` opens Rico, RevenueCat's in-dashboard AI.",
+   "sources": [
+    "https://www.revenuecat.com/docs/tools/cli.md",
+    "https://www.revenuecat.com/docs/tools/ai-toolkit.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "RevenueCat Experiments: 2\u20134 variants, Bayesian Chance to Win with 95% credible intervals, no time limit, results keep maturing for 400 days, Pro and Enterprise plans only. Customers created via REST before the SDK are not enrolled.",
+   "evidence": "- 'A/B testing multiple paywall configurations (2-4 variants)'.\n- 'Chance to Win shows how likely a variant is to beat the control, and credible intervals'. 'Many developers consider 95% Chance to Win sufficient'.\n- 'results continue to update for the next 400 days'.\n- 'Customers created directly via the API aren't enrolled in experiments'.\n- 'Programmatically displaying the `current` Offering\u2026 is required'.\n- 'Experiments is available to Pro & Enterprise customers.'\n- Results can be filtered to customers who viewed the paywall.",
+   "sources": [
+    "https://www.revenuecat.com/docs/tools/experiments-v1/experiments-overview-v1.md",
+    "https://www.revenuecat.com/docs/tools/experiments-v1/experiments-results-v1.md",
+    "https://www.revenuecat.com/docs/tools/experiments-v1/configuring-experiments-v1.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "RevenueCat webhooks are signed, retried, and manageable through the API.",
+   "evidence": "- Management: GET/POST /projects/{id}/integrations/webhooks plus get/update/delete.\n- Event types include INITIAL_PURCHASE, RENEWAL, CANCELLATION, UNCANCELLATION, NON_RENEWING_PURCHASE, EXPIRATION, BILLING_ISSUE, PRODUCT_CHANGE, SUBSCRIPTION_PAUSED, SUBSCRIPTION_EXTENDED, TRANSFER, TEMPORARY_ENTITLEMENT_GRANT, REFUND_REVERSED, INVOICE_ISSUANCE, VIRTUAL_CURRENCY_TRANSACTION, EXPERIMENT_ENROLLMENT and PRICE_INCREASE_CONSENT_*.\n- Delivery: 'If your server doesn't finish the response in 60s\u2026 We then retry up to 5 times'. The retry window is about 80 minutes. Signature fields t and v1 are recomputed on each attempt.\n- Timing: 'Most webhooks are usually delivered within 5 to 60 seconds\u2026 cancellation events usually\u2026 within 2hrs'.",
+   "sources": [
+    "https://www.revenuecat.com/docs/integrations/webhooks.md",
+    "https://www.revenuecat.com/docs/integrations/webhooks/event-types-and-fields.md",
+    "https://www.revenuecat.com/docs/api-v2/integration.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "RevenueCat pricing: free up to $2,500 monthly tracked revenue (MTR), then 1% of MTR. Growth Tools (paywalls, web funnels, A/B/n testing) are a separately priced 1% add-on.",
+   "evidence": "Pricing page: Pro is 'Start free', up to $2,500 MTR, then 1% of tracked revenue. 'Growth Tools\u2026 Paywalls, web-to-app funnels, and A/B/n testing'. The page has no effective dates.",
+   "sources": [
+    "https://www.revenuecat.com/pricing/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Superwall exposes a full public REST API v2 with scoped org API keys and a published OpenAPI spec (202 paths). It is the same API its dashboard, MCP and CLI use.",
+   "evidence": "- Base https://api.superwall.com, endpoints versioned under /v2. Spec at https://api.superwall.com/openapi.json, title 'Superwall API V2 - Scope-based authentication with organization API keys'.\n- Paths include /v2/projects, /v2/projects/{id}/applications, /v2/products (plus /app-store-connect, /google-play and store-products/import), /v2/entitlements, /v2/paywalls (templates, publish, versions, promote, duplicate), /v2/campaigns, /v2/charts/data, /v2/charts/acquisition-cohort-report, /v2/projects/{id}/webhook_endpoints (rotate_secret, attempts), /v2/users/{app_user_id}/events, /v2/imports/subscriptions, /v2/surveys, /v2/retention-messages and /v2/demand-score/launch-experiment.",
+   "sources": [
+    "https://superwall.com/docs/agents/api",
+    "https://api.superwall.com/openapi.json"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Superwall campaigns and A/B tests can be created programmatically, including traffic weights, a holdout, and a built-in UCB1 bandit allocation mode.",
+   "evidence": "OpenAPI:\n- POST /v2/campaigns: 'when no audiences are supplied the server creates a single default control audience (a 0% holdout). Audience targeting is set with a structured `rule_conditions` rule, which is compiled into the audience's expression and drives `expression_cel`\u2026 The legacy raw `expression` field is no longer accepted. Requires campaigns:write'.\n- Audience endpoints: POST /v2/campaigns/{id}/audiences/{audience_id}/variants and PUT \u2026/weights.\n- Audience field variant_optimization takes enum 'none' ('use fixed percentages') or 'ucb1_bandit' ('UCB1 multi-armed bandit optimization').\n- GET \u2026/audiences/{audience_id}/readout 'Returns per-variant\u2026 users, views, transaction completes and rates, proceeds, trial starts/conversions and confidence intervals'.",
+   "sources": [
+    "https://api.superwall.com/openapi.json",
+    "https://superwall.com/docs/dashboard/dashboard-campaigns/campaigns-understanding-experiment-results"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Superwall agent tooling: a hosted MCP, a CLI that can call any API path and run SQL, an Editor MCP for the live paywall canvas, and a git-like paywalls-as-code Framework.",
+   "evidence": "- MCP at 'https://mcp.superwall.com/mcp', login on first use. It can 'create projects, paywalls, campaigns, products\u2026 advanced campaigns with A/B testing, holdout groups, and automatic optimization\u2026 webhooks\u2026 rotate secrets\u2026 acquisition cohort report'.\n- CLI: `superwall get /v2/products`, `superwall post /v2/products -d \u2026` and `superwall query \"SELECT count() FROM sw.events_rep\"`.\n- Framework CLI: `superwall create | dev | push | promote | publish`; 'push saves, promote ships'. It requires `SUPERWALL_CHANNEL=next` (beta). In CI it uses SUPERWALL_API_KEY (sk_\u2026).",
+   "sources": [
+    "https://superwall.com/docs/agents/mcp",
+    "https://superwall.com/docs/agents/cli",
+    "https://superwall.com/docs/framework/cli"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Superwall offers raw SQL over its ClickHouse analytics and RevenueCat-compatible read endpoints, which eases switching between vendors.",
+   "evidence": "- 'POST https://api.superwall.com/v2/organizations/{organization_id}/query'. Needs an org key with `data:read` scope. Uses a read-only ClickHouse user with row-level policies, for example 'SELECT count() FROM sw.events_rep'.\n- The OpenAPI includes GET /revenuecat/v1/projects/{project_id}/subscribers/{app_user_id} and /revenuecat/projects/{project_id}/customers/{customer_id}/active_entitlements.\n- Docs mention 'agent-driven SDK swap plus port of subscription history' from RevenueCat.",
+   "sources": [
+    "https://superwall.com/docs/dashboard/guides/query-clickhouse",
+    "https://api.superwall.com/openapi.json",
+    "https://superwall.com/docs/llms.txt"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Superwall pricing: subscription infrastructure is free at any scale. The paywall product is free up to $10k/month of paywall-attributed revenue, then 1% of paywall-attributed revenue only.",
+   "evidence": "Pricing page: 'free up to $10k per month in paywall-attributed revenue. Above that, the fee is 1% of paywall-attributed revenue only'. Example: '$50k/month with half converting through Superwall paywalls: $250/month'. No effective dates.",
+   "sources": [
+    "https://superwall.com/pricing",
+    "https://superwall.com/docs/agents/api"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Adapty is API- and CLI-configurable for catalog, paywalls, flows and placements, and has an analytics export API. I found no programmatic A/B-test creation in its CLI or API docs.",
+   "evidence": "Server-side API v2:\n- GET/POST/PATCH/DELETE /api/v2/server-side-api/profile/\n- POST /api/v2/server-side-api/purchase/profile/grant/access-level/\n- GET /api/v2/server-side-api/paywalls/ and PUT /api/v2/server-side-api/paywalls/{paywall_id}/\nAnalytics Export:\n- POST /api/v1/client-api/metrics/{analytics|cohort|conversion|funnel|ltv|retention}/ and /exports/placements/\nDeveloper CLI:\n- Commands: adapty apps, access-levels, products, paywalls, flows (publish, config validate/preview), placements, segments, migrations (from RevenueCat), skills install, asa (Apple Ads manager), plus attribution reports.\nA/B tests:\n- They are created as drafts and cannot be edited once live; changes go through 'Modify', which creates a duplicate.",
+   "sources": [
+    "https://adapty.io/docs/llms.txt",
+    "https://adapty.io/docs/developer-cli.md",
+    "https://adapty.io/docs/developer-cli-reference.md",
+    "https://adapty.io/docs/run_stop_ab_tests"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "PostHog HogQL Query API: POST /api/projects/:project_id/query/ with a {kind:'HogQLQuery'} body. It has strict limits and supports async polling.",
+   "evidence": "- Auth: personal API key with Query Read.\n- Limits: 240/min and 2,400/hr per project, 3 concurrent queries, 10 s max execution, 100 rows by default and up to 50k with LIMIT.\n- 'OFFSET is rejected with HTTP 400 for personal API keys' (use keyset pagination). 'api_queries_budget_exceeded' returns 429.\n- refresh modes: blocking, async, force_async, force_cache. Poll with GET /api/projects/:id/query/:query_id/.\n- '/query is not a supported export path' (use batch exports).",
+   "sources": [
+    "https://posthog.com/docs/api/queries"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "PostHog ingestion and flag-evaluation endpoints are public and use the project token.",
+   "evidence": "- Ingestion: 'https://us.i.posthog.com/i/v0/e/' and '/batch/' (body under 20MB; 'historical_migration' flag). EU host is eu.i.posthog.com.\n- Flags: POST 'https://us.i.posthog.com/flags?v=2' (and '&config=true') with api_key = project token.\n- Pricing doc: first 1M product-analytics events per month at $0.",
+   "sources": [
+    "https://posthog.com/docs/api/capture.md",
+    "https://posthog.com/docs/api/flags.md",
+    "https://posthog.com/docs/product-analytics/pricing.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "PostHog experiments have a Bayesian default and an optional frequentist engine. The frequentist engine offers always-valid sequential testing.",
+   "evidence": "Bayesian engine:\n- Confidence level 90/95/99% (default 95%). 'decisive when chance to win exceeds the confidence level, or falls below 1 minus that level'.\n- Minimum 50 exposures per variant. Funnel metrics need at least 5 conversions and n\u00b7p>5.\n- CUPED and winsorization are optional. No multiple-comparison correction.\nFrequentist engine:\n- 'Welch's t-test'.\n- 'When sequential testing is enabled, PostHog replaces the fixed-horizon t-test with a sequential test based on Waudby-Smith et al. 2023\u2026 confidence sequences'.\n- 'The tuning parameter (default: 5,000)\u2026 Set it close to your expected total sample size'.\nRunning-time calculator:\n- 'default is 30%' MDE, 'N = (16 \u00d7 variance) / d\u00b2'.\n- Automatic mode needs at least 1 day and 100 exposures.",
+   "sources": [
+    "https://posthog.com/docs/experiments/statistics",
+    "https://posthog.com/docs/experiments/statistics-frequentist.md",
+    "https://posthog.com/docs/experiments/sample-size-running-time.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The PostHog hosted MCP (https://mcp.posthog.com/mcp) exposes about 1,100 tools, covering the full experiment lifecycle, feature flags, SQL and surveys.",
+   "evidence": "The tools reference lists:\n- Experiments: experiment-create, experiment-create-from-prompt, experiment-calculate-running-time, experiment-launch, experiment-pause, experiment-results-get, experiment-timeseries-results, experiment-ship-variant, experiment-end, experiment-holdouts-create.\n- Flags: create-feature-flag, feature-flag-set-release-condition-rollout, feature-flag-roll-out-to-everyone.\n- Queries: execute-sql, query-retention, query-funnel, query-trends.\n- Surveys: survey-create, survey-launch, surveys-responses-list.\n- 'MCP tool names are stable and can be used with the `tools` query parameter\u2026 to scope a session'.\n- Connecting and calling the MCP is free; some AI-powered tools are billed as PostHog AI spend.",
+   "sources": [
+    "https://posthog.com/docs/model-context-protocol",
+    "https://posthog.com/docs/model-context-protocol/tools.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The Amplitude MCP (updated 2026-10-14) can create experiments, flags, metrics, charts, dashboards and cohorts. It is not an ingestion path.",
+   "evidence": "- URLs: 'https://mcp.amplitude.com/mcp' and 'https://mcp.eu.amplitude.com/mcp'. Optional '?discovery=progressive'.\n- Auth: OAuth 2.0, gated by the 'Use MCP (read)/(write)' RBAC actions.\n- 45 tools, including query_amplitude_data, get_experiments, query_experiment, create_experiment, update_experiment, create_metric, get_flags, create_flags, update_flag, get_deployments and use_amplitude_cohorts.\n- 'The MCP isn't an ingestion endpoint. Use an SDK or the HTTP V2 API'.",
+   "sources": [
+    "https://amplitude.com/docs/amplitude-ai/amplitude-mcp",
+    "https://amplitude.com/releases/new-external-mcp-tools-creation-edits-cohorts-users-and-feedback.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Amplitude has programmatic export, query and experiment-management APIs, each with concrete limits.",
+   "evidence": "- Export API: 'GET https://amplitude.com/api/2/export' (EU: analytics.eu.amplitude.com). start/end in YYYYMMDDTHH. 4 GB max per export, 365 days max range, data available 'up to 2 hours' after receipt, 4 concurrent and 360 req/hr (page updated 2026-10-08).\n- Dashboard REST: /api/2/events/segmentation, /api/2/funnels, /api/2/retention, /api/3/chart/{id}/csv. 5 concurrent. Cost-based limits of 1,000 per 5 min and 108,000 per hr.\n- Experiment Management API: 'https://experiment.amplitude.com' with a Bearer management key. 100 req/s and 100,000/day per project. Covers flags, experiments, mutex, holdouts and deployments (page updated 2026-09-22).",
+   "sources": [
+    "https://amplitude.com/docs/apis/analytics/export",
+    "https://amplitude.com/docs/apis/analytics/dashboard-rest",
+    "https://amplitude.com/docs/apis/experiment/experiment-management-api"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The Mixpanel hosted MCP supports service-account (headless) auth and has experiment and feature-flag tools in open beta. Raw export has tight hourly limits.",
+   "evidence": "- MCP URLs: 'https://mcp.mixpanel.com/mcp' (EU: mcp-eu, IN: mcp-in).\n- Auth: OAuth, or 'Service accounts (Beta): base64-encoded username:secret' header.\n- Limits: '600 MCP requests per hour per user'. 'Free and growth accounts created after August 1, 2026 have MCP enabled by default'.\n- Experiment tools: Create-Experiment and Update-Experiment. 'Experiment audience targeting and cohort editing must be done in the Mixpanel UI'.\n- Raw export: 'https://data.mixpanel.com/api/2.0/export' (data-eu, data-in). 'rate limit of 60 queries per hour, 3 queries per second, and a maximum of 100 concurrent queries'. limit is at most 100000.",
+   "sources": [
+    "https://docs.mixpanel.com/docs/mcp",
+    "https://docs.mixpanel.com/reference/raw-event-export"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "AdAttributionKit (iOS/iPadOS 17.4+) mechanics: three conversion windows, delayed postbacks, runner-up postbacks, crowd-anonymity tiers, and a country-code postback field.",
+   "evidence": "- Windows: 'first conversion window spans days 0 to 2; the second\u2026 3 to 7; and the third\u2026 8 to 35'. 'random delay is 24 to 48 hours for the first postback, and 24 to 144 hours for the second and third'. Locking a conversion value sends the postback early.\n- Install windows: view-through ads give 24 h to install, click-through 30 days.\n- 'Up to five ad networks receive one nonwinning postback each'. Re-engagement only comes from click-through ads, with no runner-ups.\n- Postback parameters include country-code, conversion-type (download / redownload / re-engagement), source-identifier, coarse-conversion-value, conversion-value, postback-sequence-index, did-win and marketplace-identifier.\n- Developer mode cuts postback delay to 5\u201310 minutes.",
+   "sources": [
+    "https://developer.apple.com/documentation/adattributionkit",
+    "https://developer.apple.com/documentation/adattributionkit/receiving-postbacks-in-multiple-conversion-windows",
+    "https://developer.apple.com/documentation/adattributionkit/receiving-ad-attributions-and-postbacks",
+    "https://developer.apple.com/documentation/adattributionkit/identifying-the-parameters-in-a-postback"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "iOS 18.4 AdAttributionKit additions: conversion tags for overlapping re-engagements, and app-side configurable attribution windows and cooldowns set in Info.plist.",
+   "evidence": "- 'In iOS 18.4 and later, the PostbackUpdate structure can accept an optional String property named conversionTag'. Re-engagement URLs carry the AdAttributionKitReengagementOpen parameter.\n- Info.plist dictionary 'AdAttributionKitConfigurations' containing 'AttributionWindows' and 'AttributionCooldown'. 'By default, view impressions are valid for 1 day\u2026 click impressions\u2026 30 days\u2026 you can specify\u2026 1 to 7 days for view\u2026 1 to 30 days for click'.\n- 'order of precedence\u2026 ad network > global > system default'.\n- The WWDC25 session 'What's new in AdAttributionKit' covered these (third-party recaps date it June 2025).",
+   "sources": [
+    "https://developer.apple.com/documentation/adattributionkit/conversion-tags",
+    "https://developer.apple.com/documentation/adattributionkit/configuring-attribution-rules-for-your-app",
+    "https://www.appsflyer.com/blog/mobile-marketing/adattributionkit-wwdc25/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "SKAdNetwork still works and interoperates with AdAttributionKit, but Apple directs new work to AdAttributionKit and has deprecated the oldest SKAN methods.",
+   "evidence": "- SKAdNetwork doc: 'Use AdAttributionKit for app ad campaigns on the App Store and alternative marketplaces'.\n- The docs JSON marks registerAppForAdNetworkAttribution() and updateConversionValue(_:) as deprecated.\n- Interop doc: 'If an app has both AdAttributionKit and SKAdNetwork impressions, the system sorts both\u2026 Only one impression can win\u2026 Click-through ads always take precedence\u2026 maximum of six impressions'.\n- Apps can call both updatePostbackConversionValue (SKAN) and updateConversionValue (AdAttributionKit); SKAN calls are mirrored.",
+   "sources": [
+    "https://developer.apple.com/documentation/storekit/skadnetwork",
+    "https://developer.apple.com/documentation/adattributionkit/adattributionkit-skadnetwork-interoperability"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The Apple Ads Attribution API gives deterministic attribution for Apple Ads installs without ATT consent.",
+   "evidence": "- AdServices AAAttribution.attributionToken() (iOS 14.3+): 'Base64 encoded string and has a 24-hour TTL'.\n- Request: 'POST https://api-adservices.apple.com/api/v1/' with 'Content-Type: text/plain'. On 404, 'retries at intervals of 5 seconds, with a maximum of three attempts'.\n- Payload fields: attribution, orgId, campaignId, conversionType, clickDate/impressionDate, claimType (Click/Impression), adGroupId, countryOrRegion, keywordId, adId, supplyPlacement (e.g. APPSTORE_SEARCH_RESULTS). It returns attribution=false if the ad group uses age/gender targeting.",
+   "sources": [
+    "https://developer.apple.com/documentation/adservices",
+    "https://developer.apple.com/documentation/adservices/aaattribution/attributiontoken()"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Apple forbids device fingerprinting, which rules out IP/user-agent probabilistic matching for deferred deep links and attribution on iOS.",
+   "evidence": "Apple User Privacy and Data Use: 'Can I fingerprint or use signals from the device to try to identify the device or a user? No. Per the Apple Developer Program License Agreement, you may not derive data from a device for the purpose of uniquely identifying it.' Fingerprint IDs used to join data with third parties also count as tracking that requires ATT.",
+   "sources": [
+    "https://developer.apple.com/app-store/user-privacy-and-data-use/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "AppsFlyer: the Master API gives aggregated KPIs by Bearer token. OneLink API v1 sunset June 1, 2026; v2 has explicit throughput and quotas but needs CSM access. The AppsFlyer MCP is in beta.",
+   "evidence": "- Master API: 'GET https://hq1.appsflyer.com/api/master-agg-data/v4/app/{app_id}', Bearer API V2 token, 'Tokens generated before March 10, 2026 at 19:00 UTC were revoked'. from/to range 1\u201331 days. Cohort day 1\u201390.\n- OneLink v2: 'OneLink API v1 will sunset on June 1, 2026'. 1,000 req/s per account, 25 req/s for GET QR, '7.5 million requests per month' (POST/PUT/DELETE). Default TTL 31 days (max 730, renew_ttl=false).\n- 'To access OneLink API, contact your CSM'.\n- AppsFlyer MCP is a Beta 'for evaluation purposes'.",
+   "sources": [
+    "https://dev.appsflyer.com/hc/reference/master_api_get",
+    "https://dev.appsflyer.com/hc/reference/onelinkapi_v2_overview",
+    "https://support.appsflyer.com/hc/en-us/articles/36349070304785--Beta-AppsFlyer-MCP"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The Adjust Report Service API exists, with Parquet/CSV/JSON/Pivot endpoints and per-IP rate limits. I found no official Adjust MCP, only a third-party one.",
+   "evidence": "Adjust dev docs: query 'Adjust's reporting dataset to retrieve aggregated data'. Four report formats, Parquet recommended for large reports. Rate limits apply per source IP (numbers on a separate page). Searches found only 'mcp-adjust' by bitscorp (third-party). The exact base URL and parameters were not confirmed on the fetched page.",
+   "sources": [
+    "https://dev.adjust.com/en/api/rs-api/",
+    "https://glama.ai/mcp/servers/bitscorp-mcp/mcp-adjust"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Firebase Dynamic Links shut down on Aug 25, 2025. Old links return 404, and Google names third-party replacements.",
+   "evidence": "- FAQ: 'All links clicked will return a HTTP 404 status response to end users'. Short Links and Link Stats API calls return 400 or 403. '.page.link' domains are gone.\n- For installed-app deep links use App Links and Universal Links. For full parity Google lists 'Adjust, Airbridge, AppsFlyer, Bitly, Branch, Kochava, and Singular' (not vetted by Google).\n- Firebase Auth email-link sign-in requires migrating to the latest Auth SDK.\n- Page 'Last updated 2026-10-13'.",
+   "sources": [
+    "https://firebase.google.com/support/dynamic-links-faq"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The Branch Deep Linking API creates links server-side, singly or in bulk.",
+   "evidence": "- Single: 'POST https://api2.branch.io/v1/url' with branch_key. Optional: alias, campaign, channel, feature, stage, tags, domain, 'duration' (match window, default 7200 s), type, data.\n- Bulk: 'POST https://api2.branch.io/v1/url/bulk/{branch_key}' takes an array. type=1 makes links one-time-use.\n- data keys: $fallback_url, $deeplink_path, ~channel, ~feature, ~campaign.\n- A 429 'Rate limit reached' is returned, but no numeric limit is given.\n- The page is undated, and no plan or pricing restrictions are stated.",
+   "sources": [
+    "https://help.branch.io/developers-hub/reference/createdeeplinkurl"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Dub is a cheaper link-plus-deep-link option. It hosts AASA and assetlinks on a custom domain and has an open-tracking endpoint, but deep links need a paid plan.",
+   "evidence": "- 'Deep links require a Pro plan subscription or higher'.\n- Upload apple-app-site-association and assetlinks.json under the domain's advanced settings, served at /.well-known/.\n- Mobile SDK for iOS (Swift) and React Native only.\n- 'POST /track/open' with {\"deepLink\": \"https://yourdomain.link/slug\"} returns clickId and the destination link.\n- Deferred deep linking on Android uses the Google Play Install Referrer.",
+   "sources": [
+    "https://dub.co/docs/concepts/deep-links/quickstart"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Universal links and App Links mechanics relevant to self-hosting. Apple's CDN caches the AASA file. Android 15+ supports server-side dynamic link rules. The Play Install Referrer gives deterministic Android deferred deep linking.",
+   "evidence": "- Apple: 'apps no longer send requests for apple-app-site-association files directly to your web server\u2026 Apple-managed content delivery network'. 'CDN requests the\u2026 file for your domain within 24 hours. Devices check for updates approximately once per week'. An alternate (developer) mode bypasses the CDN.\n- Android: dynamic rules in assetlinks.json via 'dynamic_app_link_components' with path/query/fragment matchers and exclusions, on Android 15 (API 35)+ with Google services. Malformed rules fall back to the manifest.\n- Install Referrer library 'com.android.installreferrer:installreferrer:2.2' returns installReferrer, referrerClickTimestampSeconds and installBeginTimestampSeconds. 'available for 90 days' (page updated 2026-02-26).",
+   "sources": [
+    "https://developer.apple.com/documentation/xcode/supporting-associated-domains",
+    "https://developer.android.com/training/app-links/configure-assetlinks",
+    "https://developer.android.com/google/play/installreferrer/library"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "App Clips can be up to 100 MB on iOS 17+ for digital invocations, and they hand data to the full app on install. That makes them a privacy-safe deferred deep link and invite-landing path on iOS.",
+   "evidence": "- Size table: 'iOS 15 and earlier 10 MB; iOS 16 and earlier 15 MB; iOS 17 and later 100 MB, with additional requirements'. The 100 MB limit applies only if the clip 'doesn't support iOS 16 and earlier' and is for digital invocations. 'you can use the App Clip demo link that App Store Connect generates to use the 100 MB size limit and support physical invocations from App Clip Codes, NFC tags, and QR codes.'\n- Data handoff: 'When users of your App Clip install your full app, the full app replaces the App Clip'. Data passes through a shared container, the keychain, Sign in with Apple, or CloudKit public DB reads.\n- App Store Connect API: GET /v1/appClips/{id}/appClipDefaultExperiences and /appClipAdvancedExperiences.",
+   "sources": [
+    "https://developer.apple.com/documentation/appclip/choosing-the-right-functionality-for-your-app-clip",
+    "https://developer.apple.com/documentation/appclip/sharing-data-between-your-app-clip-and-your-full-app",
+    "https://developer.apple.com/documentation/appstoreconnectapi/app-clips"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Google Play Instant / Android Instant Apps were announced for shutdown in December 2025, so Android has no App Clip equivalent.",
+   "evidence": "June 2025 press: an Android Studio warning said 'Instant Apps support will be removed by Google Play in December 2025'. A Google spokesperson cited low usage. I could not confirm completion in Google's own docs. The source is about 16 months old.",
+   "sources": [
+    "https://androidauthority.com/google-killing-android-instant-apps-3567211",
+    "https://www.ubergizmo.com/2025/06/discontinue-android-instant-apps"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "iOS 18+ contact access is user-curated. Apps get limited access and add contacts through ContactAccessButton or contactAccessPicker, so a full address-book upload is no longer assured.",
+   "evidence": "- CNAuthorizationStatus.limited (iOS 18.0): 'The app has access to a limited subset of contacts, chosen by the person'.\n- ContactAccessButton (iOS 18.0): 'Initialize the button with a query string from your search UI\u2026 tapping the button grants your app access to that contact'. It doesn't appear when access is fully authorized.\n- The contactAccessPicker(isPresented:completionHandler:) modifier shows a system picker.\n- WWDC24 session 10121.",
+   "sources": [
+    "https://developer.apple.com/documentation/contactsui/contactaccessbutton",
+    "https://developer.apple.com/documentation/contacts/cnauthorizationstatus/limited"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The App Review Guidelines (Last Updated Oct 16, 2026) directly constrain invite loops, push and referral mechanics.",
+   "evidence": "- 5.1.2(v): 'Do not contact people using information collected via a user's Contacts or Photos, except at the explicit initiative of that user on an individualized basis; do not include a Select All option or default the selection of all contacts. You must provide the user with a clear description of how the message will appear to the recipient before sending it'.\n- 5.1.2(iv): no building contact databases.\n- 5.1.1: 'Where possible, use the out-of-process picker or a share sheet rather than requesting full access to\u2026 Contacts'.\n- 4.5.3: don't use Push or Live Activities to spam.\n- 4.5.4: promotional push only with explicit in-app opt-in and an opt-out.\n- 5.6.3: 'Manipulating\u2026 reviews, or referrals to your app\u2026 is not permitted'.\n- Apps may not require push or tracking in exchange for compensation.\n- 3.1.2(a): subscription period at least 7 days.",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "SMS and iMessage invites can only be pre-filled; the user has to send them.",
+   "evidence": "MFMessageComposeViewController: 'populate the fields with the set of initial recipients and the message\u2026 a person can edit your initial values before sending'. Always check canSendText(). The alternative is the `sms` URL scheme, which opens Messages directly.",
+   "sources": [
+    "https://developer.apple.com/documentation/messageui/mfmessagecomposeviewcontroller"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Android 17 adds a system Contact Picker (Intent.ACTION_PICK_CONTACTS) that returns only the user-selected contacts and fields, without READ_CONTACTS.",
+   "evidence": "Google Android Developers blog: 'introduced in Android 17\u2026 allows users to grant apps access only to the specific contacts they choose'. It returns a session URI. Legacy ACTION_PICK contact intents are auto-upgraded. Android 16 and below still need the permission path.",
+   "sources": [
+    "https://developer.android.com/blog/posts/contact-picker-privacy-first-contact-sharing"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "APNs and ActivityKit essentials for habit loops: one HTTP/2 endpoint, required push-type headers, Live Activity push-to-start and broadcast channels, and a budget on high-priority updates.",
+   "evidence": "- APNs production host 'api.push.apple.com:443'. 'Send an apns-push-type header with each push'. Priority 10 is immediate, 5 is power-aware, 1 is lowest. Background pushes must use priority 5.\n- Live Activities: apns-push-type 'liveactivity'. 'pushToStartTokenUpdates\u2026 allows you to start new Live Activities' without the app running.\n- Broadcast: 'apns-channel-id' header. Channel management at 'api-manage-broadcast.push.apple.com:2196' (sandbox :2195). Storage policies are 'No Message Storage' (higher budget) or 'Most Recent Message Stored'.\n- Budget: 'The system allows for a certain budget of ActivityKit push notifications per hour\u2026 send a low-priority\u2026 apns-priority 5\u2026 doesn't count toward the budget'.",
+   "sources": [
+    "https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns",
+    "https://developer.apple.com/documentation/activitykit/starting-and-updating-live-activities-with-activitykit-push-notifications",
+    "https://developer.apple.com/documentation/usernotifications/sending-channel-management-requests-to-apns"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Live Activity limits and newer surfaces: 8 h active, 12 h max on the Lock Screen, 4 KB data, scheduled starts, and display on CarPlay, Mac and Apple Watch.",
+   "evidence": "- 'A Live Activity can be active for up to eight hours\u2026 remains on the Lock Screen\u2026 for up to four additional hours\u2026 maximum of 12 hours'.\n- 'can't exceed a combined size of 4 KB'.\n- 'schedule a Live Activity for a specific date using request(attributes:content:pushType:style:alertConfiguration:startDate:)\u2026 you must pass an AlertConfiguration'.\n- Appears 'in the Dynamic Island, on the Lock Screen, in CarPlay, and on a paired Mac or Apple Watch'.",
+   "sources": [
+    "https://developer.apple.com/documentation/activitykit/displaying-live-data-with-live-activities"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "FCM HTTP v1 endpoint, auth and quotas.",
+   "evidence": "- 'POST https://fcm.googleapis.com/v1/projects/{PROJECT_ID}/messages:send', OAuth2 scope 'https://www.googleapis.com/auth/firebase.messaging'.\n- Device groups are deprecated and 'will be removed on September 29, 2027'.\n- Quota: '600k messages per minute' per project.\n- Android per-device: 240/min and 5,000/hr. Collapsible messages: burst of 20, refilled at 1 per 3 min.\n- Pages updated 2026-10-15.",
+   "sources": [
+    "https://firebase.google.com/docs/cloud-messaging/send/v1-api",
+    "https://firebase.google.com/docs/cloud-messaging/throttling-and-quotas"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The OneSignal REST API supports targeted, throttled, idempotent sends and Live Activity push-to-start.",
+   "evidence": "- 'POST https://api.onesignal.com/notifications?c=push', 'Authorization: Key YOUR_APP_API_KEY'. An Organization API key is needed to create apps.\n- include_aliases (external_id) and include_subscription_ids, up to 20,000 each. filters capped at 200 entries.\n- throttle_rate_per_minute, send_after, ttl up to 28 days, idempotency_key (30 days; formerly external_id).\n- Live Activity start: POST /apps/{app_id}/activities/activity/{activity_type} (iOS 17.2+). The update path conflicts across localized docs.",
+   "sources": [
+    "https://documentation.onesignal.com/reference/push-notification",
+    "https://documentation.onesignal.com/reference/start-live-activity",
+    "https://documentation.onesignal.com/docs/push-to-start-live-activities"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Android 16 Live Updates are the counterpart to iOS Live Activities.",
+   "evidence": "Built on Notification.ProgressStyle. The notification must be ongoing. Check NotificationManager.canPostPromotedNotifications(); declare android.permission.POST_PROMOTED_NOTIFICATIONS. They appear as a status-bar chip, on the lock screen and in the drawer. Sources are vendor and community write-ups; the official guide is at developer.android.com.",
+   "sources": [
+    "https://proandroiddev.com/live-updates-in-android-16-exploring-the-next-evolution-of-notifications-1a5cf5de2068",
+    "https://docs.pushwoosh.com/developer/pushwoosh-sdk/android-sdk/live-updates/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "The App Store Connect API can create subscription groups, subscriptions, intro offers, product-page A/B tests and custom product pages, so pricing and store experiments are scriptable without RevenueCat.",
+   "evidence": "- POST /v1/subscriptionGroups and POST /v1/subscriptions (plus PATCH/DELETE). GET /v1/subscriptions/{id}/pricePoints, /offerCodes and /winBackOffers. POST /v1/subscriptionIntroductoryOffers.\n- Product Page Optimization: GET /v1/appStoreVersions/{id}/appStoreVersionExperimentsV2, GET /v2/appStoreVersionExperiments/{id} (AppStoreVersionExperimentV2CreateRequest).\n- POST /v1/appCustomProductPages.",
+   "sources": [
+    "https://developer.apple.com/documentation/appstoreconnectapi/subscriptions",
+    "https://developer.apple.com/documentation/appstoreconnectapi/subscription-groups",
+    "https://developer.apple.com/documentation/appstoreconnectapi/app-store-version-experiments",
+    "https://developer.apple.com/documentation/appstoreconnectapi/app-custom-product-pages"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Sample sizes per arm for typical consumer-app metrics (my computation; two-proportion z-test, alpha 0.05 two-sided, 80% power). At small scale only large relative lifts are detectable.",
+   "evidence": "Users per arm, by relative lift:\n- D1 retention, 25% baseline: 10% lift 4,862; 20% lift 1,251; 30% lift 571; 50% lift 215.\n- D1 retention, 35%: 10% 2,978; 20% 758; 30% 342.\n- D1 retention, 45%: 10% 1,931; 20% 484; 30% 214.\n- D7 retention, 12%: 20% 3,122; 30% 1,440.\n- Paywall-view to trial, 15%: 10% 9,257; 20% 2,402; 30% 1,106; 50% 424.\n- Onboarding to trial, 8%: 20% 4,921; 30% 2,276.\n- Install to paid, hard paywall at 10%: 20% 3,841.\n- Install to paid, freemium at 2%: 20% 21,109; 50% 3,826.\n- Share/invite-sent rate, 10%: 20% 3,841.\nMean metrics (n = 2(z_a+z_b)\u00b2\u03c3\u00b2/d\u00b2):\n- Invites/user with mean 0.5, SD 1.5: 20% lift 3,532; 30% lift 1,570.\n- K-factor as per-user installs-generated with CV 4: 20% lift 6,280; 30% lift 2,791; 50% lift 1,005.\nCross-check: PostHog's rule N = 16\u03c3\u00b2/d\u00b2 gives the same order of magnitude.",
+   "sources": [
+    "https://posthog.com/docs/experiments/sample-size-running-time.md"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Always-valid sequential inference has a real cost at small n. At the tuning point the confidence-sequence half-width is about 1.55x the fixed-horizon interval, roughly 2.4x the sample for equal precision at a single look. It pays off only if you will stop early on large effects or must monitor continuously.",
+   "evidence": "- My computation with GrowthBook's documented formula: \u03bc\u0302 \u00b1 \u03c3\u0302\u00b7\u221aN\u00b7\u221a(2(N\u03c1\u00b2+1)/(N\u00b2\u03c1\u00b2)\u00b7log(\u221a(N\u03c1\u00b2+1)/\u03b1)), with \u03c1 = \u221a((\u22122log\u03b1 + log(\u22122log\u03b1+1))/N*).\n- At \u03b1 = 0.05 and N* = 5000 the width ratio vs 1.96 is 1.55 at N = N*, 1.67 at N*/4 and 1.97 at N*/10.\n- GrowthBook: 'sequential intervals are uniformly wider\u2026 ratio is lowest when the analysis sample size is near N*', defaults \u03b1 = 0.05 and N* = 5,000.\n- PostHog uses the same Waudby-Smith CS (tuning default 5,000). Statsig uses mSPRT with \u03c4 = Z\u00b2(\u03b1/2)\u00b7(var_t+var_c)/(N_t+N_c).\n- Pre-planned group-sequential designs with a few looks are a cheaper alternative. That is standard theory, not vendor-sourced.",
+   "sources": [
+    "https://docs.growthbook.io/statistics/sequential",
+    "https://posthog.com/docs/experiments/statistics-frequentist.md",
+    "https://docs.statsig.com/experiments/advanced-setup/sequential-testing",
+    "https://arxiv.org/abs/2103.06476"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Naive peeking at Bayesian 'chance to win' badly inflates false positives. The '>95% or <5%' decisive rule used by PostHog and common for RevenueCat amounts to alpha of about 0.10 even at a single look.",
+   "evidence": "- My Monte Carlo A/A simulation: D1 = 30%, 200 users/arm/day, daily looks for 14 days, stop when P(B>A) > 0.95 or < 0.05. False-positive rate \u2248 0.40 over 2,000 runs. A single look at day 14 gave \u2248 0.10.\n- PostHog: 'significant\u2026 when chance to win exceeds the confidence level, or falls below 1 minus that level'.\n- RevenueCat: 'Many developers consider 95% Chance to Win sufficient'.",
+   "sources": [
+    "https://posthog.com/docs/experiments/statistics",
+    "https://www.revenuecat.com/docs/tools/experiments-v1/experiments-results-v1.md"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Platforms differ on bandits. Superwall exposes a UCB1 bandit per campaign audience via API. GrowthBook has multi-armed bandits on its Pro plan (contextual bandits on Enterprise). RevenueCat and PostHog experiment docs describe fixed allocation only.",
+   "evidence": "- Superwall OpenAPI: variant_optimization enum ['none','ucb1_bandit'].\n- GrowthBook docs list 'Multi Armed Bandits' (Pro) and 'Contextual Bandits' (Enterprise).\n- RevenueCat lets you set audience percentages and pause enrollment manually.\n- I found no bandit mention in the PostHog experiment statistics docs.",
+   "sources": [
+    "https://api.superwall.com/openapi.json",
+    "https://docs.growthbook.io/statistics/sequential",
+    "https://www.revenuecat.com/docs/tools/experiments-v1/experiments-overview-v1.md"
+   ],
+   "confidence": "medium"
+  }
+ ],
+ "implications_for_automation": [
+  "Use RevenueCat as the default subscription backend.\n- REST v2 for deterministic catalog setup: POST /projects, then /apps, /products (+ create_in_store), /entitlements (attach_products), /offerings, /packages.\n- The MCP (create-experiment/start/stop, create-paywall-ai, render-paywall-screenshot) for experiments and AI paywall generation.\n- Budget for 60 req/min on configuration and 25 req/min on Charts. Queue and back off on RevenueCat-Rate-Limit headers and backoff_ms.",
+  "Do not create RevenueCat customers via REST before the SDK runs; those customers are never enrolled in experiments. Always render the `current` offering from the SDK so traffic splits correctly.",
+  "Prefer Superwall when the agent needs fully API-native A/B tests.\n- POST /v2/campaigns with rule_conditions, then audiences, variants and PUT weights.\n- variant_optimization='ucb1_bandit' to exploit known-good paywalls.\n- GET \u2026/readout for per-variant CIs.\n- SQL via /v2/organizations/{org}/query for custom metrics.\nInfrastructure is free and paywall revenue is free under $10k/mo, which suits a many-small-apps portfolio.",
+  "Build a vendor abstraction layer: entitlements, offerings, paywall config, experiment create/read, webhook ingest. Superwall's RevenueCat-compatible endpoints and both vendors' migration tools make switching realistic. Keep App Store Connect API calls (POST /v1/subscriptionGroups, /v1/subscriptions, /v1/subscriptionIntroductoryOffers) as a fallback path that needs no vendor.",
+  "Use PostHog (self-hostable, 1M free events/month) as the per-app event store and experiment engine.\n- Ingest via /batch.\n- Flags via /flags?v=2.\n- Read metrics via HogQL POST /query, with keyset pagination since OFFSET is banned for personal keys.\n- Respect 240/min, 3 concurrent and 10 s execution; use async refresh and caching.\n- Use the MCP's experiment-calculate-running-time before launch.\n- Turn on the frequentist engine with sequential testing for anything the agent will monitor continuously.",
+  "Do not let the agent auto-ship on '95% chance to win' with daily peeks. Simulated A/A false positives reach about 40%. Use one of:\n(a) a pre-registered fixed horizon computed from MDE tables;\n(b) always-valid confidence sequences (PostHog or GrowthBook) with N* set to the expected sample;\n(c) a group-sequential plan with 3\u20134 pre-specified looks.\nAlso require at least 7 days runtime to cover weekday cycles.",
+  "Target large effects and upstream metrics at small n.\n- Test big swings with a relative MDE of at least 30%: trial-start rate, paywall-view-to-trial, D1 retention, share/invite rate.\n- Don't try to detect 10% lifts on install-to-paid, which needs about 80k users per arm at 2%.\n- Use the per-arm sample tables to gate which experiments the agent may run, given each app's daily installs.",
+  "Measure viral loops with per-user metrics. Track invites_sent/user, invite_accept_rate and installs_generated/user, plus cycle time. Test K-factor features with user-level randomization only when invitees don't interact across arms. Otherwise use cluster/geo or time-sliced holdouts, because network interference violates SUTVA.",
+  "Compliance-safe invite flows on iOS.\n- Use ContactAccessButton or contactAccessPicker under limited access (iOS 18+), or the share sheet.\n- Never pre-select all contacts and never offer 'Select All' (Guideline 5.1.2(v)).\n- Preview exactly what the recipient sees and who the sender appears to be.\n- Send via MFMessageComposeViewController or the sms: URL so the user taps send.\n- Never upload address books for your own database (5.1.2(iv)).\n- On Android 17+ use Intent.ACTION_PICK_CONTACTS.",
+  "Deferred deep linking without Firebase.\n- Host AASA and assetlinks on a per-app domain the agent controls. Apple's CDN refreshes within 24 h, so pre-publish before a launch.\n- Android: deterministic attribution via the Play Install Referrer (call once on first launch; 90-day availability).\n- iOS: use an App Clip (up to 100 MB on iOS 17+ for digital invocations) as the invite landing, and pass the invite payload to the full app via the shared app-group container or keychain.\n- Avoid IP/UA fingerprint matching, which Apple's DPLA forbids.\n- Use Branch, AppsFlyer OneLink v2 (CSM-gated) or Dub (Pro plan) only if a managed vendor is acceptable.",
+  "Attribution pipeline per app.\n- Call AAAttribution.attributionToken() on first launch and POST it to api-adservices.apple.com/api/v1/ (retry 5 s x3) for Apple Ads.\n- Implement AdAttributionKit updateConversionValue with a coarse/fine schema mapped to onboarding, trial and paid. Lock early when the conversion is known, to get postbacks sooner.\n- Mirror to the SKAN updatePostbackConversionValue.\n- Set AdAttributionKitConfigurations windows if the default 1-day view / 30-day click doesn't fit.\n- Expect 24\u2013144 h postback delays; don't optimize daily on SKAN or AdAttributionKit data alone.",
+  "Read MMP data through APIs, not dashboards.\n- AppsFlyer Master API: Bearer V2 token, 1\u201331 day ranges. Re-mint tokens; pre-March-10-2026 tokens are revoked.\n- Adjust Report Service: Parquet for bulk.\n- Treat the AppsFlyer MCP as beta and unreliable for unattended runs.",
+  "Habit-loop push stack.\n- APNs token auth directly (api.push.apple.com, always set apns-push-type), or FCM HTTP v1 (600k msgs/min/project; Android per-device 240/min) behind an abstraction. OneSignal (Key auth, idempotency_key, throttle_rate_per_minute) is an alternative if a SaaS is acceptable.\n- Get explicit opt-in before any promotional push (4.5.4), and never gate features on push permission.",
+  "Live Activities and widgets for streak or daily-ritual apps.\n- Use push-to-start tokens to start activities remotely.\n- Use broadcast channels (apns-channel-id) for one-to-many daily content.\n- Mix priority 5 and 10 to stay within the hourly budget.\n- Respect the 8 h active / 12 h max lifetime and 4 KB payload. Schedule starts with startDate plus AlertConfiguration.\n- Mirror with Android 16 Live Updates (ProgressStyle) where relevant.",
+  "Wire RevenueCat or Superwall webhooks into the event store as the source of truth for trials, conversions and refunds.\n- Verify signatures and the auth header.\n- Respond within 60 s and process async; RevenueCat retries 5 times over about 80 min.\n- Dedupe by event id.\n- Join on app_user_id and the experiment/variant ids so the agent can compute refund-adjusted LTV per variant.",
+  "Use the App Store Connect API for store-side experiments.\n- Product Page Optimization via appStoreVersionExperimentsV2.\n- Custom Product Pages via appCustomProductPages for per-channel creatives.\n- Feed these into the same experiment registry as in-app tests."
+ ],
+ "open_questions": [
+  "Does RevenueCat expose experiment create/start/stop as public REST endpoints, or only through the MCP and dashboard? The API v2 reference lists no Experiments resource. Calling the MCP from an unattended agent may need OAuth refresh handling.",
+  "What are the exact rate limits and quotas on Superwall's /v2 API and ClickHouse query endpoint? They are not stated in the docs fetched. The Superwall Framework also requires SUPERWALL_CHANNEL=next (beta), so its stability for production use is unclear.",
+  "Can Adapty A/B tests be created through any API or CLI command? None was found; the docs show dashboard-only creation.",
+  "How reliable are PostHog MCP write tools (experiment-launch, experiment-ship-variant) without a human in the loop? Which ones need confirmation or approval policies? PostHog lists approval-policy tools.",
+  "Exact current AppsFlyer OneLink v2 create endpoint path and plan requirements. The docs say to contact a CSM. Branch's numeric API rate limits and current free-tier or pricing for small apps were also not confirmed.",
+  "Has Google Play Instant actually been fully shut down, and did Google document it? Only June 2025 press coverage was found.",
+  "Is the official Adjust Report Service base URL still automate.adjust.com/reports-service, and with which parameters? It was not confirmed on the fetched page. Does Adjust have an official MCP? None found.",
+  "OneSignal Live Activity update endpoint path: localized docs conflict. Also, what is the exact numeric APNs/ActivityKit hourly budget? Apple doesn't publish it.",
+  "Did anything AdAttributionKit-specific ship in iOS 26 beyond the iOS 18.4 features, for example web-to-app attribution? Apple's privacy page mentions 'web ads on mobile', but no iOS 26 release note was found.",
+  "What sequential design best fits very small consumer-app samples (a few hundred users per arm)? Options are confidence sequences with small N*, group-sequential O'Brien-Fleming, or Bayesian with expected-loss stopping. An empirical simulation on the portfolio's real baselines is recommended before fixing the agent's decision rule.",
+  "How should K-factor experiments be randomized when invitees join the same app? Cluster by inviter-invitee graph or by geo/time? The interference magnitude for typical consumer invite loops was not found in primary sources."
+ ]
+}

@@ -1,0 +1,349 @@
+{
+ "verdicts": [
+  {
+   "claim": "Vert's site (vert.nyc) says $25M+ annual revenue, 15M+ users, 8 apps, $0 funding, 2 years old, a 23-person team and 'We make and market apps entirely in-house'; contact will@vertventures.io; vertventures.io redirects to vert.nyc.",
+   "status": "confirmed",
+   "correction": "Re-fetched page-01cb73719934107d.js on 2026-10-17. It contains every string: '$25M+ Annual Revenue', '15M+ Users', '8 Apps', '$0 Funding', '2 years old', '23 Person Team', 'We make and market apps entirely in-house.', 'Vert is a startup that makes startups.', 'will@vertventures.io' and the 'shipping bugs to production' job copy. https://vertventures.io returns 301 to http://vert.nyc/. www.vertventures.io/terms was refused by the egress proxy. All figures are self-reported marketing numbers.",
+   "sources": [
+    "https://vert.nyc",
+    "https://vert.nyc/_next/static/chunks/app/page-01cb73719934107d.js"
+   ]
+  },
+  {
+   "claim": "Astra - Life Advice (id 6473748536) is published by Vert Ventures LLC (bundle com.vertventures.stella), released 2024-01-09, actively updated, about 39.3K US ratings.",
+   "status": "confirmed",
+   "correction": "iTunes lookup on 2026-10-17: artist 'Vert Ventures' (artistId 1719671063), seller 'Vert Ventures LLC', bundle com.vertventures.stella, 39,321 ratings, released 2024-01-09, v3.12.69 updated 2026-10-12. The terms page ('Last updated June 26th, 2025') says 'We are Vert Ventures LLC ... a company registered in Wyoming ... We operate the mobile application Astra'.",
+   "sources": [
+    "https://itunes.apple.com/lookup?id=6473748536&country=us",
+    "https://consequentlyjubilant.github.io/astraapp/terms.html"
+   ]
+  },
+  {
+   "claim": "The Google Play developer 'Vert Media Partners' publishes Astra (com.vertmedia.astra), Plug AI (com.vertmedia.wingman) and Strum (com.w185holdings.strum), which ties W185 Holdings to Vert.",
+   "status": "confirmed",
+   "correction": "The Play developer page (developer?id=Vert+Media+Partners) links exactly those three package IDs. Each listing links back to that developer and shows contact@vertmedia.io. Downloads: Astra 500K+ (updated Dec 5, 2025), Plug AI 1M+ (updated Oct 3, 2026), Strum 500K+ (updated Jun 9, 2026). Astra's Play description references vertventures.io/terms. This shows shared Play account control. That W185 is legally 'part of Vert' is an inference, though a strong one.",
+   "sources": [
+    "https://play.google.com/store/apps/developer?id=Vert+Media+Partners&hl=en_US&gl=US",
+    "https://play.google.com/store/apps/details?id=com.vertmedia.astra&hl=en_US",
+    "https://play.google.com/store/apps/details?id=com.w185holdings.strum&hl=en_US"
+   ]
+  },
+  {
+   "claim": "Plug AI: Texting Assistant (id 6449750416, bundle com.vert.rizzgpt) is under Vert Media Partners LLC (artist id 1690446849), released 2023-06-30 and not updated on iOS since 2024-08-02.",
+   "status": "confirmed",
+   "correction": "iTunes lookup on 2026-10-17: seller 'Vert Media Partners LLC', artistId 1690446849, 15,808 ratings, released 2023-06-30, v6.3 last updated 2024-08-02. The iOS build has been dormant for more than two years.",
+   "sources": [
+    "https://itunes.apple.com/lookup?id=6449750416&country=us"
+   ]
+  },
+  {
+   "claim": "Strum - Play Guitar (id 6749384181) is published by W185 Holdings LLC, launched 2025-08-06, and was originally called Autochord. The terms name W185 Holdings LLC of Wyoming.",
+   "status": "confirmed",
+   "correction": "iTunes: seller W185 Holdings LLC, bundle com.w185holdings.guitar, about 20,077-20,079 ratings, released 2025-08-06, v1.9.4 updated 2026-10-15. Terms ('Last updated July 31st, 2025'): 'We are W185 Holdings LLC ... registered in Wyoming ... We operate the mobile application Autochord'. I did not re-verify the '#53 Music' chart rank or the third-party revenue estimates.",
+   "sources": [
+    "https://itunes.apple.com/lookup?id=6749384181&country=us",
+    "https://strum-app.github.io/strum/terms"
+   ]
+  },
+  {
+   "claim": "W185 Holdings also publishes 5 smaller iOS apps: Berry, Saga, Sensa, Indigo and Eagle.",
+   "status": "confirmed",
+   "correction": "Lookup of artist id 1761597813 returns Strum, Berry (released 2024-08-20, last updated 2025-02-14, 1,302 ratings), Saga (2025-01-13, updated 2025-10-13, 159), Sensa (2025-03-05, updated 2025-03-26, 0), Indigo (2026-03-29, updated 2026-04-13, 0) and Eagle (2026-08-04, updated 2026-09-30). Eagle now shows 121 ratings, not 127. Eagle's terms (10 July 2026) name W185 Holdings LLC. w185holdings.com was refused by the proxy, so I could not check it.",
+   "sources": [
+    "https://itunes.apple.com/lookup?id=1761597813&entity=software&country=us",
+    "https://eagle-golf.github.io/eagle/terms.html"
+   ]
+  },
+  {
+   "claim": "Vert Ventures LLC (formed in Wyoming 11/08/2023) was registered in New York on 6/11/2024 at 185 Wythe Ave, Brooklyn (likely the origin of the 'W185' name).",
+   "status": "confirmed",
+   "correction": "bizprofile.net shows DOS 7367252, filed June 11, 2024, foreign formation in Wyoming on 11/08/2023, Active, Kings County, 185 Wythe Ave, Brooklyn NY 11249. This is an aggregator, not the NY DOS itself. The link between 'W185' and 185 Wythe is plausible but remains inference.",
+   "sources": [
+    "https://www.bizprofile.net/ny/brooklyn/vert-ventures-llc"
+   ]
+  },
+  {
+   "claim": "Co-founders are Evan Dray, Alex Leiman and Will Olson; Plug AI was co-founded by Blake Anderson and Alex Leiman.",
+   "status": "unverifiable",
+   "correction": "Two web searches found no primary source naming these people as Vert co-founders. LinkedIn, X and the CA SOS PDF were not retrievable. The Brick by Brick podcast (Jan 19, 2024) does identify Alex Leiman as co-founder of Plug AI. Treat the rest of the roster as low confidence; it rests on RocketReach and search summaries only.",
+   "sources": [
+    "https://creators.spotify.com/pod/profile/ollie-allman/episodes/019-Alex-Leiman--23-Year-Old-Makes-190k--Month-With-AI-Dating-Assistant-App-e2lvpki"
+   ]
+  },
+  {
+   "claim": "Founders said Plug AI grew from 0 to 1.2M downloads in under 3 months (1.5M in 4.5 months) via TikTok, earned about $190K a month, was listed for sale at $3.5M, and used Superwall for paywall testing.",
+   "status": "confirmed",
+   "correction": "The episode page (published January 19, 2024) shows all of these points: '1.5M downloads in 4.5 months thanks to a genius TikTok campaign', '$190k / month', listed at '$3.5M', the timestamp '0 to 1.2M Downloads in less than 3 months', 'Using Superwall to test paywall strategy', and the 'rizz gpt to wingman' rename. The figures are self-reported and about 33 months old, so they are outdated as a current revenue figure.",
+   "sources": [
+    "https://creators.spotify.com/pod/profile/ollie-allman/episodes/019-Alex-Leiman--23-Year-Old-Makes-190k--Month-With-AI-Dating-Assistant-App-e2lvpki"
+   ]
+  },
+  {
+   "claim": "TikTok Content Sharing Guidelines list as not acceptable 'A utility tool to help upload contents to the account(s) you or your team manages' and apps copying content from other platforms.",
+   "status": "confirmed",
+   "correction": "Both 'Not acceptable' lines are verbatim. The page reads 'Last updated August 4, 2026'. This bars an internal multi-account posting tool from passing audit.",
+   "sources": [
+    "https://developers.tiktok.com/doc/content-sharing-guidelines"
+   ]
+  },
+  {
+   "claim": "Unaudited TikTok Direct Post clients are limited to 5 posting users per 24h, posting accounts must be private, and posts are SELF_ONLY. Error unaudited_client_can_only_post_to_private_accounts (403).",
+   "status": "confirmed",
+   "correction": "All three quotes are verbatim in the guidelines (Aug 4, 2026). The Direct Post reference (Aug 24, 2026) lists unaudited_client_can_only_post_to_private_accounts (HTTP 403) and 'Each user access_token is limited to 6 requests per minute.'",
+   "sources": [
+    "https://developers.tiktok.com/doc/content-sharing-guidelines",
+    "https://developers.tiktok.com/doc/content-posting-api-reference-direct-post"
+   ]
+  },
+  {
+   "claim": "TikTok's per-creator daily API post cap is typically around 15 posts per day.",
+   "status": "confirmed",
+   "correction": "Verbatim: 'The upper limit may vary among creators (typically around 15 posts per day/ creator account)'. I did not re-check the claim that the cap is shared across all clients.",
+   "sources": [
+    "https://developers.tiktok.com/doc/content-sharing-guidelines"
+   ]
+  },
+  {
+   "claim": "TikTok upload-to-inbox (/v2/post/publish/inbox/video/init/) leaves a draft the creator must finish in-app, with at most 5 pending shares per 24h.",
+   "status": "confirmed",
+   "correction": "Verbatim: 'There may be at most 5 pending shares within any 24-hour period.' The error is spam_risk_too_many_pending_share (403). Users 'must click on inbox notifications to continue the editing flow'. The upload URL is valid for one hour. Last updated August 4, 2026.",
+   "sources": [
+    "https://developers.tiktok.com/doc/content-posting-api-reference-upload-video"
+   ]
+  },
+  {
+   "claim": "TikTok Content Posting API supports photo carousels of up to 35 images (DIRECT_POST or MEDIA_UPLOAD), auto_add_music for direct post only, and an is_aigc flag.",
+   "status": "confirmed",
+   "correction": "Confirmed on the photo-post reference (updated Aug 24, 2026): up to 35 photo URLs, title 90 and description 4000 UTF-16 runes, auto_add_music 'Only works for post_mode = DIRECT POST', is_aigc optional. The 'WebP or JPEG, max 1080p, 20 MB' detail is not on this page (it may be in the media transfer guide), so I did not verify it.",
+   "sources": [
+    "https://developers.tiktok.com/doc/content-posting-api-reference-photo-post"
+   ]
+  },
+  {
+   "claim": "Instagram Content Publishing documents both 100 and 50 API-published posts per 24h on the same page; carousels are limited to 10 items; trial_params graduation_strategy is MANUAL or SS_PERFORMANCE; is_ai_generated is set on the carousel parent only; JPEG only.",
+   "status": "confirmed",
+   "correction": "Both caps appear verbatim and are not reconciled ('limited to 100 API-published posts within a 24-hour moving period' versus 'limited to 50 published posts within a 24-hour period'). Plan for 50 to be safe. The other details are confirmed verbatim.",
+   "sources": [
+    "https://developers.facebook.com/docs/instagram-platform/content-publishing"
+   ]
+  },
+  {
+   "claim": "YouTube videos.insert now has its own quota bucket of 100 calls/day at 1 unit each, separate from the 10,000-unit pool (June 1, 2026). The upload cost was cut from about 1600 to about 100 units on Dec 4, 2025.",
+   "status": "confirmed",
+   "correction": "Quota page (updated 2026-10-15): 'The search.list and videos.insert methods have their own quota buckets ... default daily limit of 100 per day', 'Each call costs 1 quota', and 10,000 units/day for all other endpoints. The June 1, 2026 and Dec 4, 2025 revision entries are verbatim. videos.batchGetStats (June 3, 2026) also has its own bucket.",
+   "sources": [
+    "https://developers.google.com/youtube/v3/determine_quota_cost",
+    "https://developers.google.com/youtube/v3/revision_history"
+   ]
+  },
+  {
+   "claim": "The current videos.insert doc says uploads from unverified API projects are NOT restricted to private, but no dated revision-history entry reverses the July 28, 2020 rule.",
+   "status": "confirmed",
+   "correction": "videos.insert (updated 2026-10-15) states verbatim: 'Videos uploaded from unverified API projects are not restricted to private viewing mode.' The revision history still contains only the July 28, 2020 entry restricting such uploads to private, with no reversal entry. The sources conflict, so test with a real unverified project before relying on public uploads. Developer Policies and the OAuth verification cap (100 users) still apply.",
+   "sources": [
+    "https://developers.google.com/youtube/v3/docs/videos/insert",
+    "https://developers.google.com/youtube/v3/revision_history"
+   ]
+  },
+  {
+   "claim": "App Store Connect API (spec 4.5.1) cannot create a new app record: /v1/apps has GET only.",
+   "status": "confirmed",
+   "correction": "I re-downloaded the spec (openapi.oas.json timestamp Oct 6, 2026, info.version 4.5.1). '/v1/apps' has ['get'] and '/v1/apps/{id}' has ['get','patch']. The Apps doc JSON says 'Don't use this API to create new apps; instead, create new apps on the App Store Connect website.' The same doc still says the API 'doesn't permit you to directly upload your builds', which is stale given buildUploads.",
+   "sources": [
+    "https://developer.apple.com/sample-code/app-store-connect/app-store-connect-openapi-specification.zip",
+    "https://developer.apple.com/documentation/appstoreconnectapi/apps"
+   ]
+  },
+  {
+   "claim": "Binary upload is a first-class ASC API (Build Uploads, added in 4.1) with a BUILD_UPLOAD_STATE_UPDATED webhook. Review submission uses reviewSubmissions, and appStoreVersionSubmissions was removed in 4.0.",
+   "status": "confirmed",
+   "correction": "The spec has POST /v1/buildUploads and /v1/buildUploadFiles, and WebhookEventType includes BUILD_UPLOAD_STATE_UPDATED and APP_STORE_VERSION_APP_VERSION_STATE_UPDATED. /v1/appStoreVersionSubmissions is absent. The 4.0 notes say 'Create an App Store version submission is now removed. Use ... Create a Review Submission'. The 4.1 notes cover build uploads. ReviewSubmissionItem relationships include appStoreVersion, inAppPurchaseVersion, subscriptionVersion, subscriptionGroupVersion, appAssetLibraryImage/Video and others.",
+   "sources": [
+    "https://developer.apple.com/sample-code/app-store-connect/app-store-connect-openapi-specification.zip",
+    "https://developer.apple.com/documentation/appstoreconnectapi/app-store-connect-api-4-0-release-notes",
+    "https://developer.apple.com/documentation/appstoreconnectapi/app-store-connect-api-4-1-release-notes"
+   ]
+  },
+  {
+   "claim": "App Privacy (nutrition label) answers, agreements, tax and banking have no public ASC API. sandboxTesters is read/update only.",
+   "status": "confirmed",
+   "correction": "The 4.5.1 spec has no path or schema matching privacy or dataUsage. The only 'agreement' paths are betaLicenseAgreements and endUserLicenseAgreements, with no tax or bank paths. /v2/sandboxTesters is GET only. fastlane's table shows produce as 'Partial' with an Apple ID and 'No' with an API key.",
+   "sources": [
+    "https://developer.apple.com/sample-code/app-store-connect/app-store-connect-openapi-specification.zip",
+    "https://docs.fastlane.tools/app-store-connect-api/"
+   ]
+  },
+  {
+   "claim": "In ASC API 4.5.1, the App Screenshot Sets/Screenshots/Preview Sets/Previews resources are deprecated in favor of the App Asset Library, and an iPhone Duo display class was added.",
+   "status": "confirmed",
+   "correction": "The 4.5.1 release-notes JSON says the resources 'are deprecated. Manage App Store version, custom product page, and experiment treatment media with' the App Asset Library, 'Target iPhone Duo screenshots and app previews with the new' display class, and 'Move your screenshots ... from the deprecated set-based resources to the asset library.' Note that the OpenAPI spec does not yet set the deprecated flag on POST /v1/appScreenshots, so the old endpoints still work for now.",
+   "sources": [
+    "https://developer.apple.com/documentation/appstoreconnectapi/app-store-connect-api-4-5-1-release-notes",
+    "https://developer.apple.com/sample-code/app-store-connect/app-store-connect-openapi-specification.zip"
+   ]
+  },
+  {
+   "claim": "Code signing is automatable with a Team key. Team keys can only be created by an Admin in the UI, and the private key downloads once.",
+   "status": "confirmed",
+   "correction": "The spec has POST on /v1/bundleIds, /v1/certificates and /v1/profiles. Apple's doc: 'To generate team keys, you must have an Admin account in App Store Connect', 'The private key is available for download a single time', and Individual keys 'aren't able to use Provisioning endpoints'. fastlane says a Team Key 'is required for any provisioning-related API access'.",
+   "sources": [
+    "https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api",
+    "https://docs.fastlane.tools/app-store-connect-api/"
+   ]
+  },
+  {
+   "claim": "EAS Submit: ascAppId skips the app-creation step, and non-interactive submit needs ascAppId and cannot set up ASC API keys.",
+   "status": "confirmed",
+   "correction": "The eas.json docs say 'ascAppId ... When set, results in skipping the app creation step.' The submit/ios page (updated Oct 12, 2026, not Oct 13) says 'In non-interactive mode, your submission profile also needs ascAppId' and gives the error 'App Store Connect API Keys cannot be set up in --non-interactive mode'.",
+   "sources": [
+    "https://docs.expo.dev/eas/json/",
+    "https://docs.expo.dev/submit/ios/"
+   ]
+  },
+  {
+   "claim": "Guideline 4.3 bans multiple bundle IDs of the same app and opportunistic variants, and names fortune telling among saturated categories. Updated June 8, 2026.",
+   "status": "confirmed",
+   "correction": "4.3(a) and 4.3(b) are quoted verbatim, including 'dating, flashlight, sound effects, wallpaper, simple timers, and fortune telling' and 'Repeated submissions of this kind may lead to removal from the Apple Developer Program.' 4.3(b) also says Apple 'may remove these apps ... if they are not updated, improved, or do not attract customers', which bears on dormant apps like Sensa and Plug AI iOS. The June 8, 2026 news item confirms the 4.3(a)/(b) clarifications. Astrology/fortune telling (Astra) sits squarely in a named category.",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/",
+    "https://developer.apple.com/news/?id=a233fmpw"
+   ]
+  },
+  {
+   "claim": "Guideline 4.2.6 rejects apps from commercialized templates or app-generation services unless the content provider submits them.",
+   "status": "confirmed",
+   "correction": "Verbatim, including 'These services should not submit apps on behalf of their clients' and the aggregated 'picker' model alternative.",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/"
+   ]
+  },
+  {
+   "claim": "App Review Guidelines updated Oct 16, 2026: 1.2 clarified (Code of Conduct violation for failing to implement safeguards), new 2.3.14 (creative assets), new 2.5.19 (hidden/dormant/undocumented features), 3.1.1(a) merged, Section 5 trafficking blocked from alternative distribution.",
+   "status": "confirmed",
+   "correction": "The news item (Oct 16, 2026) lists exactly these. 2.5.19 'clarifies long-standing policy ... formerly covered in Guideline 2.3.1'. Its text: 'Attempting to hide undocumented features ... is grounds for removal of your app from the App Store and termination of your developer account.' 1.2 now includes 'AI content creation apps'. 5.1.2(i) requires explicit permission before sharing personal data with third-party AI.",
+   "sources": [
+    "https://developer.apple.com/news/?id=92th7e5i",
+    "https://developer.apple.com/app-store/review/guidelines/"
+   ]
+  },
+  {
+   "claim": "Apple 2025 enforcement (Newsroom May 20, 2026): 9.1M submissions evaluated, over 2M rejected (1.2M new apps), 371K for spam/copying/misleading, about 59K bait-and-switch removals, 193K developer accounts terminated, 138K enrollments rejected, and AI used to analyze app similarity.",
+   "status": "confirmed",
+   "correction": "Every figure and the 'analyze app similarity' and 'AI development tools drive a surge in app submissions' wording is confirmed verbatim. Publish date May 20, 2026.",
+   "sources": [
+    "https://www.apple.com/newsroom/2026/05/the-app-store-stopped-over-2-point-2-billion-usd-in-fraudulent-transactions-in-2025/"
+   ]
+  },
+  {
+   "claim": "4.3(a) rejections match new submissions against apps from terminated accounts by 'binary, metadata, and/or concept'.",
+   "status": "unverifiable",
+   "correction": "Forum thread 757046 did not render in a fetch, so I could not re-confirm the rejection text. The source is a June 2024 developer post, more than 18 months old. It is directionally consistent with Apple's May 2026 'analyze app similarity' statement, but confidence in the exact wording is low.",
+   "sources": [
+    "https://developer.apple.com/forums/thread/757046"
+   ]
+  },
+  {
+   "claim": "The Google Play Developer API cannot create a new public app; v3.applications exposes only dataSafety. Custom App Publishing creates private enterprise apps that can never be public.",
+   "status": "confirmed",
+   "correction": "REST reference (updated 2026-08-13): v3.applications has only dataSafety ('Writes the Safety Labels declaration of an app'), and no method creates an app. The Custom App doc says verbatim: 'Apps published through the Google Play Custom App Publishing API can never be made public.' customApps.create needs only a title and language but requires an enterprise account ID.",
+   "sources": [
+    "https://developers.google.com/android-publisher/api-ref/rest",
+    "https://developers.google.com/android/work/play/custom-app-api/publish"
+   ]
+  },
+  {
+   "claim": "New personal Play accounts (created after Nov 13, 2023) must run a closed test with at least 12 testers opted in for 14 continuous days before applying for production. Organization accounts are outside the stated scope.",
+   "status": "confirmed",
+   "correction": "Verbatim: 'a minimum of 12 testers who have been opted in continuously for at least 14 days', applying to personal accounts created after November 13, 2023. 'Review usually takes seven days or less'. Google may extend testing for 'insufficient tester engagement'. The article does not say explicitly that organization accounts are exempt; it only scopes the rule to personal accounts. That points to using organization (D-U-N-S) accounts.",
+   "sources": [
+    "https://support.google.com/googleplay/android-developer/answer/14151465"
+   ]
+  },
+  {
+   "claim": "The Play edits.testers resource only supports googleGroups; email lists are not supported.",
+   "status": "confirmed",
+   "correction": "Verbatim, updated 2026-09-28. Automating closed-test recruitment therefore requires managing a Google Group's membership outside the Play API.",
+   "sources": [
+    "https://developers.google.com/android-publisher/api-ref/rest/v3/edits.testers"
+   ]
+  },
+  {
+   "claim": "RevenueCat API v2 can create projects (POST /projects) and push products into App Store Connect (POST .../products/{id}/create_in_store) with a duration enum and subscription_group_name.",
+   "status": "confirmed",
+   "correction": "Confirmed in project.md (POST /projects, permission project_configuration:projects:read_write, 60 req/min) and product.md ('Push a product to the App Store', duration enum ONE_WEEK through ONE_YEAR, subscription_group_name required). The MCP tools reference confirms create-product 'only registers a product with RevenueCat; it does not create anything in the underlying store'.",
+   "sources": [
+    "https://www.revenuecat.com/docs/api-v2/project.md",
+    "https://www.revenuecat.com/docs/api-v2/product.md",
+    "https://www.revenuecat.com/docs/tools/mcp/tools-reference.md"
+   ]
+  },
+  {
+   "claim": "RevenueCat Experiments are not a REST v2 resource but can be created and controlled via the hosted MCP (mcp.revenuecat.ai/mcp). They take 2-4 variants, are for Pro and Enterprise plans, and results mature for 400 days.",
+   "status": "confirmed",
+   "correction": "The MCP URL https://mcp.revenuecat.ai/mcp and the create-experiment, start-experiment, stop-experiment and get-experiment-results tools are present. The experiments docs say '2-4 variants', 'Experiments is available to Pro & Enterprise customers', 'results continue to update for the next 400 days', and 'Many developers consider 95% Chance to Win sufficient'. I did not re-check the claim that API-created customers aren't enrolled.",
+   "sources": [
+    "https://www.revenuecat.com/docs/tools/mcp/tools-reference.md",
+    "https://www.revenuecat.com/docs/tools/experiments-v1/experiments-overview-v1.md",
+    "https://www.revenuecat.com/docs/tools/experiments-v1/experiments-results-v1.md"
+   ]
+  },
+  {
+   "claim": "RevenueCat pricing: free up to $2,500 MTR, then 1% of MTR. Growth Tools (paywalls, web funnels, A/B/n testing) are a separately priced 1% add-on.",
+   "status": "refuted",
+   "correction": "The first part is confirmed: Pro is free up to $2,500 MTR, then 1% ('For $2.5K, we'll charge you $25'). The page says Pro has 'Everything's Included All of RevenueCat's features'. Growth Tools is presented as an alternative for teams that 'Bring your own infrastructure and only pay on the conversions from the tools you use', not an extra 1% on top of Pro. A RevenueCat-native stack pays about 1% total, not 2%.",
+   "sources": [
+    "https://www.revenuecat.com/pricing/"
+   ]
+  },
+  {
+   "claim": "Superwall exposes a public REST API v2 (OpenAPI with 202 paths) including campaigns with variant_optimization 'none' or 'ucb1_bandit', plus RevenueCat-compatible read endpoints.",
+   "status": "confirmed",
+   "correction": "https://api.superwall.com/openapi.json: title 'Superwall API V2', 202 paths. variant_optimization is anyOf 'none' ('No optimization, use fixed percentages') or 'ucb1_bandit' ('UCB1 multi-armed bandit optimization'). /v2/campaigns exists, and so do /revenuecat/v1/projects/{project_id}/subscribers/{app_user_id} and the /revenuecat/projects/... customer endpoints.",
+   "sources": [
+    "https://api.superwall.com/openapi.json"
+   ]
+  },
+  {
+   "claim": "Superwall pricing: subscription infrastructure is free at any scale, and the paywall product is free up to $10k/month of paywall-attributed revenue, then 1% of paywall-attributed revenue only.",
+   "status": "confirmed",
+   "correction": "Partly right, but incomplete and the page contradicts itself. It does say infrastructure is free at any scale and the paywall product is '1% of revenue paywall-attributed only'. The plan cards, however, read 'Indie $0/mo, Up to $10k MAR, then 1% of total MAR', 'Startup $49/mo + 1% of MAR' and 'Scale $199/mo + 1% of MAR'. Another section says 'No monthly tracked-revenue threshold ... Same percentage at $0'. Budget for possible platform fees ($49-$199/mo) and confirm with sales.",
+   "sources": [
+    "https://superwall.com/pricing"
+   ]
+  },
+  {
+   "claim": "Meta's legacy ASC/AAC API path is dead: no creation from v25.0 (Feb 18, 2026), all versions blocked after May 19, 2026, and v26.0 (released July 29, 2026) pauses remaining legacy campaigns.",
+   "status": "confirmed",
+   "correction": "The blog (Feb 13, 2026) says ASC/AAC 'can no longer be created or updated using the Marketing API' from v25.0. It misprints the date as '18th February 2025'; the Graph changelog shows v25.0 on Feb 18, 2026. The blog extends this 'to all MAPI versions after 90 days (by May 19th 2026)' and says 'In V26.0 (estimated September 2026) all remaining ASC and AAC campaigns will be paused'. The changelog shows v26.0 actually shipped July 29, 2026. The blog page I fetched did not show the SMART_APP_PROMOTION, advantage_state_info and migrate_to_advantage_plus details, which may come from the advantage-campaigns doc.",
+   "sources": [
+    "https://developers.facebook.com/blog/post/2026/02/13/asc-and-aac-deprecation-mapi-v25/",
+    "https://developers.facebook.com/docs/graph-api/changelog"
+   ]
+  },
+  {
+   "claim": "The X API is pay-per-use at $0.015/post, $0.20/post with URL, $0.01 summoned reply and $0.005/post read; Following, Likes and Quote-Posts were removed from self-serve tiers.",
+   "status": "confirmed",
+   "correction": "The pricing page lists Post Create $0.015, Post Create (with URL) $0.200, Post Create (summoned) $0.010, Posts Read $0.005 per resource, and a 3M post-read cap per billing cycle. The changelog (April 2026) says 'Following, Likes, and Quote-Posts via the API have been removed from all self-serve tiers'; follow and like writes are Enterprise-only, while reads of following and likes remain priced. The Feb 2026 launch note says 'Basic and Pro plans remain available'.",
+   "sources": [
+    "https://docs.x.com/x-api/getting-started/pricing",
+    "https://docs.x.com/changelog"
+   ]
+  },
+  {
+   "claim": "TikTok launched an official Ads MCP server at TikTok World (May 2026) letting AI agents plan, launch and optimize campaigns.",
+   "status": "confirmed",
+   "correction": "Digiday (May 13, 2026) confirms agents can 'plan, launch and optimize campaigns without manual intervention', announced at TikTok World. I did not verify the endpoint URL, tool counts or the 30-day authorization; they come from a third-party directory and should be treated as low confidence.",
+   "sources": [
+    "https://digiday.com/media/tiktok-launches-mcp-server-to-let-ai-agents-run-campaigns/"
+   ]
+  },
+  {
+   "claim": "The official Google Ads MCP server is read-only.",
+   "status": "confirmed",
+   "correction": "The googleads/google-ads-mcp README lists only search, get_resource_metadata and list_accessible_customers, with no mutate tools. Campaign creation needs the Google Ads API directly, which requires a developer token at Basic or higher for production volume.",
+   "sources": [
+    "https://github.com/googleads/google-ads-mcp"
+   ]
+  }
+ ]
+}

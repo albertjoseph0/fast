@@ -95,6 +95,15 @@ export interface StudioState {
   cohorts: Record<string, Record<string, CohortMetrics>>;
   exposures: AudienceExposure[];
   quotas: Record<string, QuotaWindow>;
+  /** Automation freezes by scope (`platform:tiktok`, `venture:ven_000003`, `network:meta`); cleared only by a human. */
+  freezes: Record<string, Freeze>;
+}
+
+export interface Freeze {
+  scope: string;
+  reason: string;
+  at: string;
+  by: string;
 }
 
 type KeyedCollection = {
@@ -176,6 +185,7 @@ function emptyState(createdAt: string, seed: number): StudioState {
     cohorts: {},
     exposures: [],
     quotas: {},
+    freezes: {},
   };
 }
 
@@ -356,6 +366,22 @@ export class StudioStore {
 
   setQuota(key: string, q: QuotaWindow): void {
     this.state.quotas[key] = q;
+  }
+
+  // -- freezes (platform strikes, tripwires) ---------------------------------------
+
+  freeze(f: Freeze): void {
+    this.state.freezes[f.scope] = f;
+  }
+
+  unfreeze(scope: string): void {
+    delete this.state.freezes[scope];
+  }
+
+  /** Active freezes, optionally only those matching any of the given scopes. */
+  freezes(scopes?: string[]): Freeze[] {
+    const all = Object.values(this.state.freezes);
+    return scopes ? all.filter((f) => scopes.includes(f.scope)) : all;
   }
 
   // -- money -------------------------------------------------------------------

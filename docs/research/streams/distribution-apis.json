@@ -1,0 +1,462 @@
+{
+ "key": "distribution-apis",
+ "summary": "Scope and method: I checked the programmatic distribution landscape as of 2026-10-17, mostly against primary developer docs (TikTok for Developers, Meta for Developers, Google/YouTube, Apple, X, Pinterest, Snap, SideShift and Whop docs). The WebSearch budget ran out after about 16 searches, so the rest of the research was about 60 direct WebFetch calls to official doc URLs. Most TikTok developer pages say 'Last updated Aug 4 / Aug 24, 2026'. The YouTube and Google Ads docs say Oct 14-15, 2026. Some policy pages are undated or older and are flagged in each finding.\n\nTikTok's own rules are the biggest constraint for an autonomous company. The Content Sharing Guidelines (updated Aug 4, 2026) list \"A utility tool to help upload contents to the account(s) you or your team manages\" as an unacceptable use case. They also say apps must \"facilitate authentic creators to post original content.\" So an AI company publishing to its own fleet of accounts through an audited Direct Post client goes against what the audit approves. Unaudited clients are effectively useless for distribution:\n- At most 5 users can post in 24 hours.\n- Posting accounts must be set to private.\n- Every post is forced to SELF_ONLY.\n- Posts made before the audit stay private even after it passes.\n\nOther TikTok limits:\n- Audited clients still have a per-client cap on daily active creators, plus a per-creator cap of 'typically around 15 posts per day' shared across all API clients.\n- Rate limit is 6 requests/min per user token for init calls and 20/min for creator_info.\n- Upload-to-inbox (video.upload) needs the human to finish the post in the TikTok app, with at most 5 pending shares per 24 hours.\n- Photo carousels are supported: up to 35 images, JPEG/WebP, 1080p max, 20 MB each, with optional auto_add_music.\n- Both video and photo posts have an is_aigc flag that adds the AI-generated label, plus brand_content_toggle / brand_organic_toggle for commercial disclosure.\n\nTikTok has other surfaces with different rules:\n- **API for Business Organic API.** Covers Accounts (content publishing for business accounts), Discovery (trending hashtags and CML music), TikTok One (creator discovery and orders), Mentions and Spark Ads Recommendation.\n- **Marketing API.** APP_PROMOTION / APP_INSTALL objectives. Smart+ is becoming the default campaign type.\n- **TikTok Ads MCP server.** Announced at TikTok World on May 12-13, 2026. A third-party directory says it has about 400 tools, uses OAuth on a TikTok for Business account with no developer app, and the authorization expires after 30 days.\n- **Research API.** Academic and non-profit only, and must be 'independent of commercial interests', so it is unusable here.\n- **Display API.** Returns only the authorizing user's own profile and videos.\n- **Terms of Service.** The US terms (now TikTok USDS Joint Venture, updated July 15, 2026) ban 'inauthentic commercial behaviors, such as by operating spam or impersonation accounts'. They also ban presenting TikTok AI output as human-made or removing AI watermarks.\n- **Community Guidelines** (version dated Sept 24, 2026). Require clear labels when AI realistically depicts people or scenes. TikTok also auto-labels using C2PA and is testing invisible watermarks.\n\nMeta:\n- **Instagram Content Publishing API.** Works with professional (business or creator) accounts. Supports Reels, Stories, carousels of up to 10 items, and trial reels (trial_params). There is an is_ai_generated flag on containers; on a carousel, set it on the parent only. Partnership labels need Facebook Login.\n- **Instagram limits.** The doc contradicts itself: '100 API-published posts within a 24-hour moving period' in one place and '50' in another. Images must be JPEG; shopping tags and filters aren't supported. Advanced Access requires App Review and Business Verification.\n- **Threads.** 250 API posts and 1,000 replies per 24 hours; carousels take 2-20 items; text up to 500 characters.\n- **Advantage+ app campaigns (paid).** The legacy AAC/ASC API path is gone. Creation and updates were blocked in v25.0 (Feb 18, 2026) and in all versions after May 19, 2026. v26.0 shipped July 29, 2026, which blocks edits on remaining legacy campaigns. App campaigns now use objective APP_PROMOTION with Advantage+ budget, audience (advantage_audience=1) and placements all ENABLED, which gives advantage_state=ADVANTAGE_PLUS_APP.\n- **Marketing API access tiers.** Limited is the default and for development only. Full needs App Review, at least 500 calls in 15 days and under 15% errors.\n- **Meta Ads MCP server.** Official, at https://mcp.facebook.com/ads. Covers reporting, creating and editing campaigns, ad sets and ads, catalogs, A/B tests and activity logs.\n- **AI labeling.** Meta requires disclosure for photorealistic video or realistic audio and 'may apply penalties'. It reads C2PA/IPTC markers to apply the 'AI info' label. These policy posts are from 2024, so check them for changes.\n- **Spam policy.** Bans very high-frequency automated posting and engagement, and buying or exchanging engagement. Its last dated change-log entry is June 2024.\n\nYouTube changed materially:\n- **Upload quota.** Since June 1, 2026, videos.insert has its own bucket: 100 calls/day at 1 unit each (it was about 1,600 units in the general 10,000 pool, cut to about 100 in Dec 2025). search.list also has its own 100/day bucket.\n- **Unverified projects.** The current videos.insert page says verbatim: 'Videos uploaded from unverified API projects are not restricted to private viewing mode.' That reverses the 2020 rule, but I found no matching revision-history entry, so confidence is medium.\n- **Synthetic content flag.** status.containsSyntheticMedia sets the altered/synthetic disclosure through the API (added Oct 2024).\n- **Developer Policies** (updated Oct 15, 2026). Ban automating or triggering uploads 'without the user's prior specific and express consent', and allow exactly one API project per client.\n- **Spam policy.** Bans 'Using automated tools or AI to churn out high volumes of similar content with minimal changes' and coordinated channel networks.\n- **YPP 'inauthentic content' policy** (renamed July 15, 2025). Demonetizes templated or mass-produced AI content. Also demonetizes AI personas that present as human experts on health, legal, financial or political topics.\n\nX:\n- **Pricing.** X is now pay-per-use (launched Feb 6, 2026; prices raised Apr 20, 2026). Creating a post costs $0.015, a post with a URL $0.20, a summoned reply $0.01; reads are $0.005 per post.\n- **Plans.** Basic and Pro 'remain available' for existing subscribers.\n- **Rate limits.** POST /2/tweets allows 100 per 15 min per user and 10,000 per 24 hours per app.\n- **Engagement endpoints.** Following, Likes and Quote-Posts through the API were removed from all self-serve tiers on April 20, 2026.\n\nPinterest:\n- Trial access creates Pins and boards visible only to their creator, as sandbox entities.\n- Standard access needs a demo video of the OAuth flow. Its pin-creation limit is 100 requests/min per user per app.\n- The developer guidelines ban features that 'automatically initiate actions without specifically considering each action'. They explicitly allow 'apps that automate the creation of content'.\n\nSnapchat:\n- The Public Profile API has POST /spotlights and /stories endpoints, but it is allowlist-only.\n- Spotlight takes MP4 at 6-60 seconds and at least 540x960, a description up to 160 characters, and an optional link. Posts go SUBMITTED, then LIVE or REJECTED.\n- Creative Kit is client-side only: the user still sends the post.\n\nPaid user acquisition on Apple and Google:\n- **Apple Ads.** The Campaign Management API v5 is deprecated and sunsets Jan 26, 2027. The replacement is the 'Apple Ads Platform API' 1.0, covering the App Store and Apple Maps. Ads run in the Today tab, Search tab, search results and product pages, priced by CPT, with 'Maximize Conversions' AI bidding.\n- **Google Ads API app campaigns.** Use MULTI_CHANNEL plus app_campaign_setting with a non-shared budget. Bidding uses target_cpa, target_roas or maximize_conversions. 'App Campaign Legacy (installs)' is UI-only.\n- **Google Ads developer token tiers.** Test, then Explorer (2,880 production operations/day), then Basic (15,000/day, needs brand verification), then Standard (unlimited, manual audit).\n- **Google Ads MCP server.** The official open-source one is read-only.\n\nCreator and UGC marketplaces are the cleanest way to get distribution through real human accounts:\n- **SideShift.** Has a full Platform API (API key or OAuth 2.1) and an MCP server at https://app.sideshift.app/api/mcp. Tools include create_campaign, review_video_submission, set_post_approval_status, execute_payouts (with dry_run), quick_pay and send_message. Money-moving tools are flagged 'sensitive', need an Idempotency-Key, are blocked for sandbox and test tokens, and are blocked entirely when MCP_SAFE_MODE is on.\n- **SideShift's own numbers.** 3,000+ brands; $10M+ paid to creators in the 30 days to Sept 26, 2026; median $7-9 per video. Its own case studies cite CPMs of $0.13 for GPTZero, $1.1 for Yik Yak and $2.16 for Picsart.\n- **SideShift pricing.** Software plans run $210-699/mo billed annually.\n- **Whop Content Rewards.** Clipping or UGC campaigns with a reward per 1,000 views (example: $3), minimum and maximum payout, and an optional flat fee. Creators post to TikTok, Shorts, X and Reels; the brand approves submissions and Whop pays automatically. I could not confirm a public API for Content Rewards.\n- **Vyro.** A clipping platform: campaigns listed at $1,500-2,500 per 1M views; no API mentioned.\n- **Clipify.** A Whop storefront run by OneClick Media, currently on a waitlist.\n- **Billo and Insense.** No public API found. Insense sources Spark Ads codes and Meta Partnership ads (115k+ creators).",
+ "findings": [
+  {
+   "claim": "TikTok's Content Sharing Guidelines explicitly list an internal upload utility for accounts you or your team manage as an unacceptable Content Posting API use case. API clients must serve authentic creators posting original content.",
+   "evidence": "Verbatim: \"Not acceptable: A utility tool to help upload contents to the account(s) you or your team manages.\" Also: \"Not acceptable: An app that copies arbitrary contents from other platforms to TikTok.\" And: \"API Clients should facilitate authentic creators to post original content to TikTok.\" Apps must not be limited to test or internal/private use. Last updated August 4, 2026.",
+   "sources": [
+    "https://developers.tiktok.com/doc/content-sharing-guidelines"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Unaudited TikTok Direct Post clients are limited to 5 posting users per 24 hours. Those accounts must be private when posting, and all posts are SELF_ONLY.",
+   "evidence": "\"Unaudited API Clients can allow up to 5 users to post in a 24 hour window.\" \"All user accounts using the API client to post must be set to private at the time of posting.\" \"Unaudited API Clients can only post contents in SELF_ONLY viewership.\" The error code unaudited_client_can_only_post_to_private_accounts (HTTP 403) blocks the init call.",
+   "sources": [
+    "https://developers.tiktok.com/doc/content-sharing-guidelines",
+    "https://developers.tiktok.com/doc/content-posting-api-reference-direct-post",
+    "https://developers.tiktok.com/doc/content-posting-api-get-started"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "TikTok has a per-creator daily API post cap of about 15 posts, shared across all Direct Post clients, and a per-client cap on daily active creators.",
+   "evidence": "\"The upper limit may vary among creators (typically around 15 posts per day/ creator account)\". The cap is shared across all clients using Direct Post. Errors: spam_risk_too_many_posts ('daily post cap from the API is reached for the current user') and reached_active_user_cap ('daily quota for active publishing users from your client is reached').",
+   "sources": [
+    "https://developers.tiktok.com/doc/content-sharing-guidelines",
+    "https://developers.tiktok.com/doc/content-posting-api-reference-query-creator-info"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "TikTok Content Posting API rate limits are 6 requests/min per user access_token for video and photo init calls and 20 requests/min for creator_info. Display API endpoints allow 600 per minute (sliding window).",
+   "evidence": "Direct Post reference: \"Each user access_token is limited to 6 requests per minute.\" (updated Aug 24, 2026). Creator info: \"limited to 20 requests per minute\". Rate-limit page: user info, video query and video list each default to 600, on a one-minute sliding window.",
+   "sources": [
+    "https://developers.tiktok.com/doc/content-posting-api-reference-direct-post",
+    "https://developers.tiktok.com/doc/content-posting-api-reference-query-creator-info",
+    "https://developers.tiktok.com/doc/tiktok-api-v2-rate-limit"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "TikTok's upload-to-inbox path (video.upload scope) leaves the post as a draft the creator must finish in the TikTok app, and allows at most 5 pending shares per 24 hours.",
+   "evidence": "Endpoint POST /v2/post/publish/inbox/video/init/. \"There may be at most 5 pending shares within any 24-hour period.\" Error spam_risk_too_many_pending_share. Users 'must click on inbox notifications to continue the editing flow in TikTok and complete the post.' The upload_url is valid for one hour. Updated Aug 4, 2026.",
+   "sources": [
+    "https://developers.tiktok.com/doc/content-posting-api-reference-upload-video",
+    "https://developers.tiktok.com/doc/content-posting-api-get-started-upload-content"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "TikTok's Content Posting API supports photo carousels (slideshows) of up to 35 images, in DIRECT_POST or MEDIA_UPLOAD mode, with optional auto-added music and an AIGC flag.",
+   "evidence": "POST /v2/post/publish/content/init/ takes up to 35 photo_images URLs, which must come from a verified domain. Title up to 90 UTF-16 runes, description up to 4000. auto_add_music applies to DIRECT POST only. is_aigc: \"Set to true if the photo is AI generated content.\" Photos must be WebP or JPEG, max 1080p and 20 MB each. Updated Aug 24, 2026.",
+   "sources": [
+    "https://developers.tiktok.com/doc/content-posting-api-reference-photo-post",
+    "https://developers.tiktok.com/doc/content-posting-api-media-transfer-guide"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "TikTok's Direct Post body includes is_aigc (AI label), brand_content_toggle (paid partnership) and brand_organic_toggle (own business). The UX rules require no default privacy value and commercial disclosure prompts before posting.",
+   "evidence": "is_aigc: \"Set to true if the video is AI generated content.\" brand_organic_toggle: \"Set to true if this video is promoting the creator's own business.\" Guidelines: users \"must manually select the privacy status from a dropdown and there should be no default value\". Interaction toggles start unchecked. Content may be sent only after the user has expressly consented.",
+   "sources": [
+    "https://developers.tiktok.com/doc/content-posting-api-reference-direct-post",
+    "https://developers.tiktok.com/doc/content-sharing-guidelines"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "TikTok's audit has two stages: product access first (days), then a content audit (weeks). Posts made before the audit stay private, and reviewers reject demos that skip the full consent flow.",
+   "evidence": "bundle.social, Aug 4, 2026 (a secondary source, but an audited scheduler): unaudited calls succeed silently as private; creator_info still lists PUBLIC_TO_EVERYONE; posts made before the audit stay private and must be re-created; common rejections include a missing confirmation screen, extra scopes and missing privacy pages. Typical durations are the vendor's estimates.",
+   "sources": [
+    "https://bundle.social/blog/tiktok-api-approval"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "TikTok's US Terms of Service (TikTok USDS Joint Venture, updated July 15, 2026) ban spam and impersonation accounts, and ban presenting TikTok AI output as human-made or removing AI watermarks.",
+   "evidence": "Section 3.4 bans engaging in \"inauthentic commercial behaviors, such as by operating spam or impersonation accounts\" and using bots except as approved. Section 3.10 bans representing that 'your Output is human-generated', including by removing AI watermarks or disclosures. Section 5.2 allows bans on replacement accounts.",
+   "sources": [
+    "https://www.tiktok.com/legal/page/us/terms-of-service/en"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "TikTok's Community Guidelines require labels on realistic AI content. TikTok also auto-labels using C2PA Content Credentials and is testing invisible watermarks.",
+   "evidence": "Guidelines text, version dated Sept 24, 2026 (via ConductAtlas): \"We require clear labeling when AI or editing is used to realistically depict people or scenes.\" Newsroom, Nov 19, 2025: over 1.3B videos labeled, C2PA read on upload, an invisible watermark being tested, and an AIGC slider in Manage Topics that lets users reduce AI content in their For You feed.",
+   "sources": [
+    "https://conductatlas.com/platform/tiktok/tiktok-community-guidelines/ai-generated-content-labeling-requirement/",
+    "https://newsroom.tiktok.com/more-ways-to-spot-shape-and-understand-ai-content?lang=en"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The TikTok Research API is limited to academic and non-profit researchers who are independent of commercial interests, so a commercial AI company cannot use it.",
+   "evidence": "Applicants must \"Be independent of commercial interests\" and do non-commercial, public-interest research. Eligible: academic institutions in the US, EEA, UK, Canada or Switzerland, and similar bodies; review takes about 4 weeks. The page is undated (\u00a9 2026).",
+   "sources": [
+    "https://developers.tiktok.com/products/research-api/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "TikTok's Display API only returns the authorizing user's own profile and videos.",
+   "evidence": "Endpoints /v2/user/info/, /v2/video/list/ and /v2/video/query/. Scopes user.info.basic and video.list ('Read a user's public videos'). Updated Aug 4, 2026.",
+   "sources": [
+    "https://developers.tiktok.com/doc/display-api-overview"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "TikTok API for Business has three parts: the Marketing API (Ads Manager at scale), the Organic API (Accounts, Mentions, TikTok One, Discovery, Spark Ads Recommendation) and the Business Messaging API.",
+   "evidence": "Help article, last updated September 2025. Organic uses include 'Content publishing, community interaction, and account insights' (Accounts) and 'Creator discovery and order management' (TikTok One). Discovery covers trends in 'hashtags, themes, and Commercial Music Library tracks'. Spark Ads Recommendation finds high-performing organic content to boost. Access: register as a developer.",
+   "sources": [
+    "https://ads.tiktok.com/help/article?aid=11971",
+    "https://ads.tiktok.com/help/article/marketing-api"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "TikTok launched an official Ads MCP server at TikTok World (May 12-13, 2026) so AI agents can plan, launch and optimize campaigns.",
+   "evidence": "Digiday, May 13, 2026: agents can set up creatives, adjust bids, shift budgets and tweak targeting 'without manual intervention'. A third-party directory adds: endpoint business-api.tiktok.com/open_mcp/tt-ads-mcp-flat (about 400 tools) or a layered variant (about 40), OAuth on a TikTok for Business account with no developer app, 30-day authorization, and tools such as smart_plus_ad_create. I could not read the official doc page, which renders with JavaScript.",
+   "sources": [
+    "https://digiday.com/media/tiktok-launches-mcp-server-to-let-ai-agents-run-campaigns/",
+    "https://mcpplaygroundonline.com/mcp-servers/tiktok.md",
+    "https://business-api.tiktok.com/portal/docs/tiktok-ads-mcp-server/v1.3"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "TikTok Marketing API app-install campaigns use objective APP_PROMOTION with app_promotion_type APP_INSTALL. Upgraded Smart+ is replacing manual campaign creation.",
+   "evidence": "The official TikTok Business API SDK sample sets objective 'APP_PROMOTION' and setAppPromotionType('APP_INSTALL'). Prerequisites: a TikTok For Business account, developer registration, a developer app, and authorization. TikTok Academy says upgraded Smart+ will become the standard way to create campaigns. The claim that legacy campaign/create is replaced comes only from a secondary source.",
+   "sources": [
+    "https://github.com/tiktok/tiktok-business-api-sdk",
+    "https://www.tiktokacademy.com/student/page/3131867-smart-plus-2"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "TikTok Spark Ads boost organic posts using creator-generated authorization codes. Codes are per video, with a creator-set authorization window.",
+   "evidence": "Secondary guides only: a code per video, a default authorization of about 30 days, and the advertiser pastes the code in Ads Manager or uses the API. I could not confirm exact API parameter names (identity_type, AUTH_CODE) from TikTok's docs.",
+   "sources": [
+    "https://www.relevantaudience.com/tiktok-ads/tiktok-spark-ads-guide/",
+    "https://unified.to/blog/how_to_get_your_tiktok_ads_api_key"
+   ],
+   "confidence": "low"
+  },
+  {
+   "claim": "TikTok One (the former Creator Marketplace) has partner APIs, but I could not verify their endpoints.",
+   "evidence": "TikTok's blog mentions 'TikTok One Creator Marketplace APIs'. The API for Business help page lists a TTO API under 'Creator discovery and order management'. Creator AI Search was announced at TikTok World 2026.",
+   "sources": [
+    "https://ads.tiktok.com/business/en-US/blog/tiktok-one-creative-platform",
+    "https://ads.tiktok.com/help/article?aid=11971"
+   ],
+   "confidence": "low"
+  },
+  {
+   "claim": "Instagram's Content Publishing API supports Reels, Stories, image posts, carousels of up to 10 items and trial reels on professional accounts. The documented 24-hour post limit is inconsistent: 100 in one section, 50 in another.",
+   "evidence": "\"Instagram accounts are limited to 100 API-published posts within a 24-hour moving period\" versus \"Accounts are limited to 50 published posts within a 24-hour period\" on the same page. Carousels count as one post and are limited to 10 items. trial_params uses graduation_strategy MANUAL or SS_PERFORMANCE. JPEG only. Shopping tags and filters aren't supported. Containers expire after 24 hours.",
+   "sources": [
+    "https://developers.facebook.com/docs/instagram-platform/content-publishing"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Instagram's API has a native AI label (is_ai_generated) and partnership-ad labels on publishing containers.",
+   "evidence": "Set is_ai_generated=true when creating a container. On a carousel, set it only on the parent: \"Setting this parameter on carousel children will result in an error.\" Partnership: branded_content_sponsor_ids (up to 2) or is_paid_partnership, with Facebook Login only.",
+   "sources": [
+    "https://developers.facebook.com/docs/instagram-platform/content-publishing"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Instagram API access requires a professional account, and Advanced Access requires App Review plus Business Verification. The rate limit is 4,800 calls times impressions per rolling 24 hours.",
+   "evidence": "\"Your app must complete Meta App Review to be granted Advanced Access.\" \"This access level requires App Review and Business Verification.\" \"Calls within 24 hours = 4800 * Number of Impressions\".",
+   "sources": [
+    "https://developers.facebook.com/docs/instagram-platform/overview"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The Threads API allows 250 posts, 1,000 replies and 100 deletes per profile per rolling 24 hours. Each permission needs App Review before it works for non-role users.",
+   "evidence": "\"Threads profiles are limited to 250 API-published posts within a 24-hour moving period.\" Text up to 500 characters; carousels take 2-20 children. Scopes threads_basic and threads_content_publish. \"each permission must first be approved through the App Review process\".",
+   "sources": [
+    "https://developers.facebook.com/docs/threads/overview",
+    "https://developers.facebook.com/docs/threads/get-started"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Meta's legacy Advantage+ app (AAC) and shopping (ASC) API path is dead. App campaigns now need objective APP_PROMOTION with all three Advantage+ levers enabled.",
+   "evidence": "Starting with v25.0 (Feb 18, 2026), smart_promotion_type=SMART_APP_PROMOTION creation is unsupported. All API versions were blocked after May 19, 2026, and v26.0 (released July 29, 2026) blocks edits and pauses remaining legacy campaigns. The new structure has advantage_state_info with objective APP_PROMOTION, advantage_state ADVANTAGE_PLUS_APP, and budget, audience (targeting_automation.advantage_audience=1) and placements ENABLED. Legacy campaigns move via the migrate_to_advantage_plus field.",
+   "sources": [
+    "https://developers.facebook.com/blog/post/2026/02/13/asc-and-aac-deprecation-mapi-v25/",
+    "https://developers.facebook.com/docs/marketing-api/advantage-campaigns",
+    "https://developers.facebook.com/docs/graph-api/changelog"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The Meta Marketing API has two access tiers: Limited (default, development only) and Full (requires App Review plus usage thresholds). Ad creation is capped by daily spend limit.",
+   "evidence": "Limited: 'Heavily rate-limited per ad account. For development only.' Full: App Review, at least 500 calls in the last 15 days and under 15% errors. Rate-limit score: max 60 in Dev and 9,000 in Full. ads_management budget per hour: 300 in Dev or 100,000 in Full, plus 40 per active ad. \"Ad creation is limited for a given ad account based on the daily spend limit.\" Advanced access to ads_management is needed to manage other people's ad accounts.",
+   "sources": [
+    "https://developers.facebook.com/docs/marketing-api/get-started/authorization",
+    "https://developers.facebook.com/docs/marketing-api/overview/rate-limiting"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Meta runs an official hosted Ads MCP server at https://mcp.facebook.com/ads for AI agents.",
+   "evidence": "Covers reporting, creating and editing ads, ad sets and campaigns, catalogs, signals, A/B tests and lift studies, and activity logs. Tools are permission-scoped. Meta's MCP guidance warns that agents 'can call anything your granted scopes allow', including after prompt injection, and advises keeping Read scope where possible. Whether it supports app-promotion objectives isn't stated.",
+   "sources": [
+    "https://developers.facebook.com/documentation/ads-commerce/ads-ai-connectors/ads-mcp-server/ads-mcp-server-overview",
+    "https://developers.facebook.com/documentation/mcp"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Meta requires users to disclose photorealistic AI video or realistic audio, may penalize non-disclosure, and auto-labels using C2PA/IPTC markers ('AI info').",
+   "evidence": "Feb 6, 2024 (updated Apr 1, 2025): \"We'll require people to use this disclosure and label tool when they post organic content with a photorealistic video or realistic-sounding audio that was digitally created or altered\"; \"we may apply penalties if they fail to do so.\" The 'Made with AI' label became 'AI info' on July 1, 2024. These sources are about 18-30 months old.",
+   "sources": [
+    "https://about.fb.com/news/2024/02/labeling-ai-generated-images-on-facebook-instagram-and-threads/",
+    "https://about.fb.com/news/2024/04/metas-approach-to-labeling-ai-generated-content-and-manipulated-media/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Meta's spam and inauthentic-behavior policies ban very high-frequency automated activity, buying or exchanging engagement, and inauthentic assets that hide identity.",
+   "evidence": "Spam policy: posting, sharing, engaging or creating assets 'either manually or automatically, at very high frequencies'; \"selling, buying, or exchanging for engagement\"; lower-frequency accounts with other spam signals may also be restricted. Inauthentic Behavior: bans inauthentic Meta assets used to 'Deceive Meta or our users about the identity'. The spam page's last dated change is Jun 27, 2024 (over 18 months old); the inauthentic-behavior page's is Dec 11, 2025.",
+   "sources": [
+    "https://transparency.meta.com/policies/community-standards/spam/",
+    "https://transparency.meta.com/policies/community-standards/inauthentic-behavior/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "YouTube's upload quota changed: videos.insert now has its own bucket of 100 calls/day at 1 unit each, separate from the 10,000-unit pool.",
+   "evidence": "Quota page (updated 2026-10-15): videos.insert \"100 quota per day. Each call costs 1 quota.\" search.list is the same. Revision history: June 1, 2026 'API calls to the videos.insert and search.list methods will be charged to their own respective quota buckets'. Dec 4, 2025: upload cost cut 'from approximately 1600 units to approximately 100 units'. thumbnails.set costs 50 units.",
+   "sources": [
+    "https://developers.google.com/youtube/v3/determine_quota_cost",
+    "https://developers.google.com/youtube/v3/revision_history",
+    "https://developers.google.com/youtube/v3/docs/videos/insert"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The current videos.insert doc says uploads from unverified API projects are NOT forced to private, reversing the July 28, 2020 rule. I found no dated revision-history entry for the change.",
+   "evidence": "Verbatim from the videos.insert page (updated 2026-10-15): \"Videos uploaded from unverified API projects are not restricted to private viewing mode.\" The revision history still only contains the 2020 entry that restricted unverified projects created after July 28, 2020.",
+   "sources": [
+    "https://developers.google.com/youtube/v3/docs/videos/insert",
+    "https://developers.google.com/youtube/v3/revision_history"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "YouTube's synthetic-content disclosure can be set through the API with status.containsSyntheticMedia. YouTube also auto-labels C2PA-tagged or detected AI content, and repeat non-disclosure is penalized.",
+   "evidence": "Revision history, Oct 30, 2024: set status.containsSyntheticMedia on videos.insert or videos.update. Help page: disclosure is required for realistic altered or synthetic content. YouTube 'may automatically add a label' for C2PA metadata or detection. Labels from C2PA or YouTube's own tools can't be changed. Creators who consistently fail to disclose risk removal or YPP suspension. Disclosure alone doesn't limit reach or monetization.",
+   "sources": [
+    "https://developers.google.com/youtube/v3/revision_history",
+    "https://support.google.com/youtube/answer/14328491"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "YouTube's Developer Policies (updated Oct 15, 2026) ban automated uploads without the user's prior specific, express consent, and require exactly one API project per client.",
+   "evidence": "III.I.2: \"you must not automate or trigger views, uploads, comments, likes, dislikes, or other actions\" \"without the user's prior specific and express consent\". III.C.3: \"users must have final control over the data that will be published.\" III.D.1.c: \"must create exactly one (1) API Project for that API Client\". III.D.3: quota extensions require an API Compliance Audit.",
+   "sources": [
+    "https://developers.google.com/youtube/terms/developer-policies"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "YouTube's spam policy bans AI or automated mass-production of similar content and coordinated channel networks. The YPP 'inauthentic content' policy demonetizes templated AI content and AI personas posing as human experts on sensitive topics.",
+   "evidence": "Spam policy item 6: \"Using automated tools or AI to churn out high volumes of similar content with minimal changes\". It applies to 'coordinated networks of channels'. YPP: renamed from 'repetitious' to 'inauthentic content' on July 15, 2025, covering 'repetitive or mass-produced' content such as image slideshows and templated storylines. AI personas posing as human experts on health, legal, financial or political topics 'will not be allowed to monetize'.",
+   "sources": [
+    "https://support.google.com/youtube/answer/2801973",
+    "https://support.google.com/youtube/answer/1311392"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Google OAuth apps that request sensitive or restricted scopes without verification show a warning screen and are capped at 100 new users.",
+   "evidence": "An unverified app 'will be limited to 100 new users until it is verified'. Test builds and same-organization internal apps are exempt. YouTube's upload scope falls under this flow; I did not check its exact sensitivity classification.",
+   "sources": [
+    "https://support.google.com/cloud/answer/7454865"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "The X API is now pay-per-use: $0.015 per post, $0.20 per post with a URL, $0.01 per summoned reply and $0.005 per post read. Following, likes and quote-posts were removed from all self-serve tiers.",
+   "evidence": "Changelog: Oct 20, 2025 closed pilot; Feb 6, 2026 official launch ('Basic and Pro plans remain available, and existing subscribers can opt in'); Apr 16, 2026 (effective Apr 20) price rise, plus 'Following, Likes, and Quote-Posts via the API have been removed from all self-serve tiers.' Pricing page: per-billing-cycle spend caps; reads capped at 3M posts/month.",
+   "sources": [
+    "https://docs.x.com/changelog",
+    "https://docs.x.com/x-api/getting-started/pricing",
+    "https://docs.x.com/x-api/getting-started/about-x-api"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "X rate limits for POST /2/tweets are 100 per 15 minutes per user and 10,000 per 24 hours per app.",
+   "evidence": "Rate-limits page: Per App 10,000/24hrs; Per User 100/15min. 'Rate limits and billing are separate.'",
+   "sources": [
+    "https://docs.x.com/x-api/fundamentals/rate-limits"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "I could not retrieve X's automation rules, including the requirement to label bot accounts. The help.x.com and developer.x.com policy pages returned 403/402.",
+   "evidence": "Fetches of help.x.com/en/rules-and-policies/x-automation and developer.x.com restricted-use-cases failed. From prior knowledge (unverified now): X's automation rules ban multi-account duplicate posting and automated engagement and expect an 'Automated' account label.",
+   "sources": [
+    "https://help.x.com/en/rules-and-policies/x-automation"
+   ],
+   "confidence": "low"
+  },
+  {
+   "claim": "Pinterest Trial access sandboxes created Pins and boards so only their creator sees them. Standard access needs a demo video of the OAuth flow, and the developer guidelines ban auto-initiated actions while allowing automated content creation.",
+   "evidence": "\"all Pins and Boards created with Trial access are only visible to their creator as Sandbox entities.\" Rate limits: Trial 1,000 requests/day overall and 300/day for writes; Standard 100/min per user per app for pin creation. Guidelines ban 'features that enable end users to automatically initiate actions without specifically considering each action' and list as acceptable 'Dynamic creative tools, like apps that automate the creation of content'. The guidelines page is undated (\u00a9 2026).",
+   "sources": [
+    "https://developers.pinterest.com/docs/key-concepts/access-tiers/",
+    "https://developers.pinterest.com/docs/reference/rate-limits/",
+    "https://policy.pinterest.com/en/developer-guidelines"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Snapchat's Public Profile API can post Spotlight and Stories server-side, but only for allowlisted partners.",
+   "evidence": "Endpoints POST businessapi.snapchat.com/v1/public_profiles/{id}/spotlights (media_id, locale, description up to 160 characters, link) and /stories. Spotlight takes MP4 at 6-60 seconds and at least 540x960; status goes SUBMITTED, then LIVE or REJECTED. \"The Public Profile API is currently allowlist only.\" You need an OAuth app created in Ads Manager. Undated docs.",
+   "sources": [
+    "https://developers.snap.com/api/marketing-api/Public-Profile-API/ProfileAssetManagement",
+    "https://developers.snap.com/api/marketing-api/Public-Profile-API/GetStarted"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Snap Creative Kit is client-side sharing only: the user edits and sends the content. Snap's Marketing API supports app-install optimization.",
+   "evidence": "Creative Kit sends content 'directly to Snapchat's camera or preview screen' and has no server-side posting. Ads API optimizes for 'app installs, purchases, video views, leads, or brand awareness'. Undated pages.",
+   "sources": [
+    "https://developers.snap.com/snap-kit/creative-kit/overview",
+    "https://developers.snap.com/api/marketing-api/Ads-API/introduction"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Apple's Campaign Management API v5 is deprecated and sunsets January 26, 2027. Apple replaced it with the Apple Ads Platform API 1.0, which covers both App Store and Apple Maps ads.",
+   "evidence": "\"The Apple Ads Campaign Management API is deprecated and will be sunset on January 26, 2027. Use the Apple Ads Platform API instead.\" The Platform API ('Programmatically manage App Store and Apple Maps advertising campaigns through a single RESTful API') covers campaigns, ad groups, keywords, custom product pages, bulk operations, reports, insights, recommendations (budget, Target CPA) and change history. It uses OAuth key-pair authentication. Numeric rate limits weren't retrievable.",
+   "sources": [
+    "https://developer.apple.com/tutorials/data/documentation/apple_ads.json",
+    "https://developer.apple.com/tutorials/data/documentation/apple-ads-platform-api.json"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Apple Ads placements are the Today tab, the Search tab, search results and product pages, priced by cost-per-tap, with Maximize Conversions AI bidding available.",
+   "evidence": "ads.apple.com lists all four placements. Today tab ads open a custom product page. 'Pay only when customers engage with your ad.' Bidding strategies are Maximize Conversions (AI-powered) or manual keyword bids. There are separate Basic and Advanced products.",
+   "sources": [
+    "https://ads.apple.com/app-store"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Google Ads API app campaigns use MULTI_CHANNEL with app_campaign_setting and a non-shared budget. Legacy App install campaigns are UI-only.",
+   "evidence": "Sub-types APP_CAMPAIGN, APP_CAMPAIGN_FOR_ENGAGEMENT and APP_CAMPAIGN_FOR_PRE_REGISTRATION. \"App Campaign Legacy (installs) is not supported in the Google Ads API, only in the UI.\" Bidding: target_cpa (micros), target_roas, maximize_conversions or maximize_conversion_value. \"An App campaign cannot use a shared campaign budget.\" Updated 2026-10-14.",
+   "sources": [
+    "https://developers.google.com/google-ads/api/docs/app-campaigns/overview",
+    "https://developers.google.com/google-ads/api/docs/app-campaigns/create-campaign"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Google Ads API developer tokens go through Test, Explorer, Basic and Standard tiers. Basic requires brand verification and Standard requires a manual audit. The official Google Ads MCP server is read-only.",
+   "evidence": "Explorer: 2,880 operations/day on production accounts. Basic: 15,000/day, with brand verification as 'a prerequisite'. Standard: unlimited, after a manual audit (about 10 business days). Updated 2026-10-14. The googleads/google-ads-mcp repo exposes only search, get_resource_metadata and list_accessible_customers.",
+   "sources": [
+    "https://developers.google.com/google-ads/api/docs/api-policy/access-levels",
+    "https://github.com/googleads/google-ads-mcp"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "SideShift is a UGC/creator platform with a full Platform API and an MCP server. An agent can use them to create campaigns, approve submissions, message creators and pay out, with guardrails.",
+   "evidence": "MCP endpoint https://app.sideshift.app/api/mcp (OAuth 2.1 with PKCE); API keys sent as x-api-key for self-use. Tools include create_campaign, review_video_submission, set_post_approval_status, update_application_status, execute_payouts (with dry_run), quick_pay, execute_one_time_payout and send_message. Sensitive tools are blocked for sandbox and test tokens and entirely when MCP_SAFE_MODE is on. Money-moving calls require an Idempotency-Key. A Scraper API covers 7 platforms at 1 credit per request.",
+   "sources": [
+    "https://docs.sideshift.app/mcp-server.md",
+    "https://docs.sideshift.app/capabilities.md",
+    "https://docs.sideshift.app/self-use",
+    "https://docs.sideshift.app/llms.txt",
+    "https://www.sideshift.app/infrastructure"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "SideShift's self-reported economics: 3,000+ brands, $10M+ paid to creators in 30 days, a median of $7-9 per video, and CPMs of $0.13-$2.16 for app customers.",
+   "evidence": "Homepage snapshot (Sept 2026): '$10 million+ paid to creators over the past 30 days, reported September 26, 2026'; 71.5B views on posts in the 90 days before Sept 8, 2026. Case studies: GPTZero $0.13 CPM (421M views), Yik Yak $1.1 CPM, Picsart $2.16 CPM (185M views). Plans run $210-699/mo billed annually; the managed service starts at $20k/mo. The figures are self-reported and the pricing on the page is inconsistent.",
+   "sources": [
+    "https://www.sideshift.app/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Whop Content Rewards runs per-view clipping and UGC campaigns: the brand sets a rate per 1,000 views, minimum and maximum payouts and an optional flat fee, approves submissions, and Whop pays creators automatically. I found no documented Content Rewards API.",
+   "evidence": "Docs: reward rate per 1,000 views (example: $3), a minimum payout before a video enters review (example: $6, about 2k views), a maximum per-video cap and an optional flat fee. Supported platforms include TikTok, YouTube Shorts, X and Instagram Reels. \"After approving a submission, Whop automatically pays the content creator based on the number of views they got.\" The Whop developer API (date-versioned, e.g. Api-Version-Date 2026-07-01) covers payouts and connected accounts, but I found no Content Rewards endpoints.",
+   "sources": [
+    "https://docs.whop.com/memberships-and-access/third-party-apps/content-rewards.md",
+    "https://docs.whop.com/developer/api/getting-started",
+    "https://docs.whop.com/llms.txt"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Vyro is a pay-per-view clipping marketplace with no API mentioned. Clipify is a Whop storefront from OneClick Media that is currently waitlisted.",
+   "evidence": "Vyro: 'Brands pay for the views your content generates'; campaigns listed at $1,500-$2,500 per 1M views; accepts Instagram, TikTok, YouTube Shorts and X; payouts via Stripe or PayPal with a $10 weekly minimum. clipify.club redirects to whop.com/oneclick-media-5a/clipify ('Get Paid by Influencers to Make Clips', 'Join waitlist').",
+   "sources": [
+    "https://www.vyro.com/",
+    "https://whop.com/oneclick-media-5a/clipify/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Billo and Insense are UGC creator platforms with no public API found. Insense handles TikTok Spark Ads codes and Meta Partnership Ads.",
+   "evidence": "Billo: 5,000+ creators, a CreativeOps script generator and ad variations; its own benchmark of 1.41M Meta ads shows an 11% lower CPA. Insense: '115k+ responsive creators across 57+ countries'; Spark Ad codes delivered 'seamlessly through Insense'; Partnership Ads creators 'within 48 hrs'; no API described.",
+   "sources": [
+    "https://billo.app/",
+    "https://insense.pro/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "A secondary source (Billo, Oct 16, 2026) claims several 2026 AI-label changes I could not verify against primary sources.",
+   "evidence": "The claims: Instagram 'AI-generated profile' label required from Aug 31, 2026, with unlabeled profiles losing recommendation eligibility; Meta auto-labels 'AI info' on ads made with Meta AI tools and detects C2PA from third-party tools since June 2026; YouTube made AI disclosures more prominent on May 27, 2026; EU AI Act Article 50 has applied since Aug 2, 2026; TikTok has labeled over 3B pieces of content.",
+   "sources": [
+    "https://billo.app/blog/ai-labeling/"
+   ],
+   "confidence": "low"
+  }
+ ],
+ "implications_for_automation": [
+  "Do not build the core of distribution on a self-owned TikTok account farm through the official Content Posting API. TikTok's audit explicitly rejects 'a utility tool to help upload contents to the account(s) you or your team manages'. Unaudited clients are private-only and limited to 5 users per day. The ToS bans 'operating spam or impersonation accounts'. Treat official TikTok organic posting as limited to a few brand-owned business accounts, ideally through the API for Business Organic Accounts API or an already-audited scheduler, and expect business accounts to be restricted to the Commercial Music Library.",
+  "Make human creators and clippers the main organic channel, with the AI running the marketplace. Use SideShift's Platform API and MCP to create a campaign brief per app, review applications and submissions, message creators and run payouts. Use Whop Content Rewards (UI-driven; no API confirmed) for CPM clipping. Real people post on their own accounts, which avoids inauthentic-account rules and Bier's cold-start problem. Self-reported app CPMs are $0.13-$2 and medians are $7-9 per video.",
+  "Use SideShift's guardrails as the payout-safety design: start with dry_run, require an Idempotency-Key on every money-moving call, keep a per-app budget ceiling, and add human approval for sensitive tools at first. Treat creator messages and submissions as untrusted input, since a prompt injection could trigger payouts. Meta's MCP guidance says the same.",
+  "Use the same post-level caps in the scheduler: about 15 TikTok API posts per creator per day (with a 6 requests/min init limit), 50 Instagram posts per 24 hours (use the lower documented number), 250 Threads posts per 24 hours, 100 YouTube videos.insert calls per day per project (1 unit each since June 2026), and X at 100 posts per 15 minutes per user and $0.015 per post ($0.20 if the post contains a URL, so put links in bios or replies where allowed).",
+  "Set the AI-disclosure flags on every API publish where content is AI-generated: TikTok is_aigc=true, Instagram is_ai_generated=true (on the carousel parent only), YouTube status.containsSyntheticMedia=true when content is realistic. Don't strip C2PA metadata from generator output: TikTok's ToS bans removing AI watermarks or disclosures, and YouTube or TikTok will auto-label from C2PA anyway. Disclosure doesn't by itself cut YouTube reach or monetization.",
+  "Avoid templated mass production. YouTube's spam policy bans 'automated tools or AI to churn out high volumes of similar content with minimal changes' and coordinated channel networks. YPP demonetizes templated or slideshow content and AI personas posing as human experts on health, legal or financial topics. The content engine needs real variation per post (hook, format, subject), and should cap near-duplicate variants per channel.",
+  "Instagram trial reels (trial_params with graduation_strategy SS_PERFORMANCE) fit Bier's reproducible-testing principle: test hooks with non-followers before they reach the main feed. Pair them with TikTok Discovery API trend data and SideShift Scraper data (7 platforms, 1 credit per request) to choose what to test.",
+  "Build paid user acquisition on the newest APIs: Meta Advantage+ app campaigns (objective APP_PROMOTION with all three levers enabled, not smart_promotion_type), TikTok Marketing API or Ads MCP (Smart+), Google Ads App campaigns (MULTI_CHANNEL with target_cpa or target_roas), and the Apple Ads Platform API (not Campaign Management v5, which sunsets Jan 26, 2027). Boost winning organic creator posts through Spark Ads codes on TikTok and Partnership Ads on Meta.",
+  "Budget lead time for human and business verification that cannot be automated: Meta Business Verification plus App Review (Instagram Advanced Access, Marketing API Full access after 500 calls in 15 days with under 15% errors), Google Ads developer-token brand verification and Standard audit, Google OAuth app verification (100-user cap until verified), TikTok product access plus content audit (weeks), Pinterest Standard upgrade with a demo video, Snap Public Profile API allowlisting, and the X developer console with prepaid credits.",
+  "Every official posting API expects a consenting user, a preview and confirmation, and user control of metadata (YouTube III.C.3 and III.I.2; TikTok UX rules, including no default privacy; Pinterest's 'specifically considering each action'). An autonomous system acting on its own brand accounts should log an explicit standing consent from the account owner and keep a human-reviewable preview queue, so the integration is defensible in audits.",
+  "Agent-native ad surfaces exist (TikTok Ads MCP with about 400 tools; Meta Ads MCP at mcp.facebook.com/ads; Google Ads MCP read-only). An orchestrator can call them directly for planning, launch, bidding and reporting. Wrap them with spend caps, kill switches, an activity-log audit and least-privilege scopes, since TikTok's MCP authorization reportedly expires every 30 days.",
+  "Do not plan on X engagement automation (follows, likes and quote-posts were removed from all self-serve API tiers on Apr 20, 2026) or on TikTok's Research API (academic only). For trend sensing, use the TikTok Discovery API, SideShift Scraper, YouTube Data API reads and X reads at $0.005 per post."
+ ],
+ "open_questions": [
+  "What exactly do the TikTok API for Business Organic 'Accounts' publishing endpoints allow for a brand's own business accounts? Do they carry the Content Posting API caps and the 'accounts you or your team manages' restriction? The docs render with JavaScript and could not be fetched.",
+  "What are the exact current TikTok Marketing API parameters for Spark Ads (identity_type and authorization-code flow) and for the Upgraded Smart+ app-install endpoints, and is the legacy campaign/create path deprecated for app promotion?",
+  "What are the official TikTok Ads MCP tool list, authorization lifetime and spend-safety features? The doc page at business-api.tiktok.com/portal/docs/tiktok-ads-mcp-server/v1.3 did not render.",
+  "Is Instagram's API publishing limit 50 or 100 posts per 24 hours? The same official page states both numbers.",
+  "When did YouTube stop forcing unverified-project uploads to private? The current videos.insert doc says they are 'not restricted', but the revision history has no matching entry.",
+  "Is the claimed Instagram 'AI-generated profile' label requirement (from Aug 31, 2026) real, and what exactly does it require? It is from a secondary source only and directly affects AI-persona accounts.",
+  "What are X's current automation rules (automated-account label, multi-account posting)? The help.x.com and developer.x.com pages returned 403/402.",
+  "What are the Apple Ads Platform API's numeric rate limits and migration timeline details? The rate-limit and changelog JSON pages returned 404.",
+  "Does Whop expose a public API for Content Rewards (creating campaigns, approving submissions, reading view counts), and how are views verified against fraud?",
+  "Does the Meta Ads MCP server support the APP_PROMOTION objective and Advantage+ app campaigns end-to-end, and what are its write-action safeguards? The get-started page didn't render.",
+  "What is the current status of the EU AI Act Article 50 transparency obligations (claimed to apply from Aug 2, 2026, with a grace period to Dec 2, 2026 for existing systems), and how do they apply to AI-generated marketing content in the EU?",
+  "WebSearch budget note: searching stopped after about 16 queries because the session's search limit was reached. The remaining facts come from direct fetches of known official URLs. More searching could resolve the questions above if the user sends a follow-up or raises the limit."
+ ]
+}

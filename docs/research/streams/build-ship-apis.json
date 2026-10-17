@@ -1,0 +1,517 @@
+{
+ "key": "build-ship-apis",
+ "summary": "Scope and method. I checked the build-to-release pipeline as of 2026-10-17, mostly against primary sources: Apple's downloadable App Store Connect OpenAPI spec, Apple docs, guidelines and newsroom; Google Play API reference and Play Console Help; Expo, fastlane and Codemagic docs; and the AI builders' own docs.\n- **App Store Connect spec:** version 4.5.1. The file is timestamped 2026-10-06 and I re-downloaded it live on 2026-10-17. It has 1,001 paths across 203 resources.\n- **App Review Guidelines:** \"Last Updated: October 16, 2026\".\n- **Developer news RSS:** read through Oct 16, 2026.\n- **Google Play API reference:** updated 2026-08-13 to 2026-09-28.\n- **Expo docs:** modified July to October 2026.\n\nA prior run of this stream died at its usage limit. I reused the primary-source files it had saved to the scratchpad and re-verified the critical ones live, including the spec and the guidelines.\n\nBottom line for iOS: there is still no public API to create a new App Store app record.\n- **Apps endpoint:** in spec 4.5.1, /v1/apps supports only GET, and /v1/apps/{id} supports GET and PATCH. The Apps doc still says \"Don't use this API to create new apps; instead, create new apps on the App Store Connect website.\"\n- **App Privacy:** the \"nutrition label\" (data usage) has no public endpoint either. No privacy or dataUsage schemas exist in the spec. fastlane's upload_app_privacy_details_to_app_store needs an Apple ID username.\n- **Everything else is in the official API:**\n  - bundle IDs and capabilities, certificates, profiles and devices (these need a Team key);\n  - binary upload via the Build Uploads API, added in 4.1, plus a BUILD_UPLOAD_STATE_UPDATED webhook;\n  - localized metadata, categories, age rating (including the new 2026 socialMedia and ageAssurance fields), content rights, export compliance, review contact and demo account, price schedules and territory availability;\n  - screenshots and previews. These moved to the new App Asset Library in 4.5.1, and the old screenshot resources are deprecated.\n  - TestFlight groups, testers, public links and external beta review;\n  - in-app purchases (IAP) and subscriptions, with prices, offers and versioned metadata since 4.4.1;\n  - App Review submission via reviewSubmissions plus reviewSubmissionItems. The old appStoreVersionSubmissions endpoint was removed in 4.0.\n  - manual release requests, phased release, and webhooks for version-state changes;\n  - the App Store Server Notifications V2 URL, set through PATCH on apps.\n- **Human-only steps in the UI:**\n  - enrolling in the Apple Developer Program (organizations need a D-U-N-S number);\n  - accepting the Paid Apps Agreement and entering tax and banking details;\n  - generating API keys (Admin only; the .p8 file downloads once) and the In-App Purchase key;\n  - creating each app record and each App Privacy label. Tools such as fastlane produce, EAS Submit's app-creation step and the Rork, Vibecode and Expo Launch flows do these through an unofficial Apple ID web session with 2FA. fastlane says those sessions last \"anything between 1 day and 1 month\" and are tied to the region where they were created.\n- **Other limits:**\n  - JWTs may last at most 20 minutes.\n  - The rate limit is per key per rolling hour. Apple's example shows 3,500 per hour but says \"Actual limits can vary\".\n  - The first IAP or subscription of each type must be submitted with a new app version.\n  - Since Apr 28, 2026, builds must use the iOS 26 SDK.\n\nBottom line for Android: there is still no Google Play Developer API method to create a new public app.\n- **What the API covers:** in androidpublisher v3, applications.* exposes only dataSafety. Edits, tracks, listings, images, bundles, testers, monetization and reviews all assume an existing package name. The only exception is the Custom App Publishing API, which creates private enterprise apps that can never be made public.\n- **What stays in the Console:**\n  - creating the app;\n  - the App content declarations (content rating questionnaire, target audience, ads, app access and so on). Only Data safety is writable through the API.\n  - the payments profile and merchant account;\n  - the production-access application.\n- **Personal accounts created after Nov 13, 2023:**\n  - They must run a closed test with at least 12 testers, opted in continuously for 14 days, then answer a production-access questionnaire. Review \"usually takes seven days or less\", and Google can demand more testing if testers were not engaged.\n  - The owner must also confirm access to a physical Android 10+ phone through the Play Console app.\n  - The testing rule as written covers only personal accounts, so organization accounts appear exempt.\n- **API limits:** the API can assign testers only as Google Groups (\"email lists are not supported\"). Quota is 3,000 queries per minute per bucket.\n- **First binary upload:** it is unclear whether the first upload can go through the API. Expo's docs (Oct 2026) say `eas submit` can create the first internal-track release once the app exists in the Console. Older CI vendor docs, such as a Codemagic article last updated about 10 months ago, say the first binary must be uploaded manually.\n- **2026 deadlines:**\n  - New apps and updates must target API 36 from Aug 31, 2026 (extension available to Nov 1, 2026).\n  - Play Billing Library v8 is required from Aug 31, 2026 (same extension).\n\nTooling. EAS is the most automatable stack.\n- **Authentication:** EXPO_TOKEN, from a robot user or a personal access token. `eas init --force --non-interactive` links the project.\n- **iOS credentials on CI:** the ASC key and team details go in EXPO_ASC_API_KEY_PATH, EXPO_ASC_KEY_ID, EXPO_ASC_ISSUER_ID, EXPO_APPLE_TEAM_ID and EXPO_APPLE_TEAM_TYPE.\n- **Workflows REST API:** POST https://api.expo.dev/v2/workflows/dispatch.\n- **Expo MCP server:** at https://mcp.expo.dev/mcp. It can trigger and monitor builds and workflows and read TestFlight crash and feedback data.\n- **Non-interactive limits:**\n  - Submit fails unless an ASC API key or Google service-account key was assigned beforehand (\"cannot be set up in --non-interactive mode\").\n  - iOS non-interactive submit also needs ascAppId, so the App Store record must already exist.\n  - EAS Metadata is beta, Apple-only and cannot upload screenshots.\n- **Pricing:** Free plan includes 15 Android and 15 iOS builds. Starter is $19/month with $45 of credit; Production is $199/month with $225. Overage is $1/$2 per Android build and $2/$4 per iOS build (medium/large).\n- **fastlane:** actively maintained (2.241.1, Oct 15, 2026). With an API key it supports pilot, deliver, match, sigh and cert; produce is \"Partial\" with an Apple ID and \"No\" with an API key.\n- **Codemagic:** has a preview REST API (POST /builds). The free plan has 500 M2 minutes; pay-as-you-go is $0.095/min on M2 and $0.114/min on M4.\n\nAI builders and their limits.\n- **Rork:** dropped Expo and now builds native Swift and Kotlin. Publishing means signing in to Apple plus a 2FA code. Rork's Google Play doc says the user still creates the Play app, fills the listing and declarations, and recruits the 12 testers.\n- **Vibecode:**\n  - Native Swift apps go through cloud Macs that build, sign, upload, update the listing and submit for review.\n  - An Apple ID sign-in can mint an ASC key for the user.\n  - React Native apps go through Expo Launch.\n- **Expo Launch:** launch.dev, v2.3.0, dated Sept 3, 2026. It has a headless `npx create-launch --json` CLI and supports Play. Replit's mobile publishing, launched January 2026, runs on it.\n- **a0.dev:** connects an ASC API key through \"Automatic Setup\".\n- **Bolt:** makes the user run the EAS CLI locally.\n- **Lovable:** has a REST API on Business and Enterprise plans plus an MCP server for AI project creation, but it outputs web apps, not native ones.\n- **None of them** removes the per-account human steps: enrollment, agreements and identity, Google's 12-tester rule, and the Apple 2FA sign-in.\n- **Apple enforcement against builder apps:**\n  - In March 2026 Apple held updates to Replit and Vibecode under guideline 2.5.2 and License Agreement 3.3.1(B).\n  - It removed Anything from the App Store on Mar 30, 2026.\n  - Apple said it is \"not targeting vibe coding as a category\".\n  - That enforcement hit the builder apps' own iOS apps, not apps built with them.\n\nPolicy threats to an AI app factory, all quoted from the Oct 16, 2026 guidelines.\n- **4.3(a):** \"Don't create multiple Bundle IDs of the same app\".\n- **4.3(b):** no \"indistinguishable\" variants. \"dating, flashlight, sound effects, wallpaper, simple timers, and fortune telling\" are listed as saturated, and \"Repeated submissions... may lead to removal from the Apple Developer Program.\" This was revised June 8, 2026 with stated reasons and examples.\n- **4.2.6:** apps from a \"commercialized template or app generation service will be rejected unless they are submitted directly by the provider of the app's content\".\n- **4.1(c):** no use of another developer's brand in your icon or name. Added Nov 2025.\n- **2.3.1(a):** Notes for Review must describe changes \"with specificity (generic descriptions will be rejected)\".\n- **2.5.19:** new rule against hidden or dormant features. Apple's announcement says this covers features added after approval, which risks heavy over-the-air updates.\n- **1.2:** now explicitly covers \"AI content creation apps\": filtering, reporting, blocking and published contact information are required, and failing to fix violations can breach the Developer Code of Conduct.\n- **3.1.2:** subscriptions must last at least seven days and deliver ongoing value; scam or bait-and-switch apps are removed. **3.1.2(c):** the paywall must state clearly what the user gets.\n- **5.1.1:** a privacy policy and in-app account deletion are required. **5.1.2(i):** the app must disclose sharing with \"third-party AI\" and get explicit permission.\n- **5.6:** the Code of Conduct, including 5.6.4, which treats excessive refunds and negative reviews as quality signals.\n- **Apple's 2025 enforcement figures (published May 20, 2026):**\n  - 9.1M submissions reviewed and more than 2M rejected;\n  - 371K rejected for copying, spam or misleading users;\n  - about 59K bait-and-switch apps removed;\n  - 193K developer accounts terminated and 138K enrollments rejected;\n  - AI used to \"analyze app similarity\".\n- **Google Play:** its Spam policy bans \"Creating multiple apps with highly similar functionality, content, and user experience\". Termination extends to \"related\" accounts, and new accounts get terminated too.\n- **Review queues:** in March 2026 waits of 7 to 30+ days were reported. Apple Developer Forums threads from early October 2026 describe new-app waits of about 7 to 16 days. These reports are anecdotal.",
+ "findings": [
+  {
+   "claim": "App Store Connect API still cannot create a new app record. As of spec 4.5.1 (Oct 2026), /v1/apps has only GET (list).",
+   "evidence": "Apple's downloadable spec (info.version '4.5.1', file timestamp 2026-10-06, re-downloaded 2026-10-17): '/v1/apps' -> ['get']; '/v1/apps/{id}' -> ['get','patch']. Apps resource doc: 'Don't use this API to create new apps; instead, create new apps on the App Store Connect website.' None of the release notes from 4.0 to 4.5.1 add app creation.",
+   "sources": [
+    "https://developer.apple.com/sample-code/app-store-connect/app-store-connect-openapi-specification.zip",
+    "https://developer.apple.com/documentation/appstoreconnectapi/apps",
+    "https://developer.apple.com/documentation/appstoreconnectapi/app-store-connect-api-4-5-1-release-notes"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Every automated app-record creator uses an unofficial Apple ID web session with 2FA rather than the API: fastlane produce, EAS Submit's app-creation step, and the Rork, Vibecode, Replit and Expo Launch flows.",
+   "evidence": "fastlane API-key table lists 'produce' as 'Partial' (Apple ID) and 'No' (API Key); produce options take '-u, --username STRING Your Apple ID Username'. The eas.json docs (Oct 13, 2026) say 'ascAppId ... When set, results in skipping the app creation step', and non-interactive submit 'also needs ascAppId'. Rork's flow is 'Create an Apple Developer account, Click Publish, Enter your login details, Enter the verification code'. A community asc CLI skill (asc-app-create-ui) drives the App Store Connect New App form in a browser.",
+   "sources": [
+    "https://docs.fastlane.tools/app-store-connect-api/",
+    "https://docs.fastlane.tools/actions/produce/",
+    "https://docs.expo.dev/eas/json/",
+    "https://docs.expo.dev/submit/ios/",
+    "https://docs.rork.com/publishing.md",
+    "https://skillselion.com/skills/rudrankriyam/asc-skills/asc-app-create-ui"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Apple ID web sessions are fragile, so they need a human for 2FA and must be refreshed periodically.",
+   "evidence": "fastlane auth docs (built 2026-10-16): 'The session's validity can greatly vary (anything between 1 day and 1 month'. Sessions are region-bound and stored in FASTLANE_SESSION. 'As of March 3rd 2021, no accounts without 2FA registered are able to login'. An app-specific password covers uploads only. Separately, a third-party changelog says fastlane 2.226.0 switched to Apple's new SRP sign-in; that date is unverified.",
+   "sources": [
+    "https://docs.fastlane.tools/getting-started/ios/authentication/",
+    "https://drobinin.com/posts/keep-using-fastlane-with-apples-2fa-changes/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "App Privacy (nutrition label / data usage) answers cannot be set through the public App Store Connect API.",
+   "evidence": "Spec 4.5.1 has no schema or path matching privacy or dataUsage; it does have accessibilityDeclarations. fastlane's upload_app_privacy_details_to_app_store takes 'username: Your Apple ID Username'. The asc CLI README says its deep validation checks App Privacy only through the 'signed-in web app' and that 'The private Apple endpoints can change without notice'.",
+   "sources": [
+    "https://developer.apple.com/sample-code/app-store-connect/app-store-connect-openapi-specification.zip",
+    "https://docs.fastlane.tools/actions/upload_app_privacy_details_to_app_store/",
+    "https://raw.githubusercontent.com/rudrankriyam/App-Store-Connect-CLI/main/README.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Code signing is fully automatable through the API with a Team key: bundle IDs, capabilities, certificates, provisioning profiles and devices.",
+   "evidence": "Spec has POST on /v1/bundleIds (name, platform, identifier, seedId), /v1/bundleIdCapabilities, /v1/certificates (csrContent, certificateType), /v1/profiles and /v1/devices. Apple keys doc: 'Individual keys aren't able to use Provisioning endpoints, access Sales and Finance, or notaryTool.' fastlane recommends a Team Key because it 'is required for any provisioning-related API access'.",
+   "sources": [
+    "https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api",
+    "https://docs.fastlane.tools/app-store-connect-api/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "API keys can only be created by a human Admin in the App Store Connect UI. The private key downloads once, tokens last at most 20 minutes, and the rate limit is per key per rolling hour.",
+   "evidence": "'To generate team keys, you must have an Admin account in App Store Connect'. Path: Users and Access > Integrations > App Store Connect API. 'The private key is available for download a single time'. JWT 'Tokens that expire more than 20 minutes into the future are not valid' (with listed exceptions). Rate limits: the X-Rate-Limit header example is 'user-hour-lim:3500', with 'Actual limits can vary'; exceeding it returns HTTP 429 RATE_LIMIT_EXCEEDED.",
+   "sources": [
+    "https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api",
+    "https://developer.apple.com/documentation/appstoreconnectapi/generating-tokens-for-api-requests",
+    "https://developer.apple.com/documentation/appstoreconnectapi/identifying-rate-limits"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Once the app record exists, the store listing and compliance metadata are writable through the API.",
+   "evidence": "The spec's create and update schemas cover:\n- appInfoLocalizations: name, subtitle, privacyPolicyUrl, privacyChoicesUrl\n- appStoreVersionLocalizations: description, keywords, marketingUrl, promotionalText, supportUrl, whatsNew\n- appInfos category relationships\n- ageRatingDeclarations PATCH, including the new socialMedia, socialMediaAgeRestricted, ageAssurance and koreaAgeRatingOverride fields\n- apps PATCH: contentRightsDeclaration, subscriptionStatusUrl, streamlinedPurchasingEnabled, accessibilityUrl\n- appEncryptionDeclarations, appStoreReviewDetails (contact, demoAccountName/Password, notes)\n- appPriceSchedules, v2 appAvailabilities\n- accessibilityDeclarations, customProductPages, appStoreVersionExperiments\nThe 4.3.1 notes add 11 more metadata locales.",
+   "sources": [
+    "https://developer.apple.com/sample-code/app-store-connect/app-store-connect-openapi-specification.zip",
+    "https://developer.apple.com/documentation/appstoreconnectapi/app-store-connect-api-4-4-1-release-notes"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Screenshots and previews can be uploaded through the API, but in 4.5.1 (Oct 2026) the old resources are deprecated in favor of the new App Asset Library. A new iPhone Duo display class exists, and creative assets now fall under a new guideline 2.3.14.",
+   "evidence": "4.5.1 notes: 'The App Screenshot Sets, App Screenshots, App Preview Sets, and App Previews resources are deprecated. Manage ... with App Asset Library images, App Asset Library videos, and App Asset Library placements'. They also add 'IPHONE_DUO display class' and say 'List app asset library ref data' returns the specs. The Oct 5, 2026 news item 'Showcase your apps with new assets' introduces the Asset Library and creative assets. Guideline 2.3.14 says creative assets must not include 'unverifiable product claims, or specific or discounted pricing information'.",
+   "sources": [
+    "https://developer.apple.com/documentation/appstoreconnectapi/app-store-connect-api-4-5-1-release-notes",
+    "https://developer.apple.com/news/?id=ljpl7kyn",
+    "https://developer.apple.com/app-store/review/guidelines/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Binary upload is now a first-class API (Build Uploads, added in 4.1) with a state webhook, so no Mac or Transporter is required. Apple's Apps doc still carries stale text saying the API cannot upload builds.",
+   "evidence": "Spec: POST /v1/buildUploads (cfBundleShortVersionString, cfBundleVersion, platform, app relationship), POST and PATCH /v1/buildUploadFiles. The upload state includes errors, warnings and infos. 4.1 notes: 'You can now use Build uploads to upload and manage build uploads'. The webhook event is BUILD_UPLOAD_STATE_UPDATED. The Apps doc still says 'This API doesn't permit you to directly upload your builds'. EAS Submit 'works on macOS, Linux, and Windows'.",
+   "sources": [
+    "https://developer.apple.com/documentation/appstoreconnectapi/build-uploads",
+    "https://developer.apple.com/documentation/appstoreconnectapi/app-store-connect-api-4-1-release-notes",
+    "https://docs.expo.dev/submit/ios/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "App Review submission is fully API-driven through reviewSubmissions. The older appStoreVersionSubmissions endpoint was removed in API 4.0.",
+   "evidence": "Spec:\n- POST /v1/reviewSubmissions\n- POST /v1/reviewSubmissionItems, which can attach appStoreVersion, inAppPurchaseVersion, subscriptionVersion, subscriptionGroupVersion, appCustomProductPageVersion, appStoreVersionExperiment(V2), appEvent, appAssetLibraryImage and Video, backgroundAssetVersion and Game Center versions\n- PATCH /v1/reviewSubmissions/{id} with 'submitted' and 'canceled'\n4.0 notes: 'Create an App Store version submission is now removed. Use Create a Review Submission instead.' 4.1 made platform optional. Since Oct 29, 2025, extra items can be submitted independently of an existing submission.",
+   "sources": [
+    "https://developer.apple.com/documentation/appstoreconnectapi/app-store-connect-api-4-0-release-notes",
+    "https://developer.apple.com/news/?id=gf6mgrs6"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Release control is fully API-driven: release type and scheduled date, manual release after approval, phased release, and webhooks for state changes.",
+   "evidence": "AppStoreVersionCreateRequest attributes: platform, versionString, copyright, reviewType, releaseType, earliestReleaseDate, usesIdfa. POST /v1/appStoreVersionReleaseRequests. POST /v1/appStoreVersionPhasedReleases (phasedReleaseState), plus PATCH and DELETE on /{id}. WebhookEventType includes APP_STORE_VERSION_APP_VERSION_STATE_UPDATED, BUILD_BETA_DETAIL_EXTERNAL_BUILD_STATE_UPDATED and BETA_FEEDBACK_* (webhooks added in 4.0).",
+   "sources": [
+    "https://developer.apple.com/sample-code/app-store-connect/app-store-connect-openapi-specification.zip",
+    "https://developer.apple.com/documentation/appstoreconnectapi/webhook-notifications"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "TestFlight distribution is fully API-driven: groups, public links, testers, invitations and external beta review. Up to 10,000 external testers are allowed.",
+   "evidence": "BetaGroupCreateRequest has name, isInternalGroup, hasAccessToAllBuilds, publicLinkEnabled, publicLinkLimitEnabled, publicLinkLimit and feedbackEnabled. POST exists for betaTesters, betaTesterInvitations and betaAppReviewSubmissions. Apple news (May 12, 2026): 'distribute beta builds to up to 10,000 external testers'.",
+   "sources": [
+    "https://developer.apple.com/sample-code/app-store-connect/app-store-connect-openapi-specification.zip",
+    "https://developer.apple.com/news/?id=sw8ldfjk"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "In-app purchases and subscriptions (creation, pricing, offers, localizations, review screenshots and submission) can all be done through the API. Since 4.4.1 their metadata is versioned and submitted via reviewSubmissionItems. The first IAP of each type must still go out with a new app version.",
+   "evidence": "POST /v2/inAppPurchases (name, productId, inAppPurchaseType, reviewNote, familySharable). POST /v1/subscriptionGroups and /v1/subscriptions (subscriptionPeriod, groupLevel). Also subscriptionPrices, subscriptionIntroductoryOffers, offer codes, promotionalOffers and winBackOffers. 4.4.1: 'Submit an In-App Purchase version, subscription version, or subscription group version to App Review. Use Create a Review Submission Item'. The old IAP and subscription submission resources are deprecated. App Store Connect Help: the first consumable, non-consumable, auto-renewable and non-renewing items must each be submitted with a new app version. The help page is undated. 4.4 added 12-month-commitment monthly plans (subscriptionPlanAvailabilities). 4.5 added multiseat attributes.",
+   "sources": [
+    "https://developer.apple.com/documentation/appstoreconnectapi/app-store-connect-api-4-4-1-release-notes",
+    "https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-an-in-app-purchase",
+    "https://developer.apple.com/documentation/appstoreconnectapi/app-store-connect-api-4-4-release-notes"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Agreements, tax and banking, the In-App Purchase (server) key and sandbox tester creation have no public API. They are one-time human steps.",
+   "evidence": "The spec has no agreements, tax or banking resources; the only agreement objects are betaLicenseAgreements and endUserLicenseAgreements. /v2/sandboxTesters supports only GET, and /{id} only PATCH. Vibecode's guide lists as a prerequisite: 'paid apps and in-app purchases also need the Paid Apps Agreement, tax, and banking'. App Store Server API keys are obtained from App Store Connect.",
+   "sources": [
+    "https://developer.apple.com/sample-code/app-store-connect/app-store-connect-openapi-specification.zip",
+    "https://www.vibecodeapp.com/docs/getting-started/deploy-app-store",
+    "https://developer.apple.com/documentation/appstoreserverapi"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "App Store Server API and App Store Server Notifications V2 are the server-side monetization backbone. V1 notifications are deprecated, and the notification URL can be set through the App Store Connect API.",
+   "evidence": "ASSN docs: 'The App Store Server Notifications V1 endpoint and version 1 notifications ... are deprecated.' Server API capabilities:\n- transaction info and history, subscription statuses\n- refund history and consumption info\n- notification history for 180 days (30 days in sandbox) and test notifications\n- renewal date extensions\n- order ID lookup\n- app account token\n- multiseat customer groups (sandbox only)\nThe sandbox base URL is api.storekit-sandbox.apple.com. AppUpdateRequest includes subscriptionStatusUrl, subscriptionStatusUrlVersion and their sandbox variants.",
+   "sources": [
+    "https://developer.apple.com/documentation/appstoreserverapi",
+    "https://developer.apple.com/documentation/appstoreservernotifications"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Platform build and metadata gates for 2026: the iOS 26 SDK minimum and mandatory age-rating answers about social media.",
+   "evidence": "Apple news Feb 3, 2026: 'Starting April 28, 2026 ... iOS and iPadOS apps must be built with the iOS 26 & iPadOS 26 SDK or later'. Jul 9, 2026: 'beginning in September 2026, responses will be required when submitting new apps or updates' (the social media questions). Vibecode's doc (secondary) says that from April 2027, apps built with the iOS 27.1 SDK need iPhone Duo screenshots.",
+   "sources": [
+    "https://developer.apple.com/news/rss/news.rss",
+    "https://www.vibecodeapp.com/docs/getting-started/deploy-app-store"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The App Review Guidelines were updated Oct 16, 2026, adding several rules relevant to an AI app factory.",
+   "evidence": "News item 92th7e5i lists the changes:\n- 1.2 clarified, with a possible Code of Conduct violation 'for failing to implement appropriate safeguards'\n- 2.3.14 new, covering creative assets\n- 2.5.19 new, on 'hidden, dormant, or undocumented features'\n- 3.1.1(a) external link entitlement merged\n- Section 5: trafficking and child exploitation apps 'blocked from alternative distribution'\nCurrent 1.2 text: 'This includes social media, user-generated content platforms, and AI content creation apps.' Apple's companion post: 2.5.19 covers 'adding features or functionality that weren't included in the version of the app that was submitted to App Review ... subject to removal ... and removal from the Apple Developer Program.'",
+   "sources": [
+    "https://developer.apple.com/news/?id=92th7e5i",
+    "https://developer.apple.com/news/?id=vvzx6cul",
+    "https://developer.apple.com/app-store/review/guidelines/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Guideline 4.3 (Spam) is the main threat to an app factory. It bans multiple bundle IDs of the same app and 'opportunistic' variants, and it names fortune telling among saturated categories.",
+   "evidence": "4.3(a): 'Don't create multiple Bundle IDs of the same app ... consider submitting a single app and providing the variations using in-app purchase.' 4.3(b): 'Don't submit apps that are indistinguishable from what's already widely available. Opportunistically creating variants of existing app categories or popular apps degrades App Store discovery ... Certain kinds of apps, such as dating, flashlight, sound effects, wallpaper, simple timers, and fortune telling, are well established ... we will not accept new submissions unless they offer a meaningfully different or improved experience ... Repeated submissions of this kind may lead to removal from the Apple Developer Program.' The June 8, 2026 update says '4.3(a): clarifies the basis for the guideline and adds an example. 4.3(b): clarifies the basis ... and adds examples.'",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/",
+    "https://developer.apple.com/news/?id=a233fmpw"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Guideline 4.2.6 rejects apps from commercialized templates or app-generation services unless the content provider submits them. This affects any factory that ships apps on behalf of others.",
+   "evidence": "'4.2.6 Apps created from a commercialized template or app generation service will be rejected unless they are submitted directly by the provider of the app's content. These services should not submit apps on behalf of their clients ... Another acceptable option for template providers is to create a single binary to host all client content in an aggregated or \"picker\" model'. Guideline 4.2: 'If your app is not particularly useful, unique, or \"app-like,\" it doesn't belong on the App Store.'",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Copycat and impersonation rules (4.1), including the 4.1(c) rule added Nov 2025, bar using other developers' brands in your icon or name.",
+   "evidence": "4.1(a): 'Don't simply copy the latest popular app ... or make some minor changes to another app's name or UI'. 4.1(b): impersonation 'is considered a violation of the Developer Code of Conduct and may result in removal'. 4.1(c): 'You cannot use another developer's icon, brand, or product name in your app's icon or name, without approval' (added Nov 13, 2025).",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/",
+    "https://developer.apple.com/news/?id=ey6d8onl"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Guideline 2.3.1 requires specific Notes for Review, and misleading marketing anywhere can lead to termination. Generic, auto-generated notes are risky.",
+   "evidence": "2.3.1(a): 'All new features, functionality, and product changes must be described with specificity in the Notes for Review section of App Store Connect (generic descriptions will be rejected) ... marketing your app in a misleading way ... whether within or outside of the App Store, is grounds for removal ... and termination of your developer account.'",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Subscription and paywall rules: a subscription must last at least 7 days and deliver ongoing value, its contents must be described clearly before purchase, and scam or bait-and-switch apps are removed.",
+   "evidence": "3.1.2(a): 'the subscription period must last at least seven days and be available across all of the user's devices'. Also: 'Apps that attempt to trick users into purchasing a subscription under false pretenses or engage in bait-and-switch and scam practices ... will be removed ... and you may be removed from the Apple Developer Program.' 3.1.2(c): 'Before asking a customer to subscribe, you should clearly describe what the user will get for the price ... communicate the requirements described in Schedule 2'. 3.1.1: digital unlocks must use IAP, and credits 'may not expire'.",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Privacy rules: an in-app privacy policy and account deletion are required, and sharing personal data with third-party AI requires explicit consent (added Nov 2025).",
+   "evidence": "5.1.1(i): 'All apps must include a link to their privacy policy in the App Store Connect metadata field and within the app'. 5.1.1(v): 'If your app supports account creation, you must also offer account deletion within the app.' 5.1.2(i): 'You must clearly disclose where personal data will be shared with third parties, including with third-party AI, and obtain explicit permission before doing so.'",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/",
+    "https://developer.apple.com/news/?id=ey6d8onl"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The Developer Code of Conduct (5.6) makes refund rates, negative reviews, identity accuracy and discovery manipulation grounds for account termination.",
+   "evidence": "5.6: 'Repeated manipulative or misleading behavior or other fraudulent conduct will lead to your removal'. 5.6.2: representation 'must be accurate ... truthful, relevant, and up-to-date'. 5.6.3: manipulating 'charts, search, reviews, or referrals ... is not permitted'. 5.6.4: 'excessive customer reports ... negative customer reviews, and excessive refund requests ... may be a factor in deciding whether a developer is abiding by the Developer Code of Conduct.' 5.6.1: use the provided API for review prompts; 'we will disallow custom review prompts'.",
+   "sources": [
+    "https://developer.apple.com/app-store/review/guidelines/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Apple's 2025 enforcement was large and AI-assisted: more than 2M rejections, 371K for spam, copying or misleading users, and 193K developer accounts terminated.",
+   "evidence": "Apple Newsroom (May 20, 2026):\n- 'evaluated more than 9.1 million app submissions'\n- 'rejected over 2 million', including more than 1.2M new apps\n- more than 371,000 rejected because they 'copied other apps, were found to be spam, or otherwise misled users'\n- nearly 59,000 bait-and-switch removals\n- 'terminated 193,000 developer accounts over fraud concerns'\n- more than 138,000 enrollments rejected\n- AI used to 'analyze app similarity'\n- 'powerful AI development tools drive a surge in app submissions'",
+   "sources": [
+    "https://www.apple.com/newsroom/2026/05/the-app-store-stopped-over-2-point-2-billion-usd-in-fraudulent-transactions-in-2025/",
+    "https://developer.apple.com/news/?id=vvzx6cul"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Apple's 4.3(a) rejections explicitly match new submissions against apps from terminated accounts by 'binary, metadata, and/or concept', so reusing templates across accounts carries forward the risk from terminated ones.",
+   "evidence": "Developer-posted rejection text: 'We noticed your app shares a similar binary, metadata, and/or concept as apps previously submitted by a terminated Apple Developer Program account. Submitting similar or repackaged apps is a form of spam'. The thread is from June 2024, more than 18 months old, but it is consistent with Apple's 2026 statement about AI similarity analysis. A July 2025 forum appeal describes a termination after a 4.3 rejection.",
+   "sources": [
+    "https://developer.apple.com/forums/thread/757046",
+    "https://developer.apple.com/forums/thread/792641"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Apple's 2026 crackdown on AI app builders under 2.5.2 targeted the builders' own iOS apps that run generated code in-app, not apps built with AI.",
+   "evidence": "9to5Mac (Mar 30, 2026): Apple 'blocked updates' to Replit and Vibecode and pulled Anything. It cited 2.5.2 ('may not download, install, or execute code which introduces or changes features') and DPLA 3.3.1(B). Apple said the issue is apps violating the guidelines, not vibe coding. TNW (Apr 5, 2026): Apple is 'not targeting vibe coding as a category'. Vibecode's status page: Apple approved 1.2.11 on March 18, 2026, and updates continued through 1.2.20 on Oct 8, 2026.",
+   "sources": [
+    "https://9to5mac.com/2026/03/30/apple-steps-up-crackdown-on-vibe-coding-apps/",
+    "https://thenextweb.com/news/vibe-coding-apple-app-store-surge-crackdown",
+    "https://www.vibecodeapp.com/app-store-status"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "App Review queue times have been inflated in 2026 by a surge in submissions, especially for new apps. The October 2026 reports are anecdotal.",
+   "evidence": "TNW (Apr 2026), citing The Information and Sensor Tower: '557,000 new app submissions in 2025', an 84% quarter-over-quarter surge, and March 2026 delays of 7 to 30+ days. Apple Developer Forums in Oct 2026 report new-app 'Waiting for Review' times of about 7 days (thread 850476), around 8+ days (850755), and threads describing 4 to 16 days. Apple's own claim is that 90% of submissions are reviewed in under 24 hours on average.",
+   "sources": [
+    "https://thenextweb.com/news/vibe-coding-apple-app-store-surge-crackdown",
+    "https://developer.apple.com/forums/thread/850476",
+    "https://developer.apple.com/forums/thread/850755",
+    "https://developer.apple.com/forums/thread/850669"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "The Google Play Developer API still cannot create a new public app. The applications resource exposes only dataSafety, and every other publishing call needs an existing packageName.",
+   "evidence": "androidpublisher v3 REST reference (Last updated 2026-08-13): 'REST Resource: v3.applications \u2014 dataSafety POST .../applications/{packageName}/dataSafety Writes the Safety Labels declaration'. Other resources (edits.*, monetization.*, reviews, tracks.releases, appsigning, apprecovery and others) are all keyed by packageName. No create method exists.",
+   "sources": [
+    "https://developers.google.com/android-publisher/api-ref/rest"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The only programmatic Play app creation is the Custom App Publishing API, and it produces private enterprise apps that can never be public.",
+   "evidence": "Google docs: 'To publish a private app for an enterprise, call Accounts.customApps.create'. 'Apps published through the Google Play Custom App Publishing API can never be made public.' An enterprise IT admin must grant access.",
+   "sources": [
+    "https://developers.google.com/android/work/play/custom-app-api/publish"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Once an app exists, Play publishing is API-driven through the edits workflow, with some limits.",
+   "evidence": "Supported: edits.insert, validate and commit; bundles.upload; listings get/patch/update; images.upload; details.patch; tracks.create (custom tracks; form-factor prefixes like 'wear:production'). Release statuses: draft, inProgress, halted, completed. userFraction must be between 0 and 1 for staged rollout, and countryTargeting is allowed only for inProgress production releases. inAppUpdatePriority ranges 0 to 5. edits.testers has only googleGroups[]: 'email lists are not supported by this resource' (updated 2026-09-28). Edits doc: 'Only one edit per app can be active and changes through the Play Console discard any existing edits.'",
+   "sources": [
+    "https://developers.google.com/android-publisher/edits",
+    "https://developers.google.com/android-publisher/api-ref/rest/v3/edits.tracks",
+    "https://developers.google.com/android-publisher/api-ref/rest/v3/edits.testers"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Sources conflict on whether a new Play app's first binary can be uploaded through the API.",
+   "evidence": "Expo Submit Android doc (Oct 9, 2026): 'If this is your app's first submission, the default eas submit command works out of the box and creates your app's first release on the internal testing track' (the app must already exist in Play Console). Expo's manual guide calls a manual upload optional. Codemagic help (last updated about 10 months ago): 'For brand-new apps, Google requires the very first binary to be uploaded manually via the Play Console.' Expo's own submit intro page reportedly still says manual-first.",
+   "sources": [
+    "https://docs.expo.dev/submit/android/",
+    "https://docs.expo.dev/submit/android-manual/",
+    "https://help.codemagic.io/articles/3880714096-why-did-publishing-to-google-play-fail-with-package-not-found-when-using-codemagic"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Play Console App content declarations, the payments/merchant profile and production review requests are UI-only; Data safety is the only declaration with an API.",
+   "evidence": "The API reference lists no content-rating, target-audience, ads or app-access resources; only applications.dataSafety exists. Rork's Play guide says 'Rork cannot create your store listing or accept Google's policies for you. In Play Console you: Create the app ... Fill in the listing: title, description, graphics, category, content rating, data safety, and the policy questionnaires ... Add testers ... Send the release for review'. The listing fields themselves are in fact writable through the edits API.",
+   "sources": [
+    "https://developers.google.com/android-publisher/api-ref/rest",
+    "https://docs.rork.com/store-guides/google-play-developer-account.md"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "New personal Play accounts (created after Nov 13, 2023) must run a closed test with at least 12 testers opted in for 14 continuous days, then apply for production access with a questionnaire. Organization accounts are outside the rule's stated scope.",
+   "evidence": "Play Console Help: 'Developers with personal accounts created after November 13, 2023, must run a closed test for their app with a minimum of 12 testers who have been opted in continuously for at least 14 days.' Production and Pre-registration 'remain disabled until developers meet these testing requirements'. 'Review usually takes seven days or less'. Google may require continued testing for 'fewer than 12 opted-in testers or insufficient tester engagement'. 'Internal testing does not satisfy that rule' (Rork doc). Per a third-party source, the requirement was 20 testers until Dec 2024.",
+   "sources": [
+    "https://support.google.com/googleplay/android-developer/answer/14151465",
+    "https://docs.rork.com/store-guides/google-play-developer-account.md",
+    "https://www.choicely.com/blog/google-play-12-tester-rule"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Google Play account creation involves several human identity steps, including physical-device verification for new personal accounts.",
+   "evidence": "There is a one-time $25 fee. Personal accounts verify legal name and address from the payments profile. Organizations need a D-U-N-S number ('can take up to 30 days'). Contact email and phone are verified by OTP. New personal accounts must 'verify that they have access to a real Android mobile device' via the Play Console app on a non-rooted Android 10+ phone. Monetizing requires a merchant or payments profile.",
+   "sources": [
+    "https://support.google.com/googleplay/android-developer/answer/13628312",
+    "https://support.google.com/googleplay/android-developer/answer/14316361"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The Play monetization API can create and manage subscriptions, base plans, offers and one-time products. 2025\u20132026 additions cover chargebacks and subscription state.",
+   "evidence": "monetization.subscriptions supports create, patch, batchUpdate, archive, delete, get and list (updated 2026-09-28). Base plans can be auto-renewing, prepaid or installments; the reference also lists offers and onetimeproducts.purchaseOptions. Release notes:\n- Jul 6, 2026: orders.reviewrefund and PendingRefundReviewNotification\n- May 19, 2026: subscription API deprecations\n- Jan 27, 2026: add-on deferral and OfferPhase\nPlay Billing Library v8 is required by Aug 31, 2026 (extension to Nov 1, 2026).",
+   "sources": [
+    "https://developers.google.com/android-publisher/api-ref/rest/v3/monetization.subscriptions",
+    "https://developer.android.com/google/play/billing/play-developer-apis-release-notes"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Play API quota is 3,000 queries per minute per bucket, and publishing, monetization and review replies share one bucket.",
+   "evidence": "'The default quota is 3000 queries per minute for each bucket.' One bucket is 'Publishing, Monetization, and Reply to Reviews APIs'. The page sets no cap on edit commits (last updated 2026-04-29).",
+   "sources": [
+    "https://developers.google.com/android-publisher/quotas"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Google Play's spam and minimum-functionality policies directly target factory-style catalogs, and terminations extend to related accounts.",
+   "evidence": "Spam policy: 'We don't allow apps that merely provide the same experience as other apps already on Google Play ... Creating multiple apps with highly similar functionality, content, and user experience. If these apps are each small in content volume, developers should consider creating a single app that aggregates all the content.' It also bans webview-only apps without permission. Enforcement page: 'Repeated or serious violations ... will result in termination of individual or related Google Play Developer accounts', 'any related Google Play developer accounts will also be permanently suspended', and 'Any new account that you try to open will be terminated as well'. Suspensions count as strikes, and dormant accounts are closed.",
+   "sources": [
+    "https://support.google.com/googleplay/android-developer/answer/9899234",
+    "https://support.google.com/googleplay/android-developer/topic/9877466"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Google Play's AI-Generated Content policy requires in-app reporting of offensive AI output for generative AI apps.",
+   "evidence": "The help page scopes the policy to 'text-to-text AI chatbot apps', image generators, and voice or video of real people. Developers must let users report or flag offensive AI content without exiting the app. The policy dates from 2023\u20132024 (TechCrunch, June 2024), so it is more than 18 months old; I found no confirmed 2026 revision.",
+   "sources": [
+    "https://support.google.com/googleplay/android-developer/answer/14094294",
+    "https://techcrunch.com/2024/06/06/google-play-cracks-down-on-ai-apps-after-circulation-of-apps-for-making-deepfake-nudes"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Google Play requires new apps and updates to target Android 16 (API 36) from Aug 31, 2026.",
+   "evidence": "Android Developers target-SDK page: new apps and updates must target API 36 starting Aug 31, 2026. Wear OS and Automotive need API 35, and TV and XR need API 34. An extension to Nov 1, 2026 is available.",
+   "sources": [
+    "https://developer.android.com/google/play/requirements/target-sdk",
+    "https://support.google.com/googleplay/android-developer/answer/11926878"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "EAS Build and Submit run non-interactively on CI only after one-time interactive setup and a pre-existing App Store record.",
+   "evidence": "'Run eas build -p [all|android|ios] from your local terminal ... so the eas build command can prompt for any additional configuration it needs' (CI doc, Jul 29, 2026). EXPO_TOKEN comes from a personal access token or robot user, and 'EXPO_TOKEN=my_token eas init --force --non-interactive' links the project (Jul 17, 2026). iOS CI env vars are EXPO_ASC_API_KEY_PATH, EXPO_ASC_KEY_ID, EXPO_ASC_ISSUER_ID, EXPO_APPLE_TEAM_ID and EXPO_APPLE_TEAM_TYPE. Submit docs: 'App Store Connect API Keys cannot be set up in --non-interactive mode', 'Google Service Account Keys cannot be set up in --non-interactive mode', and 'In non-interactive mode, your submission profile also needs ascAppId.'",
+   "sources": [
+    "https://docs.expo.dev/build/building-on-ci/",
+    "https://docs.expo.dev/accounts/programmatic-access/",
+    "https://docs.expo.dev/submit/ios/",
+    "https://docs.expo.dev/submit/android/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "EAS exposes programmatic control through a Workflows REST API and an official remote MCP server.",
+   "evidence": "Workflows REST API doc (May 25, 2026): 'POST /v2/workflows/dispatch' on https://api.expo.dev with appId, gitRef, fileName and inputs, and 'GET /v2/workflows/runs/:workflowRunId'. Authorization is 'Bearer <EXPO_TOKEN>', with robot users recommended. Expo MCP (Oct 16, 2026) at https://mcp.expo.dev/mcp uses OAuth and 'can trigger and monitor EAS builds, run workflows, and pull crash data from TestFlight'. Its local capabilities can screenshot and interact with the simulator (SDK 54+). Projects are created with '--template default@sdk-58'.",
+   "sources": [
+    "https://docs.expo.dev/eas/workflows/rest-api/",
+    "https://docs.expo.dev/mcp/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "EAS pricing as of Oct 2026.",
+   "evidence": "expo.dev/pricing:\n- Free: up to 15 Android and 15 iOS builds; 1,000 Update MAUs\n- Starter: $19/mo with $45 build credit; 3,000 MAUs, then $0.005/MAU\n- Production: $199/mo with $225 credit; 50,000 MAUs\n- Per-build overage: Android $1 medium / $2 large; iOS $2 / $4\n- Workflows: Linux medium $0.018/min, macOS medium $0.075/min",
+   "sources": [
+    "https://expo.dev/pricing"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "EAS Metadata is still beta, supports only the Apple App Store, and cannot upload screenshots. EAS Update can ship only JS and assets, and those changes must still follow store rules.",
+   "evidence": "'EAS Metadata is in beta and subject to breaking changes. The service currently only supports the Apple App Store.' The metadata doc (May 7, 2026) says screenshot uploads are not supported. The EAS Update intro (Jul 22, 2026) covers 'non-native pieces (such as JS, styling, and images)' and says 'your updates need to follow the App Store and Play Store guidelines ... changes to your app's behavior need to be reviewed.'",
+   "sources": [
+    "https://docs.expo.dev/deploy/app-stores-metadata/",
+    "https://docs.expo.dev/eas/metadata/",
+    "https://docs.expo.dev/eas-update/introduction/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Expo Launch (launch.dev) is a browser and CLI publish flow on top of EAS that handles the Apple account flow and Google Play. It has a headless JSON CLI and underpins Replit's and Vibecode's mobile publishing.",
+   "evidence": "launch.dev llms-full.txt (v2.3.0, 2026-09-03): it publishes 'from a local project or public GitHub repo to app stores or the web'. The CLI is 'npx -y create-launch@latest' with --json, whoami --json and login --json, and 'no browser opens automatically in headless mode'. Play flow: 'connect a Google account, choose a Play Console app, configure signing, and select a release track'. 'Pricing follows EAS pricing'. Private GitHub repos are not supported. Replit's docs describe Apple sign-in, app name and bundle ID, auto certificates, and 'Publishing can take up to 45 minutes'; users then submit for review themselves. The beta was announced Aug 20, 2025.",
+   "sources": [
+    "https://launch.dev/llms-full.txt",
+    "https://expo.dev/blog/introducing-expo-launch",
+    "https://docs.replit.com/build/mobile-upload-ios"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "fastlane is actively maintained, but app creation and App Privacy still need an Apple ID session.",
+   "evidence": "RubyGems lists 2.241.1 on Oct 15, 2026 and 2.241.0 on Oct 10, 2026. The API-key support table:\n- pilot, deliver, sigh, cert and match: Yes\n- produce: Partial with Apple ID, No with API key\n- pem: No with API key\n- precheck: 'Yes (except for IAP)'\nAPI key duration is at most 1200 s.",
+   "sources": [
+    "https://rubygems.org/gems/fastlane/versions",
+    "https://docs.fastlane.tools/app-store-connect-api/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Codemagic offers a preview REST API to trigger builds, plus a CLI for App Store Connect operations, with per-minute pricing.",
+   "evidence": "'POST /builds' with header 'x-auth-token' and body appId, workflowId and branch/tag. The docs warn it 'may change without advance notice'. The codemagic-cli-tools 'app-store-connect' CLI covers apps, builds and review submissions. Pricing:\n- Free: '500 free build minutes refilled every month'\n- Pay-as-you-go: M2 $0.095/min, M4 $0.114/min, Linux $0.045/min; extra concurrency $49/mo\n- Fixed annual: M2 $3,990/yr\n- Enterprise: from $12,000/yr",
+   "sources": [
+    "https://docs.codemagic.io/rest-api/builds/",
+    "https://codemagic.io/pricing/",
+    "https://github.com/codemagic-ci-cd/cli-tools/blob/master/docs/app-store-connect/README.md"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Rork now builds only native Swift and Kotlin (no new Expo projects). It publishes to the App Store through an Apple sign-in plus 2FA code. I found no public build or publish API.",
+   "evidence": "Rork docs: 'You can no longer create Expo (React Native) projects in Rork. New apps are native iPhone (Swift), native Android (Kotlin), or web.' App Store publishing: 'There will be a point where Apple asks for a code through one of your signed-in devices.' On Google Play, Rork uploads the bundle to internal testing via a connected Google account. Rork's AI App Store Reviewer checks Guidelines 1.x to 5.x, is advisory only, and allows 'Up to 40 reviews per day'. Its llms.txt index lists no external API, only app-integration pages.",
+   "sources": [
+    "https://docs.rork.com/expo.md",
+    "https://docs.rork.com/store-guides/publish-app-store.md",
+    "https://docs.rork.com/ai-app-store-reviewer.md",
+    "https://docs.rork.com/llms.txt"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Vibecode does the most end-to-end iOS automation of the AI builders (native Swift path), but still needs the user's Apple account and 2FA.",
+   "evidence": "Vibecode docs: 'Vibecode builds and signs the app on its cloud Macs, uploads it to Apple, updates your listing, and submits it for review.' 'Sign in with your Apple ID and Vibecode creates the key for you', which means minting an ASC API key through an Apple ID session. Users should keep 'An Apple device for 2FA'. React Native apps 'Expo Launch builds and uploads it, and you submit it for review'. Its 'Preflight' agent checks 5.1, 3.1.1, 2.1/4.2 and 4.1/4.3. Prerequisites are the agreements plus the Paid Apps Agreement, tax and banking.",
+   "sources": [
+    "https://www.vibecodeapp.com/docs/getting-started/deploy-app-store",
+    "https://www.vibecodeapp.com/llms.txt"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "a0.dev, Bolt and Lovable automate less of shipping. a0 uses an ASC API key, Bolt hands off to the EAS CLI, and Lovable makes web apps only (with a REST API and an MCP server).",
+   "evidence": "a0 docs: 'Click \"Add API Key\" ... \"Automatic Setup\" ... Recommended'; Admin is required. a0's homepage claims '200k+ Users' and '300k+ Apps created' (self-reported). Bolt Expo doc: download the code, then run 'npm install -g eas-cli', 'eas build --platform ios --auto-submit'. Lovable API (Business/Enterprise) handles project list, update, delete, deploy, embed, analytics and security; 'AI project creation and editing are available through the Lovable MCP server'. Third-party sources say Lovable does not output native mobile apps.",
+   "sources": [
+    "https://docs.a0.dev/publishing/ios/app-store-connect/setup.md",
+    "https://a0.dev",
+    "https://support.bolt.new/integrations/expo",
+    "https://docs.lovable.dev/integrations/lovable-api",
+    "https://vp0.com/blogs/can-lovable-publish-to-app-store.md"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Which pipeline steps need a human, and how often.",
+   "evidence": "One-time per Apple team, human:\n- enroll in the Apple Developer Program (identity; D-U-N-S for organizations)\n- accept the Paid Apps Agreement and enter tax and banking\n- create the Team API key (.p8) and the In-App Purchase key\n- set up the Apple ID 2FA session, if using web-session tooling\nPer iOS app, human or unofficial web session:\n- create the app record\n- answer and publish App Privacy\nPer iOS app, 100% API:\n- bundle ID, capabilities, certificates and profiles\n- build upload\n- localized metadata, category, age rating, encryption, content rights, review notes and demo account\n- price and availability, screenshots via Asset Library\n- TestFlight groups and external beta review\n- IAP and subscription creation, pricing and offers\n- reviewSubmission (first IAP of each type attached with a new version), release, phased release, review replies, webhooks\nOne-time per Google account, human:\n- registration ($25), identity verification, device verification (personal accounts)\n- payments/merchant profile\n- Cloud project and service account, invited in Play Console\nPer Android app, human:\n- create the app\n- App content declarations (content rating and others; Data safety via API)\n- for personal accounts: 12 testers \u00d7 14 days, then the production-access application\nPer Android app, API:\n- listing, graphics, AAB upload (first upload disputed), tracks, staged rollout\n- subscriptions and one-time products\n- tester Google Groups, review replies",
+   "sources": [
+    "https://developer.apple.com/sample-code/app-store-connect/app-store-connect-openapi-specification.zip",
+    "https://developers.google.com/android-publisher/api-ref/rest",
+    "https://support.google.com/googleplay/android-developer/answer/14151465",
+    "https://docs.fastlane.tools/app-store-connect-api/"
+   ],
+   "confidence": "high"
+  }
+ ],
+ "implications_for_automation": [
+  "Treat the iOS pipeline as API-first, with two exceptions per app: creating the app record and publishing App Privacy. Either queue both as one human ticket per app, about 5 minutes in the ASC web UI, or run them through a supervised web-session worker (fastlane spaceship, Playwright on the New App form, or a builder's Apple sign-in). That worker needs an Apple ID 2FA session, which lasts 1 day to 1 month and is region-bound. Build session-expiry detection and human re-auth alerts. Never assume a POST /v1/apps exists: the spec checked live on 2026-10-17 has GET only.",
+  "Use a Team-scoped ASC API key with the App Manager or Admin role for everything else. Generate a JWT per call with a lifetime of 20 minutes or less. Throttle globally per key against the rolling-hour X-Rate-Limit header (example 3,500/hr) and back off on 429 RATE_LIMIT_EXCEEDED. Subscribe to ASC webhooks for app version state, build upload state, external beta state and TestFlight feedback instead of polling.",
+  "Ship builds without a Mac. EAS Build cloud macOS plus EAS Submit, which runs on Linux, or the Build Uploads API directly. Set EXPO_TOKEN from a robot user and the EXPO_ASC_* env vars. Run eas init --force --non-interactive per project. Pre-assign the ASC and Google service-account keys to each EAS app, and always set ascAppId, because non-interactive mode cannot set keys up or create the app. Trigger and poll builds through POST https://api.expo.dev/v2/workflows/dispatch or the Expo MCP server.",
+  "Choose the Google Play account type deliberately. A personal account created after Nov 13, 2023 must recruit 12 real, engaged testers who stay opted in for 14 days, per app, then pass a production-access questionnaire and review of up to about 7 days. An organization account (D-U-N-S, up to 30 days to obtain) falls outside this rule as written. For a portfolio, use an organization account.",
+  "On Android, plan a human checklist per app: create the app in Play Console, complete App content declarations (content rating questionnaire, target audience, ads, app access and others), and add a Google Group for testers. Automate Data safety through applications.dataSafety, and automate listings, graphics, AAB uploads, tracks and staged rollout (userFraction, halt) through edits. Test whether the first AAB upload works through the API, because sources conflict, and keep a manual fallback.",
+  "Pre-provision once per developer account: Apple enrollment and identity, Paid Apps Agreement with tax and banking, the In-App Purchase key for the App Store Server API, a sandbox tester (UI only), the Google payments/merchant profile, and the Google Cloud service account invited in Play Console with financial permissions. Without the paid agreements and merchant profile, no IAP or subscription can go live.",
+  "Create paywalls and products by API: ASC v2 inAppPurchases, subscriptionGroups, subscriptions, prices, intro and win-back offers, and Play monetization.subscriptions with base plans and offers. Remember the first IAP or subscription of each type must be attached to a new app version in the same reviewSubmission. Configure the App Store Server Notifications V2 URL through PATCH /v1/apps/{id} (subscriptionStatusUrl) and Play real-time developer notifications for entitlement state.",
+  "Design against Apple 4.3 and 4.2.6. Do not mass-produce reskins or multiple bundle IDs of the same concept; Apple's own example says to use one app with IAP variations. Avoid saturated categories Apple names (dating, flashlight, sound effects, wallpaper, simple timers, fortune telling) unless the app is clearly differentiated. Apple's similarity checks cover binary, metadata and concept, including against terminated accounts, so give each app distinct code paths, assets, copy and core features.",
+  "Never spread similar apps across many developer accounts to dodge enforcement. Both Apple (similarity to 'apps previously submitted by a terminated ... account') and Google ('related Google Play Developer accounts will also be permanently suspended'; new accounts get terminated too) link accounts. One termination can take down the whole portfolio, including IAP revenue. Keep honest seller identities (5.6.2) and a limited number of legal entities, each run carefully.",
+  "Constrain OTA updates (EAS Update) to bug fixes and content tweaks. The new 2.5.19 (Oct 16, 2026) and DPLA 3.3.1(B) treat adding features absent from the reviewed version as grounds for removal and program expulsion. Ship any new feature or behavior as a reviewed binary, with specific Notes for Review text (2.3.1(a): 'generic descriptions will be rejected').",
+  "Build a compliance gate into the generator before submission:\n- privacy policy URL in metadata and in the app\n- in-app account deletion if accounts exist\n- explicit consent before sending personal data to third-party AI (5.1.2(i))\n- UGC and AI-content moderation: filter, report, block, published contact (1.2; Google's AI-content in-app reporting)\n- a paywall that states what the user gets, the price and the period, with Restore, a period of at least 7 days and no dark patterns (3.1.2)\n- no fake ratings, counts or testimonials in the app or creative assets (2.3.14, 5.6.3)\n- target API 36 on Android and the iOS 26 SDK minimum\n- age-rating answers, including social media\nRork's and Vibecode's preflight checklists are useful templates.",
+  "Watch account-health signals as kill switches: refund rate, negative reviews and customer reports, which Apple's 5.6.4 names as Code of Conduct factors. Use the App Store Server API refund history and consumption info, and Play's new orders.reviewrefund chargeback API (respond within 24 hours) to manage disputes automatically.",
+  "Budget for review latency. New-app review waits in 2026 have run from about a day to 2\u20134 weeks (anecdotal October 2026 reports of 7\u201316 days). Pipeline submissions in parallel, use TestFlight (up to 10,000 external testers, public links through the API) and Play internal and closed testing for early validation. Set releaseType to MANUAL or scheduled so launch timing stays under control after approval.",
+  "Don't rely on an AI app-builder SaaS (Rork, Vibecode, a0, Bolt, Lovable, Replit) as the shipping layer. None exposes a documented public API for building and submitting, and all still need the account owner's Apple sign-in and 2FA. Apple also enforced 2.5.2 against several of their iOS apps in 2026. Owning the stack (Claude Code or Agent SDK generating Expo or native code, plus EAS, fastlane or the ASC API) is more automatable and more controllable.",
+  "Use the App Asset Library endpoints in ASC 4.5.1 for screenshots, previews and creative assets, since the old appScreenshot resources are deprecated. Read 'List app asset library ref data' for sizes instead of hard-coding them, including the new IPHONE_DUO display class. Treat creative assets as separately reviewed content (2.3.14: no pricing or unverifiable claims). Product page optimization tests (appStoreVersionExperiments) and up to 70 custom product pages with keywords are API-controllable growth levers."
+ ],
+ "open_questions": [
+  "Can a brand-new Play app's first AAB be uploaded through the API now? Expo's Oct 2026 docs say yes once the app exists in Console; Codemagic's late-2025 help says the first binary must be manual. This needs an empirical test.",
+  "Does the Play 12-tester / 14-day rule apply per app or once per new personal account? The help wording ('run a closed test for their app') suggests per app, but I did not find an explicit statement. Are organization accounts fully exempt in practice in 2026?",
+  "What exactly happens behind Expo Launch's and Vibecode's Apple sign-in: Apple ID web session (SRP plus 2FA) or minting an ASC API key? Can either create the App Store Connect app record and publish App Privacy headlessly? launch.dev's llms-full.txt does not say.",
+  "What are the actual App Store Connect API rate limits per key in 2026? Apple's doc shows 3,500/hr as an example and says 'Actual limits can vary'. Do limits differ by endpoint (for example asset uploads)?",
+  "Does Apple's similarity analysis flag a single developer account submitting many apps that share a codebase or design system but have distinct concepts? I found no published threshold; the only evidence is the 4.3(a) rejection texts and Apple's 'analyze app similarity' statement.",
+  "Is automating the App Store Connect or Play Console web UI with browser bots (for app creation or App Privacy) allowed under the Apple Developer Program License Agreement and Google's Developer Distribution Agreement? I did not check the exact contract clauses on automated access.",
+  "What is the real App Review queue time for new apps in mid-to-late October 2026? Evidence is anecdotal forum posts, and Apple has made no statement on the backlog since the 2026 submission surge.",
+  "Has Google's AI-Generated Content policy been revised in 2026, for example with disclosure or labeling requirements for AI-built apps? Secondary sources conflict.",
+  "Can a Play app's paid-app price be set through the API? Not confirmed; the reference shows monetization for IAP and subscriptions only.",
+  "Can Rork, a0.dev or Anything be driven by a public API or MCP server for project creation and publishing? None was found for Rork or a0. Lovable has an MCP server but outputs web apps only.",
+  "Does the 4.5.1 deprecation of the appScreenshots resources come with a removal date? The migration guide ('Migrating to the App Asset Library') was not read."
+ ]
+}

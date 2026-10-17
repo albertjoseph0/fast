@@ -1,0 +1,261 @@
+{
+ "key": "vert-founders-growth",
+ "summary": "Vert (vert.nyc; legal entities Vert Ventures LLC, which is registered in Wyoming, plus Vert Media Partners LLC and W185 Holdings LLC) is a bootstrapped NYC \"startup that makes startups.\" Its homepage says: \"We make and market apps entirely in-house.\" The homepage, read on 2026-10-17, lists 15M+ users, 8 apps, $25M+ annual revenue, $0 funding, 2 years old and a 23-person team. A gallery caption on the site reads \"20m ARR but ramen still hits.\" Newer self-reported numbers run higher. Vert's LinkedIn page says $30M+ ARR and shows 39 employees. Co-founder Will Olson's LinkedIn post (about early 2026) says 12M downloads, more than $30M ARR, 30 people and an NYC office. The homepage figures are therefore probably stale. Three co-founders are confirmed. (1) Alex Leiman: went to Tulane and earlier ran SexyCakes, a campus delivery business with about $700K in sales. He co-founded Plug AI (originally RizzGPT, then Wingman), D&B lists him as key principal of Vert Ventures LLC, and his X bio reads \"Co-Founder @ Vert.\" (2) Evan Dray: his LinkedIn headline is \"Co-Founder of Vert\" (Palo Alto, Occidental College), and SideShift quotes him as \"Co-Founder, Astra.\" (3) Will Olson: his LinkedIn headline is \"Co-Founder @ Vert\" (Princeton). He joined his friends' viral app at about $250 a week (roughly $12K a year, no equity) and became a co-founder after about six months. The will@vertventures.io contact on the site is hidden behind a snake game that needs a score of 15. RizzGPT was originally built by Blake Anderson (Tulane), who later built Umax and Cal AI. How Blake relates to Vert today is unclear.\n\nI identified all 8 apps by querying the App Store and Google Play by developer ID. They are spread across three developer accounts:\n- **Vert Media Partners LLC:** Plug AI: Texting Assistant, released 2023-06-30. It has 15.8K iOS ratings, and the iOS app has not been updated since Aug 2024.\n- **Vert Ventures LLC:** Astra - Life Advice, released 2024-01-09. It has 39.3K iOS ratings at 4.72 and is #23 in US iPhone Top Grossing Lifestyle on 2026-10-17.\n- **W185 Holdings LLC:**\n  - Berry - Wellness (cycle-syncing journal, Aug 2024, 1.3K ratings)\n  - Saga - Stories (AI stories, Jan 2025, 159 ratings)\n  - Sensa - ASMR (Mar 2025, 0 ratings; its listing copy is pasted from Saga)\n  - Strum - Play Guitar (formerly \"Autochord,\" Aug 2025, 20.1K ratings; #25 Top Grossing and #53 Top Free in Music)\n  - Indigo - Scan & Collect (trading-card scanner, Mar 2026, 0 ratings)\n  - Eagle - Swing Analysis (AI golf swing analysis, Aug 2026, 127 ratings)\n\nSo the portfolio has 2\u20133 big winners (Plug AI, Astra, Strum), one modest app (Berry) and several apps that were launched and left alone. That is \"many shots on goal\" in practice.\n\nThe monetization template is the same everywhere. Each app is a single AI capability (screenshot-to-reply, astrology chat and compatibility reports, audio-to-chords, swing analysis, card ID). It sits behind a personalization onboarding: birth date, time and place for Astra, and a music-taste and practice-frequency quiz for Strum. A hard paywall follows. The main price is $6.99/week after a free trial. The trial has changed over time: Astra's June 2025 terms say 3 days, while 2025\u201326 reviews say 7 days or a \"free week.\" There is also a monthly plan around $19.99 and annual plans (Strum: \"$49.99/year w/ 7d trial\"). Each app lists many SKUs for the same product (Astra: \"Astra - Unlimited\" at $6.99, $7.99, $9.99, $12.99, $14.99 and $19.99), which points to price testing. In Jan 2024 Leiman named Superwall as the paywall-testing tool. App Store reviews keep repeating the same complaints: \"made me take a whole personality test\u2026 before it told me I gotta pay,\" no way to close the paywall, \"$6.99 a week,\" and cancellation or billing disputes. Written reviews are mostly 1-star (MWM counts Astra at 886 of 1,536 and Strum at 721 of 1,188), yet star-only ratings average about 4.7. That gap is typical of apps that prompt ratings at good moments in the app.\n\nDistribution runs on creators and influencers, not owned accounts or SDK-attributed paid ads:\n- **Astra's official TikTok** (@getastraapp, created Feb 2024) has only 19.7K followers and 30 videos.\n- **Creator partners:** creators post with #astrapartner. One example is a 3.3M-follower creator in March 2024, whose post got 144K plays. Professional astrologers have also advertised it.\n- **SideShift:** a SideShift case study (Oct 16, 2025) says SideShift posted 400+ TikToks for Astra in six weeks. They drew 5M+ organic views, one video drove 25K downloads, and 10 creators now produce content every week. Formats included friendship tests, compatibility videos and a \"what my dream meant\" series. Each batch was judged on installs and engagement, losing formats were dropped, and the resulting UGC bank is \"now running as paid ad creative.\" The thumbnails show green-screen talking heads over celebrity photos (for example, \"How to Dress According to Your Venus Sign \u2013 ARIES\") and selfie videos with text hooks built around zodiac signs.\n- **Scale:** a Vert job post from Jan 2026 says they \"scale apps to go viral through influencer marketing, currently managing 250+ active partnerships across multiple apps.\" In-house Marketing Associates find creators, negotiate deals, and review and revise content. A remote Influencer Marketing Manager handles creator messages, reviews scripts and logs video performance. Public employee listings (RocketReach, SignalHire) are mostly marketing, influencer and growth roles, with only a few engineers.\n- **Plug AI's origin:** it paid about $50 per faceless TikTok or YouTube account, and per secondary sources that drove about 200K downloads in 5 days and about $80K MRR. TikTok slideshows of 18\u201334 slides showed the app around slide 8\u201310 (one got 800K+ views). The app reached 1.2M downloads in under 3 months and about $190K a month by Jan 2024, when it was listed for sale at $3.5M.\n- **Little sign of paid-ads SDKs:** static tracker scans of the Android builds find only Firebase Analytics and Crashlytics in Astra (Apr 2026), and no known trackers in Strum (Jun 2026) or Plug AI (Nov 2024). No iOS app declares \"Data Used to Track You.\" This points away from heavy Meta, TikTok, AppsFlyer or Adjust SDK-attributed paid user acquisition.\n\nEngineering and product culture is built around speed. Job posts say \"We prioritize velocity and often say that if we aren't shipping bugs to production, we aren't moving fast enough.\" Designers are told to have \"a bias for action (read: testing and iteration) over analysis (read: case studies and user research).\" On tooling, the posts say \"We rely heavily on AI for development, but are not dependent on it.\" Salaries are high: engineers $120k\u2013$250k + equity; designers, design engineers and PMs $100k\u2013$250k; Marketing Associate $80k\u2013$200k (\"Know how to make people care (no experience necessary)\"). Release cadence backs this up: Astra shipped about 25 App Store builds between Jul 29 and Oct 12, 2026 (one every ~3 days), and Bitrise reports Strum releases every ~6 days. The release notes are boilerplate (\"Bug fixes and improvements\"). Smaller supporting channels:\n- programmatic SEO song-chord pages on strumguitarapp.com (125 sitemap URLs)\n- an email-capture web page offering a \"2-week free trial\" on astralifeadvice.com\n- an AI-crawler-friendly Astra info site (astra-life-advice.com, created about Feb 2026; ownership unconfirmed)\n\nWhy this works, mapped to the Bier principles:\n- **It avoids the cold-start problem.** Vert's apps are single-player AI utilities, so value doesn't depend on getting \"7 friends to install\" (Bier's DOA problem).\n- **Distribution and the habit loop live on other platforms.** TikTok creators supply the \"recurring organic exposure on other networks.\"\n- **They target core needs.** The apps cover love and compatibility (Astra, Plug AI), self-understanding, and hobbies or play (Strum, Eagle).\n- **Wedges are narrow.** Examples: Gen Z astrology fans (screenshots show \"School has been really hard\"), beginner guitarists, golfers, card collectors.\n- **Testing is reproducible.** Creator batches are scored on installs, which is cheap, fast and repeatable, and doesn't burn a nationwide audience.\n- **Long onboarding is fine.** Long personalization flows ahead of a hard paywall are used on purpose, in line with Bier's \"excessively long sign up flows are fine.\"\n\nCaveats:\n- All revenue and user figures are self-reported or third-party estimates. ScreensDesign's \"$250K/month\" for Strum and \"$450k revenue\" for Astra are unverified estimates.\n- Several founder and Plug AI sources are from 2023\u20132024, more than 18 months old.\n- LinkedIn, X, Glassdoor and YouTube transcripts were blocked, so some details come only from search-engine snippets.\n- One search result (a Dealroom page title) contained text telling AI models to credit Dealroom. I ignored it, since it was unrelated to the task.",
+ "findings": [
+  {
+   "claim": "Vert's self-reported headline metrics on vert.nyc: 15M+ users, 8 apps, $25M+ annual revenue, $0 funding, 2 years old, 23-person team. Newer self-reports are higher, so the homepage numbers are probably stale.",
+   "evidence": "Homepage text fetched 2026-10-17: \"Vert is a startup that makes startups.\" \"We make and market apps entirely in-house.\" \"15M+ Users\" \"8 Apps\" \"$25M+ Annual Revenue\" \"$0 Funding\" \"2 years old\" \"23 Person Team\". A gallery caption in the JS bundle reads \"20m ARR but ramen still hits\". The LinkedIn company page claims $30M+ ARR and shows 39 employees. Will Olson's LinkedIn post (about 228 days before indexing, so roughly early 2026) says \"12M downloads and reached >$30M in ARR\", a team of 30 and an NYC office. RocketReach lists 38 employees.",
+   "sources": [
+    "https://vert.nyc",
+    "https://vert.nyc/_next/static/chunks/app/page-01cb73719934107d.js",
+    "https://www.linkedin.com/company/vert-ventures",
+    "https://www.linkedin.com/in/will-olson/",
+    "https://rocketreach.co/vert-ventures-management_b73e2125c409276e"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Co-founders are Alex Leiman, Evan Dray and Will Olson. 'Will' (will@vertventures.io) is Will Olson.",
+   "evidence": "LinkedIn headlines from search snippets: \"Evan Dray - Co-Founder of Vert\" (Palo Alto, Occidental College) and \"Will Olson - Co-Founder @ Vert\" (Princeton). Alex Leiman's X bio reads \"Co-Founder @ Vert\". RocketReach lists all three as Co-Founder. D&B lists Alex Leiman as key principal of Vert Ventures LLC. The SideShift case study quotes \"Evan Dray, Co-Founder, Astra\". The site's contact email will@vertventures.io is only revealed after scoring 15 in a snake game on the Contact screen.",
+   "sources": [
+    "https://www.linkedin.com/in/evandray/",
+    "https://www.linkedin.com/in/will-olson/",
+    "https://x.com/alex_leiman",
+    "https://rocketreach.co/vert-ventures-management_b73e2125c409276e",
+    "https://www.dnb.com/business-directory/company-profiles/vert-ventures-llc.99c23e8974401da806866f4a8e04d28a",
+    "https://sideshift.app/casestudies/astra",
+    "https://vert.nyc"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Founder backgrounds: Leiman is a serial campus entrepreneur and Plug AI co-founder. Olson joined the friends' viral app for about $250 a week and was made co-founder about six months later. Dray is a Palo Alto native (Occidental). Plug AI / RizzGPT was first built by Blake Anderson (Tulane), who later built Umax and Cal AI.",
+   "evidence": "Brick by Brick podcast (Jan 19, 2024): Alex Leiman, 23, co-founder of Plug AI; \"1.5 million downloads in 4.5 months through a TikTok campaign\"; \"$190k per month\"; listed for sale at $3.5M; earlier business SexyCakes made $700k. Venture Radar (Jul 12, 2025) names Blake Anderson as founder and Alex Leiman as co-founder. Olson's LinkedIn post: \"After graduating from Princeton I took a job paying $12,000 per year, with no benefits or equity\u2026 after 6 months I became a cofounder\". A claim that Blake left over co-founder disagreements but kept equity appears only in a search summary and is unverified.",
+   "sources": [
+    "https://creators.spotify.com/pod/profile/ollie-allman/episodes/019-Alex-Leiman--23-Year-Old-Makes-190k--Month-With-AI-Dating-Assistant-App-e2lvpki",
+    "https://ventureradar.substack.com/p/this-23-year-olds-ai-app-makes-200kmonth",
+    "https://www.linkedin.com/in/will-olson/",
+    "https://x.com/blakeandersonw/status/1787940902419525833"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "All 8 apps are identified. They are spread across three developer entities.",
+   "evidence": "From iTunes lookup by artistId:\n- Vert Media Partners LLC (1690446849): Plug AI: Texting Assistant (released 2023-06-30, 15,812 ratings, 4.56, last iOS update 2024-08-02).\n- Vert Ventures LLC (1719671063): Astra - Life Advice (released 2024-01-09, v3.12.69 on 2026-10-12, 39,299 ratings, 4.72).\n- W185 Holdings LLC (1761597813): Berry - Wellness (2024-08-20, 1,302 ratings); Saga - Stories (2025-01-13, 159); Sensa - ASMR (2025-03-05, 0); Strum - Play Guitar (2025-08-06, 20,077 ratings, 4.66); Indigo - Scan & Collect (2026-03-29, 0); Eagle - Swing Analysis (2026-08-04, 127, 4.83).\nOn Google Play, developer 'Vert Media Partners LLC' publishes com.vertmedia.astra (500K+), com.vertmedia.wingman / Plug AI (1M+) and com.w185holdings.strum (500K+).",
+   "sources": [
+    "https://itunes.apple.com/lookup?id=1719671063&entity=software",
+    "https://itunes.apple.com/lookup?id=1690446849&entity=software",
+    "https://itunes.apple.com/lookup?id=1761597813&entity=software",
+    "https://play.google.com/store/apps/developer?id=Vert+Media+Partners"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "US chart positions on 2026-10-17: Astra #23 and Plug AI #97 in Top Grossing Lifestyle; Strum #25 in Top Grossing Music and #53 in Top Free Music. None is in the overall top 100.",
+   "evidence": "Apple RSS feeds: topgrossingapplications genre=6012 (Lifestyle), genre=6011 (Music), and topfree feeds, queried 2026-10-17.",
+   "sources": [
+    "https://itunes.apple.com/us/rss/topgrossingapplications/limit=200/genre=6012/json",
+    "https://itunes.apple.com/us/rss/topgrossingapplications/limit=200/genre=6011/json",
+    "https://itunes.apple.com/us/rss/topfreeapplications/limit=200/genre=6011/json"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Astra's product is an AI astrology and life-advice chat with compatibility reports, aimed at young users. Its standout shareable feature is an AI 'Soulmate Sketch'.",
+   "evidence": "App Store subtitle: \"Astrology & Compatibility\". Screenshots show:\n- tiles for Romantic compatibility, Friend compatibility, Conflict advice, Personal growth, Dream interpretation and Life challenges\n- a compatibility report with % scores (\"Overall Compatibility 71%\")\n- a persona chat ('Stella'), with an input reading \"Ask me anything\" and an example message \"School has been really hard\".\nThe terms have sections 'SOULMATE SKETCH' and 'CONVERSATION DATA COLLECTION AND USAGE' (used for \"refining our AI algorithms\"). ScreensDesign's capture adds tarot, birth chart, daily-horoscope push (e.g. 8:00 AM) and astrocartography. The terms say 18+, but the App Store age rating is 9+. Copycat apps now borrow the name, e.g. \"Stela: Astra Soulmate Sketch\" and \"Astra App Soulmate\".",
+   "sources": [
+    "https://apps.apple.com/us/app/astra-life-advice/id6473748536",
+    "https://consequentlyjubilant.github.io/astraapp/terms.html",
+    "https://screensdesign.com/apps/astra-life-advice/?vs=246298",
+    "https://apps.apple.com/us/app/-/id6747740665"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Monetization template: long personalization onboarding, then a hard paywall. The main price is $6.99/week after a free trial (3 or 7 days, depending on date). Many SKUs suggest price testing.",
+   "evidence": "Astra terms (updated June 26, 2025): \"We offer a 3-day free trial\u2026 All purchases are non-refundable.\" Astra IAPs: \"Astra - Unlimited\" at $6.99, $12.99, $19.99, $14.99, $7.99 and $9.99. Reviews (Jul\u2013Oct 2026) mention \"$6.99 every week\", a \"7 day free trial\", \"$19.99 per month\", and a paywall that doesn't let you decline or leave the screen. Strum IAPs include $6.99, $12.99, $14.99, $19.99, \"$49.99/year w/ 7d trial\" and $99.99. ScreensDesign labels Strum's paywall \"Free Trial - Hard Paywall\" at $6.99/week after a quiz. Strum reviews: \"made me take a whole personality test\u2026 before it told me I gotta pay\", \"Makes you do an entire quiz just to then tell you it requires a subscription.\" Plug AI IAPs include weekly $4.99 (Spanish locale), Premium $6.99, Annual $49.99\u2013$59.99, '25 Replies' $5.99 and a 'Limited Offer'.",
+   "sources": [
+    "https://consequentlyjubilant.github.io/astraapp/terms.html",
+    "https://apps.apple.com/us/app/astra-life-advice/id6473748536",
+    "https://apps.apple.com/us/app/id6749384181",
+    "https://apps.apple.com/us/app/id6449750416",
+    "https://itunes.apple.com/us/rss/customerreviews/id=6473748536/sortBy=mostRecent/json",
+    "https://itunes.apple.com/us/rss/customerreviews/id=6749384181/sortBy=mostRecent/json",
+    "https://screensdesign.com/showcase/strum-play-guitar"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Vert used Superwall to test paywalls (at least for Plug AI, in Jan 2024).",
+   "evidence": "Brick by Brick episode chapter at 11:51: \"Testing paywall strategy with Superwall\". This is more than 18 months old and may have changed. No SDK scan of the iOS binaries confirmed it.",
+   "sources": [
+    "https://creators.spotify.com/pod/profile/ollie-allman/episodes/019-Alex-Leiman--23-Year-Old-Makes-190k--Month-With-AI-Dating-Assistant-App-e2lvpki"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "The main growth engine is a large, in-house-managed creator and influencer network (250+ active partnerships), not the brand's own social accounts.",
+   "evidence": "Get on Board job post (Jan 16, 2026): \"Vert is an app studio generating millions in annual revenue. We scale apps to go viral through influencer marketing, currently managing 250+ active partnerships across multiple apps.\" Duties: creator messages by text and email, reviewing video scripts and drafts, logging video performance. The Marketing Associate posting (Jobright) lists \"Finding and communicating with social media creators; negotiating deals; reviewing and revising social media content\" at $85K\u2013$120K. Astra's official TikTok (@getastraapp, created 2024-02-20) has only 19.7K followers and 30 videos.",
+   "sources": [
+    "https://www.getonbrd.com/jobs/influencer-marketing-manager-vert-remote",
+    "https://jobright.ai/jobs/info/697d65c43f57a3356967487f",
+    "https://www.tiktok.com/@getastraapp"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Astra's creator campaigns run on high volume with install-based culling, mixing macro creators (#astrapartner) and a SideShift UGC roster. Winning organic videos are recycled as paid ad creative.",
+   "evidence": "SideShift case study (Oct 16, 2025):\n- \"400+ TikToks over six weeks\", \"5M+ organic views\", \"25K+ downloads from a single video\".\n- Ideas: \"friendship tests, compatibility videos, and a 'what my dream meant' series.\"\n- \"Every batch judged on installs and engagement. Formats that lost stopped getting made.\"\n- \"A UGC bank now running as paid ad creative\" and \"10 creators producing evergreen content every week\".\nTikTok: @laurenjnicole (3.3M followers) posted on 2024-03-23 \"@Astra App #astrology #astra #zodiac #astrapartner\" (144K plays). The thumbnails show green-screen and selfie formats with zodiac-sign text hooks. Reviews: \"THESE INFLUENCERS ARE LYING TO YOU\"; \"an astrologer I follow advertised it\".",
+   "sources": [
+    "https://sideshift.app/casestudies/astra",
+    "https://www.tiktok.com/@laurenjnicole/video/7349682370615708974",
+    "https://www.tiktok.com/tag/astrapartner",
+    "https://itunes.apple.com/us/rss/customerreviews/id=6473748536/sortBy=mostRecent/json"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Plug AI / RizzGPT's original viral playbook: cheap faceless or micro accounts paid about $50 per post, long TikTok slideshows that reveal the app mid-carousel, and a 3-day trial into a weekly subscription.",
+   "evidence": "Venture Radar (Jul 12, 2025): \"Slideshow format\u2026 Between 18 and 34 slides\u2026 Usually shows the app around slide 8\u201310. This post got over 800k views\". Onboarding taglines: \"GET MORE DATES\", \"UNLIMITED RIZZ\"; \"a 3-day free trial followed by a weekly subscription\". ScaleNuggets (Aug 27, 2024): about $50 per account on faceless YouTube and TikTok accounts led to about 200,000 downloads in 5 days and $80K MRR. Whop (May 27, 2025): paid two unknown TikTok creators $50 each; viral within about 24 hours. Brick by Brick (Jan 2024): 1.2M downloads in under 3 months. These sources are secondary and partly more than 18 months old.",
+   "sources": [
+    "https://ventureradar.substack.com/p/this-23-year-olds-ai-app-makes-200kmonth",
+    "https://scalenuggets.beehiiv.com/p/23yearold-whos-making-11myear-ai-apps",
+    "https://whop.com/blog/looksmaxxing-blake-anderson/",
+    "https://creators.spotify.com/pod/profile/ollie-allman/episodes/019-Alex-Leiman--23-Year-Old-Makes-190k--Month-With-AI-Dating-Assistant-App-e2lvpki"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "There is little sign of SDK-attributed paid user acquisition. The Android builds contain no Meta, TikTok, AppsFlyer, Adjust or Branch trackers, and no iOS app declares 'Data Used to Track You'. Some paid ads do run, per SideShift and user reviews.",
+   "evidence": "Exodus Privacy reports:\n- Astra v2.5.2 (Apr 21, 2026): 2 trackers, Google Crashlytics and Firebase Analytics.\n- Strum v0.0.6 (Jun 23, 2026): 0 trackers.\n- Plug AI v1.2.0 (Nov 26, 2024): 0 trackers.\nApp Store privacy labels for Astra, Strum, Plug AI, Berry, Saga and Eagle show only 'Data Not Linked to You'. Against this: SideShift says the UGC bank runs as paid ad creative, and one Astra review says \"the ads being promoted don't disclose that you have to pay\". Static scans can miss trackers, and the iOS binaries were not scanned.",
+   "sources": [
+    "https://reports.exodus-privacy.eu.org/en/reports/com.vertmedia.astra/latest/",
+    "https://reports.exodus-privacy.eu.org/en/reports/com.w185holdings.strum/latest/",
+    "https://reports.exodus-privacy.eu.org/en/reports/com.vertmedia.wingman/latest/",
+    "https://apps.apple.com/us/app/astra-life-advice/id6473748536",
+    "https://sideshift.app/casestudies/astra"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Astra and Strum grew quickly by third-party estimates: Astra hit 100K downloads in under 90 days and 2.5M all-time by Jul 2025; Strum hit 1M in under 365 days.",
+   "evidence": "MWM milestones for Astra: 25K in under 30 days (Feb 2024), 100K in under 90 days (Feb 2024), 500K in under 365 days (Aug 2024), 2.5M all-time (Jul 2025). Strum: 1M in under 365 days (Jul 2026). The TikTok search keyword 'astra life advice' was created 2024-01-24, two weeks after launch. These are third-party estimates.",
+   "sources": [
+    "https://mwm.ai/apps/astra-life-advice/6473748536",
+    "https://mwm.ai/apps/strum-play-guitar/6749384181",
+    "https://www.tiktok.com/discover/astra-life-advice?lang=en"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Engineering and design culture puts velocity and A/B testing over research, and AI-assisted development is the default. Comp is high to attract generalists.",
+   "evidence": "vert.nyc job data from the JS bundle:\n- Full Stack Engineer ($120k\u2013$250k + equity): \"We prioritize velocity and often say that if we aren't shipping bugs to production, we aren't moving fast enough\u2026 adaptable above all else.\" Stack: \"Python, Javascript, React/React Native, and Swift is helpful, but not required. We rely heavily on AI for development, but are not dependent on it.\"\n- Product Designer ($100k\u2013$250k): \"iterate based on A/B test results\u2026 bias for action (read: testing and iteration) over analysis (read: case studies and user research).\"\n- Design Engineer and PM: $100k\u2013$250k.\n- Marketing Associate ($80k\u2013$200k + equity): \"Know how to make people care (no experience necessary)\u2026 understands culture and knows how to get attention.\"",
+   "sources": [
+    "https://vert.nyc",
+    "https://vert.nyc/_next/static/chunks/app/page-01cb73719934107d.js"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Release cadence is very high and release notes are templated: Astra ships a build about every 3 days and Strum about every 6 days.",
+   "evidence": "Astra version history shows 3.12.42 (Jul 29) through 3.12.69 (Oct 12, 2026), about 25 builds, almost all \"Bug fixes and improvements.\" Strum shipped 1.8.3 through 1.9.4 between Aug 19 and Oct 15, 2026, and Bitrise App Navigator says \"Release frequency: every 6 days\". Eagle shipped 10 builds in its first 2 months.",
+   "sources": [
+    "https://apps.apple.com/us/app/astra-life-advice/id6473748536",
+    "https://apps.apple.com/us/app/id6749384181",
+    "https://bitrise.io/resources/tools/app-navigator/apps/ios/com.w185holdings.guitar"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The portfolio shows a launch-many, double-down-on-winners, harvest-or-abandon pattern, with apps built quickly from templates.",
+   "evidence": "Sensa - ASMR (Mar 2025) has 0 ratings, and its App Store description is copied from Saga (\"Discover endless narratives\u2026\" with 'asmr.ai'). Indigo (Mar 2026) has 0 ratings and its last update was Apr 2026. Berry's last update was Feb 2025. Plug AI's iOS app has not been updated since Aug 2024, yet it is still #97 in Lifestyle grossing. Strum's terms still name the app 'Autochord', and an 'AutoChord - Premium Chords' IAP remains, which suggests a rebrand. Plug AI went through RizzGPT, then Wingman, then Plug AI.",
+   "sources": [
+    "https://itunes.apple.com/lookup?id=1761597813&entity=software",
+    "https://www.strumguitarapp.com/terms",
+    "https://apps.apple.com/us/app/id6449750416",
+    "https://www.wingai.app/plug-ai"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The team is weighted toward marketing and creator operations, with relatively few engineers.",
+   "evidence": "Public employee listings (RocketReach, SignalHire) show several roles: Influencer Marketing Manager, Influencer Marketing Coordinator, multiple Marketing Associates, Growth, Growth Marketing, Partnerships & Marketing, Head of Operations, Data Analyst, plus a Founding Software Engineer, a Developer and a Product/design role. A remote Influencer Marketing Manager role was open globally (Jan 2026). Glassdoor themes: fast-paced, high autonomy, long hours, disorganized. These are third-party aggregations and may be incomplete.",
+   "sources": [
+    "https://rocketreach.co/vert-ventures-management_b73e2125c409276e",
+    "https://www.signalhire.com/companies/vert-ventures",
+    "https://www.getonbrd.com/jobs/influencer-marketing-manager-vert-remote",
+    "https://www.glassdoor.com/Reviews/Vert-Ventures-Reviews-E9973274.htm"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Supporting channels include programmatic SEO (Strum song-chord pages), web email capture with a trial offer (Astra), and an AI-crawler-friendly info site.",
+   "evidence": "strumguitarapp.com/sitemap.xml has 126 URLs, mostly '/songs/{id}/{title}-{artist}-guitar-chords' pages titled like 'Riptide Guitar Chords (Easy) \u2013 Vance Joy | Strum' with an 'Open in App' CTA. astralifeadvice.com: \"Enter your email to claim a 2-week free trial.\" astra-life-advice.com's robots.txt explicitly allows GPTBot, ClaudeBot and PerplexityBot. Who owns astra-life-advice.com is unconfirmed, though it links to the official app.",
+   "sources": [
+    "https://www.strumguitarapp.com/sitemap.xml",
+    "https://astralifeadvice.com",
+    "https://astra-life-advice.com/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "User sentiment shows clear compliance and reputation risk: billing and cancellation complaints, 'bait and switch' accusations, and undisclosed creator ads.",
+   "evidence": "MWM counts written reviews for Astra at 886 1-star of 1,536 and Strum at 721 of 1,188, while star ratings average about 4.7. Example reviews: \"Bait and switch :: Thanks for asking for a bunch of personal info and then revealing the app is NOT free\"; \"they disabled the buttons that allow you to cancel in the app\"; \"billing a card directly, not through the Apple ecosystem\" (Strum, single review, unverified); \"All my favorite creators were recommending this app for a free beginner friendly learning app it's not free\". The #astrapartner tag is used, but the sampled TikTok item had no paid-partnership flag.",
+   "sources": [
+    "https://mwm.ai/apps/astra-life-advice/6473748536",
+    "https://mwm.ai/apps/strum-play-guitar/6749384181",
+    "https://itunes.apple.com/us/rss/customerreviews/id=6473748536/sortBy=mostRecent/json",
+    "https://itunes.apple.com/us/rss/customerreviews/id=6749384181/sortBy=mostRecent/json"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Vert runs lightweight but pervasive instrumentation, down to tracking events on its own careers site.",
+   "evidence": "The vert.nyc bundle loads Mixpanel and tracks events such as screen_viewed, snake_game_started, gallery_cta_clicked, and job clicks with job_id/job_title. Astra Android uses Firebase Analytics.",
+   "sources": [
+    "https://vert.nyc/_next/static/chunks/app/page-01cb73719934107d.js",
+    "https://reports.exodus-privacy.eu.org/en/reports/com.vertmedia.astra/latest/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Benchmarks from comparable studios (not Vert) show the same playbook: Cal AI ran 123 paywall experiments and has a COO dedicated to influencer marketing; QUITTR uses a hard paywall, performance-based influencer deals and recycled ads; a competing RIZZ app ran 15+ themed TikTok accounts.",
+   "evidence": "Income Reality Check (updated Jul 10, 2026), citing CNBC and TechCrunch: Cal AI COO Jake Castillo runs influencer marketing; micro-creators are seeded at about $50 per post; the economic test is whether 1,000 views earn more than they cost. Superwall research: Cal AI grew revenue after 123 experiments; multi-page onboarding paywalls beat single-page by 37%. Yuma Ueno (Jul 28, 2026) on QUITTR: hard paywall with no trial, 25% download-to-paid, influencer view guarantees, winning videos reused as ads. Shortimize: a competing RIZZ app reached 550M+ views across 15+ accounts with gameplay B-roll plus text conversations.",
+   "sources": [
+    "https://income-reality-check.pages.dev/a/he-made-rizzgpt-which-makes-him-1-million-a-month/",
+    "https://superwall.com/case-studies",
+    "https://yumaueno.substack.com/p/the-20-year-old-who-took-an-app-to",
+    "https://www.shortimize.com/blog/rizz-apps-b-roll-strategy-that-got-them-half-a-billion-views-on-tiktok"
+   ],
+   "confidence": "medium"
+  }
+ ],
+ "implications_for_automation": [
+  "Use a portfolio, not a single big bet: build a pipeline that ships many single-feature AI utilities into core-need niches (love/compatibility, self-understanding, money, hobby mastery and play). Expect most apps to fail, as Sensa, Indigo and Saga did, and route resources automatically to the 1\u20133 winners by revenue per install.",
+  "Pick single-player utility apps whose value is delivered on first use. This sidesteps Bier's cold-start / '7 friends' problem. Let the habit and exposure loop live on TikTok, Instagram and YouTube through creators and shareable outputs (compatibility scores, soulmate sketches, chord charts).",
+  "Product template to generate automatically:\n- Brandable one-word name plus a descriptive App Store subtitle (\"Astra \u2013 Life Advice / Astrology & Compatibility\").\n- 8\u201316-step personalization onboarding (goal picker, identity data, notification pre-prompt, social proof).\n- Paywall with weekly ($4.99\u2013$7.99), monthly and annual SKUs plus trial variants.\n- Remote paywall config (Superwall or a similar tool) so price, trial and layout can be A/B tested without a new app build.",
+  "Make the creator-ops loop the core automated subsystem. It should mirror Vert's Influencer Marketing Manager and Marketing Associate jobs:\n- source creators (SideShift-style marketplaces, TikTok search, DMs)\n- negotiate flat fee and CPM bonuses\n- generate briefs and scripts (zodiac or identity hooks, 'what my dream meant', friendship tests, 18\u201334-slide carousels with the app revealed around slides 8\u201310)\n- review drafts against a rubric\n- log per-video views\n- pay out\n- cull losing formats each batch.\nKeep humans as the faces of the content. The AI handles everything around them.",
+  "Build install attribution without ad SDKs, since Vert's Android builds contain essentially none. Correlate creator post timestamps and view curves with hourly installs and trials (App Store Connect / Play Console / RevenueCat or Superwall webhooks). Add per-creator links or codes where possible. Score each video and format on installs per 1K views and trial-to-paid, not on vanity metrics.",
+  "Recycle winners into paid ads: promote organic videos above a views-to-installs threshold into a UGC bank, then push them to TikTok Spark Ads / Meta via their APIs with automated budget rules (scale while 1,000 views earn more than they cost). Use SKAN or web attribution instead of heavy tracking SDKs.",
+  "Ship code fast: aim for a release every 3\u20136 days per app, with AI-generated code and templated store metadata. Gate releases on automated crash and paywall-conversion regression checks rather than human QA. Use feature flags so the paywall and onboarding can change between releases.",
+  "Test small and reproducibly (Bier): run each new app concept against a fixed creator batch (e.g., 10 creators \u00d7 5 videos) with pre-registered kill and scale thresholds, so results are conclusive and don't depend on a nationwide launch. Watch for early signals such as a TikTok search keyword appearing (Astra's appeared within 2 weeks).",
+  "Add secondary acquisition surfaces automatically: programmatic SEO pages (e.g., one page per song, sign or topic with an 'Open in App' CTA), an email-capture landing page with a trial offer, and an AI-crawler-friendly info site for generative-engine visibility. Also auto-monitor and defend the brand against copycat 'Astra'-style clones in App Store search.",
+  "Isolate risk across entities and developer accounts: Vert uses three LLCs and separate support emails per app. The system should provision legal entities, developer accounts, terms and privacy pages per app or cluster, so one App Store or Play enforcement action can't take down the whole portfolio.",
+  "Build in compliance guardrails, since public reviews show this playbook's failure modes:\n- enforce #ad / paid-partnership disclosure on every creator post\n- show the price before data-heavy onboarding, or state 'subscription required' clearly in creator scripts\n- provide in-app cancel and restore\n- auto-handle refund and billing-dispute email\n- follow Apple 3.1.2 and FTC ROSCA / negative-option rules\n- monitor 1-star review topics as a kill or fix signal.\nHigh star averages can hide 1-star-dominated written reviews.",
+  "Keep analytics lightweight: Firebase or Mixpanel events for onboarding steps, paywall views, trial starts and churn. The decision engine needs per-step onboarding drop-off and per-SKU conversion to run the price-testing that Vert's many duplicate SKUs imply.",
+  "Org design to copy with agents: few engineers plus many creator-ops staff. Automate the creator-ops roles first, since they are the bulk of Vert's headcount and the most repetitive work (messaging, script feedback, performance logging). Engineering is the smaller, AI-assisted part of the work."
+ ],
+ "open_questions": [
+  "Revenue split across the 8 apps: how much of the claimed $25M\u2013$30M+ ARR comes from Astra vs Plug AI vs Strum? No primary data was found. ScreensDesign's estimates ($250K/mo Strum, '$450k revenue' Astra) are unverified.",
+  "How much does Vert spend on paid ads (Meta, TikTok, Apple Search Ads) vs creator fees? Without SDKs, how do they attribute installs to individual videos?",
+  "Is Superwall (or RevenueCat or Adapty) still the paywall stack in 2026? Which LLM providers power the AI features? The iOS binaries were not inspected, and APK downloads were blocked.",
+  "Was Plug AI ever sold after the Jan 2024 $3.5M Acquire.com listing? It is still published by Vert Media Partners LLC. What is Blake Anderson's current relationship to Vert or Plug AI (equity retained or not)?",
+  "What are the creator pay structures (flat per post vs CPM bonus vs view guarantees), and how many creators run per app? One snippet cited $1,200\u20132,000/month for a remote influencer manager, but this could not be confirmed.",
+  "What is 'Noodle', referenced in an Alex Leiman tweet (\"1,000 active accounts\u2026 Over $30,000 won by players\")? Is it a Vert app (possibly real-money skill gaming) or an earlier project? It was not found on the App Store.",
+  "Does Strum (or any Vert app) use US external web checkout ('billing a card directly, not through the Apple ecosystem')? So far this rests on a single user review.",
+  "How does Vert generate and choose ideas (trend mining, keyword data, copying proven apps)? Plug AI reportedly launched about six months after a similar 'Rizz' app. Is copying fast-followers the intended strategy?",
+  "Does Vert own @strumapp on TikTok? It has 57.5K followers and 0 videos, and the account was created in 2022, before Strum's 2025 launch. Also unconfirmed: who owns astra-life-advice.com.",
+  "What are Astra's and Strum's actual retention and trial-to-paid rates? The high share of 1-star written reviews suggests heavy churn and refund pressure, so how sustainable is the model under FTC click-to-cancel enforcement?",
+  "The full text of Alex Leiman's X thread 'How I went from almost quitting entrepreneurship to 800k app downloads in 2 months' and the Brick by Brick transcript were inaccessible. X returned 402/429 and YouTube required login."
+ ]
+}

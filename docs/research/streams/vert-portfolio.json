@@ -1,0 +1,205 @@
+{
+ "key": "vert-portfolio",
+ "summary": "Vert (vert.nyc; vertventures.io now redirects there) runs its portfolio through three publishing entities and three App Store developer accounts. Together these hold exactly 8 iOS apps, which matches the site's \"8 Apps\" claim:\n(1) \"Vert Ventures\" (seller Vert Ventures LLC, Apple artist id 1719671063) publishes Astra - Life Advice.\n(2) \"Vert Media Partners LLC\" (artist id 1690446849) publishes Plug AI: Texting Assistant, formerly RizzGPT and then Wingman.\n(3) \"W185 Holdings\" (seller W185 Holdings LLC, artist id 1761597813) publishes Strum - Play Guitar, Berry - Wellness, Saga - Stories, Sensa - ASMR, Indigo - Scan & Collect and Eagle - Swing Analysis.\nThe proof that W185 belongs to Vert: Google Play developer \"Vert Media Partners\" (contact@vertmedia.io) publishes package com.w185holdings.strum next to com.vertmedia.astra and com.vertmedia.wingman. Vert Ventures LLC's NY filing address is 185 Wythe Ave, Brooklyn, so \"W185\" almost certainly stands for that address (an inference). Only the three winners (Astra, Plug AI, Strum) are on Android. The 5 smaller apps exist only on iOS.\n\nRevenue mostly comes from three apps.\n- Astra (AI astrology and life-advice chat, launched 2024-01-09): about 39.3K US ratings and an estimated 56.8K worldwide. Third-party estimates put it at about $400-450K a month. It uses a hard paywall with a 7-day trial and a weekly plan (about $6.99/wk).\n- Strum (AI chord recognition for any song, launched 2025-08-06, first called \"Autochord\"): about 20K US ratings, ranked #53 in Music, Android 500K+ downloads with 55K ratings. ScreensDesign estimates about $250K a month. Pricing is a trial then $6.99/week, or $49.99/yr with a 7-day trial.\n- Plug AI (AI dating-text reply generator from screenshots, launched 2023-06-30): 15.8K US ratings, Android 1M+ downloads. Founders' podcast claims: 1.2M downloads in under 3 months and $190K a month in January 2024, and the app was listed for sale at $3.5M. Its iOS build has not been updated since 2024-08-02.\nThe smaller apps all use the same $6.99 subscription template:\n- Berry: cycle-syncing wellness journal, 1.3K ratings, last updated February 2025.\n- Saga: AI stories, 159 ratings.\n- Sensa: ASMR app with 0 ratings; its description is copied from Saga, and it was dropped after 3 weeks.\n- Indigo: Pok\u00e9mon-style trading-card scanner (bundle \"pokemonapp\"), 0 ratings, March 2026.\n- Eagle: AI golf swing analysis, 127 ratings, launched 2026-08-04 and actively updated.\nThese look like fast tests: launch quickly, then abandon or keep iterating.\n\nPeople and entities:\n- Co-founders, per RocketReach: Evan Dray, Alex Leiman and Will Olson. Will Olson says on LinkedIn that he joined for $250/week and became a cofounder after 6 months, and that they have reached 12M downloads and more than $30M ARR. Other staff: Alex Wang (Product & Design), Saarthak Chaturvedi (Founding SWE), Kai Mitchell (Growth), Maggie Jin (Marketing), Blaise Siefer and Dylan Kenny (Marketing Associates), Maxine San Diego (Influencer Marketing Manager).\n- Vert Media Partners LLC is a California LLC (entity number reported as 202251112388), described as digital advertising, at 876 La Para Ave, Palo Alto. Its 12/13/2023 Statement of Information lists Alex Leiman, Evan Dray and Blake Anderson as managers. Blake Anderson later built Umax and Cal AI; his current role at Vert is unknown. I read this from search-engine snippets because the CA SOS site blocked direct fetching.\n- Vert Ventures LLC was formed in Wyoming on 11/08/2023 and registered in NY on 6/11/2024 (doc 7367252) at 185 Wythe Ave, Brooklyn.\n- The legal terms of both Vert Ventures LLC and W185 Holdings LLC say they are Wyoming LLCs. Those terms are hosted on free GitHub Pages sites under throwaway per-app accounts (consequentlyjubilant, strum-app, eagle-golf, indigo-app-1). Each app has its own Gmail support address (astracontact111@, strumappcontact@, eagleappcontact@, indigoappcontact@, contact185holdings@).\n\nGrowth timeline (all self-reported):\n- September 2024 Dribbble job post: 4M users, $8M annual revenue, 8 FTE, all apps use AI.\n- About October 2025, a LinkedIn recruiter post reposted by Vert: \"$30M+ ARR\".\n- January 16, 2026, Get on Board posting: \"scale apps to go viral through influencer marketing\" with \"250+ active partnerships across multiple apps\".\n- vert.nyc today: 15M+ users, $25M+ annual revenue, $0 funding, 2 years old, 23-person team. A gallery caption reads \"20m ARR but ramen still hits\".\nThese numbers do not fully agree ($25M vs $30M), and the third-party revenue estimates for the top 3 apps add up to only about $0.9M a month (about $11M a year). Treat all revenue figures as unverified.\n\nCulture, from the site's job copy: \"if we aren't shipping bugs to production, we aren't moving fast enough\". Designers are told to \"iterate based on A/B test results\" and to favor \"bias for action (read: testing and iteration) over analysis (read: case studies and user research)\". The site also says \"We rely heavily on AI for development\". The stack is Python/JS/React/React Native/Swift. A Marketing Associate is paid $80-200K plus equity, and the ad says \"no experience necessary\" and asks for people who \"understand culture.\"\n\nHow they grow (secondary sources): seeding TikTok with micro-creators (about $50 a post), faceless TikTok/YouTube accounts, and TikTok slideshows of 18-34 slides with the app shown around slides 8-10. Paywalls were tested with Superwall. Apps get renamed when needed (RizzGPT\u2192Wingman\u2192Plug AI, apparently after a name dispute).",
+ "findings": [
+  {
+   "claim": "Vert's site (vert.nyc) says: 15M+ users, 8 apps, $25M+ annual revenue, $0 funding, 2 years old, 23-person team, 'We make and market apps entirely in-house'. The contact email is will@vertventures.io, and vertventures.io redirects to vert.nyc.",
+   "evidence": "Site JS bundle (page-01cb73719934107d.js), fetched 2026-10-17. It contains 'Vert is a startup that makes startups.', '$25M+ Annual Revenue', '15M+ Users', '8 Apps', '$0 Funding', '2 years old', the gallery caption '20m ARR but ramen still hits', 'Offsite in Costa Rica' and will@vertventures.io. A curl of https://vertventures.io returned 200 at http://vert.nyc/.",
+   "sources": [
+    "https://vert.nyc"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Vert's job copy describes an extreme-velocity, A/B-test-driven, AI-assisted culture with high pay.",
+   "evidence": "Full Stack Engineer ($120k-$250k + equity): 'We prioritize velocity and often say that if we aren't shipping bugs to production, we aren't moving fast enough.' Product Designer ($100k-$250k): 'ship quickly and iterate based on A/B test results. We value velocity and have a bias for action (read: testing and iteration) over analysis (read: case studies and user research).' Design Engineer, PM ($100k-$250k). Marketing Associate ($80k-$200k): 'Know how to make people care (no experience necessary)... understands culture and knows how to get attention.' Tech stack: 'Python, Javascript, React/React Native, and Swift... We rely heavily on AI for development, but are not dependent on it.'",
+   "sources": [
+    "https://vert.nyc"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Astra - Life Advice is published by Vert Ventures LLC: an AI astrology and life-advice chat app, launched 2024-01-09, still actively updated, about 39.3K US ratings, behind a hard subscription paywall.",
+   "evidence": "iTunes lookup for id 6473748536: artist 'Vert Ventures', seller 'Vert Ventures LLC', bundle com.vertventures.stella, genre Lifestyle, userRatingCount 39,299, average 4.72, released 2024-01-09, version 3.12.69 updated 2026-10-12, sellerUrl astralifeadvice.com. App Store subtitle: 'Astrology & Compatibility'; the page says '*Access to Astra requires a paid subscription'. IAPs are 'Astra - Unlimited' at $6.99, $7.99, $9.99, $12.99, $14.99 and $19.99. Copyright line: '\u00a9 Vert Ventures Partners 2023'. Terms page (updated June 26, 2025): 'We are Vert Ventures LLC... a company registered in Wyoming'. mwm.ai (data as of 2026-08-17): 56.8K total ratings, 2.5M+ App Store downloads.",
+   "sources": [
+    "https://itunes.apple.com/lookup?id=1719671063&entity=software&country=us",
+    "https://apps.apple.com/us/app/astra-life-advice/id6473748536",
+    "https://consequentlyjubilant.github.io/astraapp/terms.html",
+    "https://mwm.ai/apps/astra-life-advice/6473748536"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Astra's monetization and onboarding: a long personalized onboarding (about 9 steps), then a paywall offering a 7-day free trial that converts to a weekly subscription. Third-party revenue estimate is about $400-450K a month.",
+   "evidence": "ScreensDesign: '$450k', 35K installs, rating 4.7. Onboarding order: goal selection, notification pre-permission, system permission, name, birthday, birth time, birth location, a 'personalizing' interstitial, then the paywall ('Claim my free week'). A search summary of paywallscreens says about '$400K per month from 60K monthly downloads' and calls it a hard paywall. mwm.ai cites reviews at about $6.99/week. All figures are modeled estimates, not company data.",
+   "sources": [
+    "https://screensdesign.com/apps/astra-life-advice/",
+    "https://www.paywallscreens.com/apps/astra-life-advice-mobile-paywall-fffe"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Astra's Android version is com.vertmedia.astra under the Google Play developer 'Vert Media Partners', with 500K+ downloads and about 24K ratings. Its terms link to vertventures.io.",
+   "evidence": "Google Play page: author 'Vert Media Partners', ratingCount 24,019, average 4.52, '500K+', developer email contact@vertmedia.io, 'Terms: https://www.vertventures.io/terms', updated Dec 5, 2025. Aptoide shows its earliest Android version as 1.2.3, dated 27/6/2025. astralifeadvice.com links to both stores.",
+   "sources": [
+    "https://play.google.com/store/apps/details?id=com.vertmedia.astra&hl=en_US",
+    "https://www.astralifeadvice.com/",
+    "https://astra-vert-media-partners.en.aptoide.com/app"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "The Google Play developer 'Vert Media Partners' publishes three apps: Astra, Plug AI (com.vertmedia.wingman) and Strum (com.w185holdings.strum). This proves that W185 Holdings is part of Vert.",
+   "evidence": "The Play developer page (developer?id=Vert+Media+Partners) lists 'Strum - Play Guitar', 'Astra - Life Advice' and 'Plug AI: Texting Assistant', with package ids com.w185holdings.strum, com.vertmedia.astra and com.vertmedia.wingman. All three Play listings show contact@vertmedia.io.",
+   "sources": [
+    "https://play.google.com/store/apps/developer?id=Vert+Media+Partners&hl=en_US&gl=US"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Plug AI: Texting Assistant (formerly RizzGPT, then Wingman) is an AI dating-reply generator: the user uploads a chat screenshot and gets suggested responses and pickup lines. It launched 2023-06-30 under Vert Media Partners LLC, and its iOS build has not been updated since August 2024.",
+   "evidence": "iTunes: id 6449750416, artist/seller 'Vert Media Partners LLC' (artist id 1690446849, the only app on that account), bundle com.vert.rizzgpt, Lifestyle, 15,812 US ratings, average 4.56, released 2023-06-30, last updated 2024-08-02 (v6.3). Subtitle 'AI Rizz'. Description: '1) Upload a screenshot to generate customized responses. 2) Generate opening pick-up lines... Best for Tinder, Hinge, Wizz, iMessage! *Note Plug AI requires a subscription*'. IAPs: Premium $6.99, RizzGPT $6.99, Unlimited Annual $59.99, Premium - 25 Replies $5.99, Limited Offer $6.99, Illimitado Semanal $4.99, Illimitado Anual $49.99. Play: 'formerly known as Wingman', 1M+ downloads, 4,481 ratings with a 2.5 average, rated Mature 17+, updated Oct 3, 2026. mwm.ai: 2.5M+ App Store downloads, 18.6K total ratings.",
+   "sources": [
+    "https://apps.apple.com/us/app/id6449750416",
+    "https://play.google.com/store/apps/details?id=com.vertmedia.wingman&hl=en_US",
+    "https://mwm.ai/apps/plug-ai-texting-assistant/6449750416"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Founders said Plug AI grew from 0 to 1.2M downloads in under 3 months (1.5M in 4.5 months) through viral TikTok content and creator collaborations, and earned about $190K a month. In January 2024 it was listed for sale at $3.5M. Superwall was used for paywall testing.",
+   "evidence": "Brick by Brick podcast ep. 019, 'Alex Leiman, 23 Year Old Makes $190k / Month With AI Dating Assistant App' (published Jan 19, 2024). Show notes cover: 1.5M downloads in 4.5 months, $190k/month, listed for sale at $3.5M, 0 to 1.2M downloads in under 3 months, viral TikTok content, collaborating with TikTok creators, using Superwall to test paywall strategy, and the rename from 'Rizz GPT' to 'Wingman'. Alex's earlier business, SexyCakes, did $700k. This is more than 18 months old.",
+   "sources": [
+    "https://creators.spotify.com/pod/profile/ollie-allman/episodes/019-Alex-Leiman--23-Year-Old-Makes-190k--Month-With-AI-Dating-Assistant-App-e2lvpki"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Plug AI was co-founded by Blake Anderson (later Umax and Cal AI) and Alex Leiman. Early growth reportedly came from paying micro-creators about $50 per post, faceless TikTok/YouTube accounts, and long TikTok slideshows. The pricing was a 3-day trial followed by a weekly subscription.",
+   "evidence": "ventureradar Substack (Jul 12, 2025): 'Alex Leiman, another 23-year-old entrepreneur' was co-founder; app 'originally named Rizz GPT'; 'over $200,000/month, entirely from subscriptions'; 'a 3-day free trial followed by a weekly subscription'; slideshows of 18-34 slides with the app around slides 8-10, one with 800k+ views. Scale Nuggets (Aug 27, 2024): 'RizzGPT (now Plug AI)'; '$50 per account, to advertise on two faceless YouTube channels and TikTok accounts'; '200,000 downloads' in five days and '$80K MRR'. The income-reality-check page (updated 2026-07-10) quotes a video: 'pay micro-creators $50 a post'. These are secondary or promotional sources.",
+   "sources": [
+    "https://ventureradar.substack.com/p/this-23-year-olds-ai-app-makes-200kmonth",
+    "https://scalenuggets.beehiiv.com/p/23yearold-whos-making-11myear-ai-apps",
+    "https://income-reality-check.pages.dev/a/he-made-rizzgpt-which-makes-him-1-million-a-month/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Vert Media Partners LLC is a California LLC described as 'digital advertising', based in Palo Alto. Its managers are listed as Alex Leiman, Evan Dray and Blake Anderson.",
+   "evidence": "Search-engine summaries of CA SOS bizfile record BA20231884351 (a Statement of Information dated 12/13/2023, entity number reported as 202251112388): principal address 876 La Para Avenue, Palo Alto, CA 94306; managers Alex Leiman, Evan Dray and Blake Anderson; Evan Dray is agent for service of process. I could not fetch the PDF directly because it is behind Incapsula. The Play listing shows a Palo Alto address, per a search summary. This is more than 18 months old, so the managers may have changed.",
+   "sources": [
+    "https://bizfileonline.sos.ca.gov/api/report/GetImageByNum/133174044037253151212179169047148002153193223158"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Strum - Play Guitar (first called 'Autochord') is published by W185 Holdings LLC: AI chord recognition for any song. Launched 2025-08-06, it is now Vert's fastest-rising app, ranked #53 in Music on the US App Store.",
+   "evidence": "iTunes: id 6749384181, seller 'W185 Holdings LLC', bundle com.w185holdings.guitar, Music, 20,077 US ratings, average 4.66, released 2025-08-06, v1.9.4 updated 2026-10-15, website strumguitarapp.com. The App Store page shows '#53 Music'. IAPs: Strum - Unlimited at $6.99, $12.99, $14.99, $19.99, '$49.99/year w/ 7d trial' and $99.99, plus 'AutoChord - Premium Chords' at $0.99. The terms (Jul 31, 2025) say 'We are W185 Holdings LLC... registered in Wyoming... We operate the mobile application Autochord'. Play: com.w185holdings.strum under Vert Media Partners, 500K+ downloads, 55,255 ratings, average 4.73. mwm.ai (data as of 2026-08-17): 1M+ downloads, 34.2K total App Store ratings.",
+   "sources": [
+    "https://apps.apple.com/us/app/strum-play-guitar/id6749384181",
+    "https://strum-app.github.io/strum/terms",
+    "https://play.google.com/store/apps/details?id=com.w185holdings.strum&hl=en_US",
+    "https://mwm.ai/apps/strum-play-guitar/6749384181",
+    "https://www.strumguitarapp.com/"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Strum uses a long onboarding of about 16 steps (playable intro, skill quiz, Spotify/Apple Music connect, practice goals, social proof) that ends in a hard paywall: free trial then $6.99/week. Its third-party revenue estimate is about $250K a month.",
+   "evidence": "ScreensDesign: '$250k/mo', 100-150K monthly installs (sources differ), 'Free Trial - Hard Paywall', a single button for a trial that rolls into $6.99/week. Its onboarding list starts with a playable 'Strum the guitar' intro, adds a skip-confirmation modal if the user skips the music-service connect, and has a testimonial screen before the paywall. Chords can be imported from YouTube, Camera Roll, Files, a recording or Shazam. Estimates are modeled.",
+   "sources": [
+    "https://screensdesign.com/apps/strum-play-guitar/"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "W185 Holdings also publishes 5 smaller iOS-only apps. They follow one subscription template ($6.99 plus a $0.99 tier) and look like quick tests, several of them abandoned.",
+   "evidence": "iTunes lookup of artist id 1761597813:\n- Berry - Wellness (id6615085632, Health & Fitness, released 2024-08-20, last updated 2025-02-14, 1,302 ratings): cycle-syncing journal, recipes and workouts. IAPs $6.99, $79.99, $19.99, $0.99.\n- Saga - Stories (id6740108033, Books, released 2025-01-13, last updated 2025-10-13, 159 ratings): 'stories crafted just for you'. IAPs $6.99, $0.99.\n- Sensa - ASMR (id6742751158, bundle com.w185holdings.asmrai, released 2025-03-05, last updated 2025-03-26, 0 ratings): description copied from Saga ('asmr.ai'). IAPs $6.99, $0.99.\n- Indigo - Scan & Collect (id6759916626, bundle com.w185holdings.pokemonapp, Reference, released 2026-03-29, last updated 2026-04-13, 0 ratings, no IAPs listed): camera card scanner with market value.\n- Eagle - Swing Analysis (id6789633056, bundle com.golf.swing, Sports, released 2026-08-04, v1.0.10 updated 2026-09-30, 127 ratings, average 4.83): AI golf swing analysis. IAP $6.99.\nSupport email contact185holdings@gmail.com; terms at w185holdings.com (the domain returned 502) and on GitHub Pages, all naming W185 Holdings LLC.",
+   "sources": [
+    "https://apps.apple.com/us/app/berry-wellness/id6615085632",
+    "https://apps.apple.com/us/app/saga-stories/id6740108033",
+    "https://apps.apple.com/us/app/sensa-asmr/id6742751158",
+    "https://apps.apple.com/us/app/indigo-scan-collect/id6759916626",
+    "https://apps.apple.com/us/app/eagle-swing-analysis/id6789633056",
+    "https://eagle-golf.github.io/eagle/terms.html",
+    "https://indigo-app-1.github.io/indigoapp/terms.html"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "Vert Ventures LLC was formed in Wyoming (11/08/2023) and registered in New York on 6/11/2024 at 185 Wythe Ave, Brooklyn. That address very likely explains the 'W185 Holdings' name.",
+   "evidence": "bizprofile.net (page dated 11/7/2025): document number 7367252, filed June 11, 2024, foreign formation in Wyoming dated 11/08/2023, Active, Kings County, mailing address 185 Wythe Ave, Brooklyn, NY 11249. D&B and Buzzfile list a Palo Alto Vert Ventures LLC with Alex Leiman as Member. The W185 = 185 Wythe link is my inference.",
+   "sources": [
+    "https://www.bizprofile.net/ny/brooklyn/vert-ventures-llc",
+    "https://www.dnb.com/business-directory/company-profiles/vert-ventures-llc.99c23e8974401da806866f4a8e04d28a"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "The named co-founders are Evan Dray, Alex Leiman and Will Olson. Will Olson's LinkedIn post claims 12M downloads and more than $30M ARR. Evan Dray had a background as a TikTok and influencer strategist.",
+   "evidence": "RocketReach lists Evan Dray, Alex Leiman and Will Olson as Co-Founders, plus Alex Wang (Product and Design), Saarthak Chaturvedi (Founding Software Engineer), Kai Mitchell (Growth), Maggie Jin (Marketing), Blaise Siefer and Dylan Kenny (Marketing Associates) and Maxine san Diego (Influencer Marketing Manager), for 38 employees. Search summary of Will Olson's LinkedIn: 'After graduating from Princeton I took a job paying $12,000 per year... offered to work for $250 per week... After six months he became a cofounder... 12M downloads and reached >$30M in ARR' (post date unknown). Search summaries of Evan Dray's LinkedIn and RocketReach: 'Co-Founder @ RizzGPT 2023-2024', and a HyperWrite post calling him their 'expert TikTok and influencer strategist'. Alex Leiman's X bio reads 'Co-Founder @ Vert. NYC'. I could not fetch LinkedIn or X directly (HTTP 999/402).",
+   "sources": [
+    "https://rocketreach.co/vert-ventures-management_b73e2125c409276e",
+    "https://www.linkedin.com/in/will-olson/",
+    "https://www.linkedin.com/in/evandray/",
+    "https://x.com/alex_leiman"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Self-reported growth: about 4M users, $8M revenue and 8 FTE in September 2024; $30M+ ARR by about late 2025; 15M+ users, $25M+ revenue and 23 staff today. Influencer marketing is the core channel, with 250+ active creator partnerships.",
+   "evidence": "Search summary of the Dribbble job 'UI/UX Designer at App Studio' (September 2024, Brooklyn, now 404): '4 million users across our portfolio of apps, $8M in annual revenue, and 8 full time employees', names Astra, and says all apps use AI. Vert's LinkedIn reposted a Cara Kim post (shown as '12mo' old as of Oct 2026): 'NYC-based app studio creating products that reach millions of users worldwide, generating $30M+ ARR', marketing role $85,000-$120,000, company-sponsored trips. LinkedIn also shows founded 2024, type Partnership, 11-50 size, 39 employees. Get on Board posting (Jan 16, 2026, closed): 'Vert is an app studio generating millions in annual revenue. We scale apps to go viral through influencer marketing', 'currently managing 250+ active partnerships across multiple apps'; remote influencer marketing manager tasks are creator communications, script and draft review, and logging video performance.",
+   "sources": [
+    "https://dribbble.com/jobs/265130-UI-UX-Designer-at-App-Studio",
+    "https://www.linkedin.com/company/vert-ventures",
+    "https://www.getonbrd.com/jobs/advertising-media/influencer-marketing-manager-vert-remote",
+    "https://www.getonbrd.com/companies/vert"
+   ],
+   "confidence": "medium"
+  },
+  {
+   "claim": "Vert keeps per-app infrastructure cheap and disposable: legal pages on free GitHub Pages under throwaway per-app accounts, per-app Gmail support inboxes, minimal landing pages, and separate LLCs and developer accounts.",
+   "evidence": "consequentlyjubilant.github.io/astraapp, strum-app.github.io/strum, eagle-golf.github.io/eagle and indigo-app-1.github.io/indigoapp all hold boilerplate Terms/Privacy naming the Wyoming LLC. Support emails: astracontact111@gmail.com, strumappcontact@gmail.com, eagleappcontact@gmail.com, indigoappcontact@gmail.com, contact185holdings@gmail.com. Plug AI's Android privacy policy is on freeprivacypolicy.com. vertmedia.io and vertventures.io/terms now return Wix 404 or 'ConnectYourDomain' errors even though store listings still link to them.",
+   "sources": [
+    "https://consequentlyjubilant.github.io/astraapp/terms.html",
+    "https://strum-app.github.io/strum/privacy",
+    "https://eagle-golf.github.io/eagle/terms.html",
+    "https://indigo-app-1.github.io/indigoapp/terms.html"
+   ],
+   "confidence": "high"
+  },
+  {
+   "claim": "No evidence of other Vert apps beyond these 8 under other developer names, though the search was not exhaustive.",
+   "evidence": "iTunes developer-name searches for 'Vert Ventures', 'Vert Media', 'W185', '185 Holdings' and 'Wythe' returned only the 8 apps above. Probing Google Play for other com.w185holdings.* and com.vertmedia.* package names returned 404. A 'Plug AI: Pick Up Lines & Rizz' listing (id6449148120, 'RizzGPT Weekly Premium $2.99') appeared in search results, but it returns 404 and no lookup results in the US/RU/GB/DE/MX storefronts, so I could not confirm its owner.",
+   "sources": [
+    "https://itunes.apple.com/search?term=W185&entity=software&attribute=softwareDeveloper&country=us",
+    "https://apps.apple.com/us/app/plug-ai-pick-up-lines-rizz/id6449148120"
+   ],
+   "confidence": "medium"
+  }
+ ],
+ "implications_for_automation": [
+  "Copy Vert's legal structure: a holding LLC plus several publisher LLCs and Apple developer accounts (Vert Ventures, Vert Media Partners, W185 Holdings). This spreads App Store review and ban risk (guideline 4.3 spam, 5.6 developer code of conduct) and keeps winners apart from experiments. The automated system needs an entity/account registry that maps each app to its LLC, developer account, support inbox, legal-page host and payment account.",
+  "Two-tier launch pipeline: test on iOS only (5 of 8 Vert apps never reached Android). Port to Android only after an app passes a revenue or retention threshold (Astra, Plug AI and Strum all got Android versions under a single Play account).",
+  "Use one default monetization template and A/B test from it. Every Vert app uses a free-trial hard paywall at the end of onboarding: $6.99/week, an annual anchor of $49.99-$79.99, and a $0.99 or 'limited offer' variant. Make the paywall config-driven (Superwall or RevenueCat style) so price, trial length and layout can be tested without a new build.",
+  "Long personalized onboarding is a feature, not a bug. Astra uses about 9 steps; Strum uses about 16, with a playable intro, quiz, music-service connect, permission priming, testimonials, then the paywall. This matches Bier's 'long sign up flows are fine'. Generate onboarding flows from a reusable template: goal quiz, then personalization inputs, then a 'personalizing...' interstitial, then social proof, then the paywall.",
+  "Product choice follows Bier's 'core needs' filter and favors 'AI wrapper with one magic input': screenshot to dating reply (love), birth data to astrology advice (love and self), song link to chords (play), swing video to coaching (play), card photo to market value (money and collecting). The ideation module should score ideas on (a) core need, (b) one-shot AI 'wow' within 60 seconds, (c) a visually demonstrable output for short-form video, and (d) price tolerance of at least $6.99/week.",
+  "Distribution is the moat. Vert runs 250+ concurrent influencer partnerships and has a remote influencer-ops manager who handles creator outreach, script review and video-performance logging. Earlier Plug AI growth came from $50-per-post micro-creators, faceless TikTok/YouTube accounts and 18-34-slide TikTok slideshows. An autonomous system needs: (1) creator discovery and outreach CRM, (2) script and hook generation, (3) draft review, (4) per-video performance logging tied to install attribution, (5) automated payouts, (6) owned faceless slideshow accounts in several languages. This is Bier's 'reproducible testing process', run on content instead of features.",
+  "Kill fast, but recognize winners: Sensa had 0 ratings and copied metadata and was dropped after about 3 weeks; Indigo has 0 ratings; Berry and Saga stalled. Automate kill/scale decisions with set thresholds (installs per creator post, trial start rate, trial-to-paid rate, D7 retention) so tests give clear answers, not 'maybe we needed more downloads'.",
+  "Avoid Vert's sloppiness that automation would multiply: copy-pasted descriptions (Sensa reuses Saga's text), dead Wix legal URLs still linked from store listings (vertmedia.io/terms, vertventures.io/terms) and bundle-id leftovers (com.vertventures.stella for Astra; com.w185holdings.pokemonapp, which may raise trademark issues). Add automated metadata uniqueness checks, legal-URL health checks and trademark screening, because App Review rejects spam or duplicate metadata and broken privacy URLs.",
+  "Build in a rename and rebrand path: Plug AI went RizzGPT, then Wingman, then Plug AI (apparently after a name conflict), and Strum started as 'Autochord'. Keep the app's brand layer (name, icon, store copy, landing page) separate from the codebase so a rename does not need a rebuild.",
+  "Cheap, disposable per-app infrastructure is enough: GitHub Pages legal docs generated from a Termly-style template naming the LLC (Wyoming), a per-app Gmail support inbox and a one-page static landing site. All of this can be automated through APIs (GitHub Pages, DNS registrar, Google Workspace/Gmail or a transactional email inbox, App Store Connect API, Google Play Developer API).",
+  "Expect self-reported metrics to run ahead of third-party estimates. Vert claims $25-30M ARR, while modeled estimates for its top 3 apps add up to about $11M a year. The system's own dashboard should use store-reported proceeds (App Store Connect/Play financial reports or RevenueCat), not tracker estimates."
+ ],
+ "open_questions": [
+  "What is the real revenue split across apps? Third-party estimates (Astra about $400-450K/mo, Strum about $250K/mo, Plug AI about $200K/mo as of 2025) total far less than the claimed $25-30M ARR. Does the gap come from non-US revenue, Android, gross vs net, or apps not found?",
+  "Are there other Vert apps under developer accounts or LLC names not found here (for example, removed tests or the 'Plug AI: Pick Up Lines & Rizz' id6449148120 listing, now 404)? Does '8 apps' count iOS and Android separately?",
+  "What is Blake Anderson's current relationship with Vert? He is listed as a manager of Vert Media Partners LLC in the 12/13/2023 filing, but his later companies (Umax, Cal AI) are separate.",
+  "Who is Will (will@vertventures.io)? Presumably co-founder Will Olson; not confirmed directly.",
+  "Which TikTok, Instagram and YouTube accounts does Vert own or run for Astra and Strum? @getastraapp appears in a Shortimize article about a different 'Astroapp' network, so it is not confirmed as Vert's.",
+  "What is Vert's split between paid UA (Meta/TikTok ads, Apple Search Ads) and influencer/organic content? Do they use Superwall or RevenueCat today? Superwall was mentioned in January 2024.",
+  "What does '15M+ users' mean: cumulative downloads across both stores, or registered users?",
+  "Why are Plug AI's iOS app (no update since 2024-08-02) and Berry (since 2025-02-14) no longer updated: harvest mode, sale or wind-down? The podcast said Plug AI was listed for sale at $3.5M in January 2024.",
+  "What does the September 2024 Dribbble job post say verbatim? The page now returns 404, and its figures (4M users, $8M revenue, 8 FTE) come from a search-engine summary."
+ ]
+}

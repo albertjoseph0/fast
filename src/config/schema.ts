@@ -345,6 +345,13 @@ export const StudioConfig = z.object({
       humanReviewDomains: z
         .array(SensitiveDomain)
         .default(["health", "mental_health", "finance", "legal", "minors", "biometric", "dating_safety", "ai_companion", "appearance_rating", "gambling"]),
+      /**
+       * Red categories (research 2026-10: Apple 4.3 saturated categories, FTC Genesis Tech, state chatbot
+       * laws): every store submission and every ad campaign for these ventures needs a human.
+       */
+      redCategoryDomains: z
+        .array(SensitiveDomain)
+        .default(["astrology_fortune", "dating_safety", "ai_companion", "mental_health", "health", "finance", "gambling", "appearance_rating", "minors"]),
       /** A file at this path (relative to dataDir) halts every external action. */
       killSwitchFile: z.string().default("STOP"),
       /** People allowed to approve actions and complete human tasks. */
