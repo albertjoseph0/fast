@@ -25,7 +25,6 @@ import { decideExperiment, evaluateCell } from "../lab/decide.ts";
 import { designAttentionProbe } from "../lab/experiments.ts";
 import type { StudioDeps } from "./deps.ts";
 import { ideaFor } from "./pipeline.ts";
-import { patch } from "./lifecycle.ts";
 import { proposeKill } from "./labPhase.ts";
 import { createHash } from "node:crypto";
 import { taskDraft } from "../playbook/setup.ts";
@@ -316,7 +315,7 @@ function readAttentionProbe(ctx: TickContext, v: Venture, plan: ExperimentPlan):
 function armStats(ctx: TickContext, batchId: string): ArmStats[] {
   const batch = ctx.store.batches.require(batchId);
   return batch.arms.map((arm) => {
-    const campaigns = ctx.store.campaigns.list((c) => c.batchId === batchId && c.brief.hooks[0] !== undefined && `${c.brief.formats[0] ?? ""}:${c.id}` !== "" && armOf(ctx, c) === arm);
+    const campaigns = ctx.store.campaigns.list((c) => c.batchId === batchId && armOf(ctx, c) === arm);
     const subs = campaigns.flatMap((c) => ctx.store.submissions.list((s) => s.campaignId === c.id && (s.stage === "post_approved" || s.stage === "paid")));
     const views = subs.reduce((s, x) => s + (x.viewsAtLock ?? x.verification?.viewsFromPlatform ?? 0), 0);
     const installs = attributedInstalls(ctx, batch.ventureId, campaigns, subs);
@@ -416,6 +415,5 @@ export async function runCreativeLoop(ctx: TickContext, deps: StudioDeps, v: Ven
       commitment: { kind: "lifetime_cap", amountCents: budgetCents, maxTotalCents: budgetCents, startsAt: now, endsAt: addDays(now, cfg.batchDays + ctx.config.creators.viewLockDays) },
     });
   }
-  patch(ctx.store, ctx.ports.clock, v, {});
   return `opened batch ${batchId} (${(batchBudget / 100).toFixed(0)} USD over ${arms.length} arms)`;
 }

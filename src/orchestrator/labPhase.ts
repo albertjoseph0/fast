@@ -114,6 +114,8 @@ export async function ensureExperiment(ctx: TickContext, deps: StudioDeps, v: Ve
     updatedAt: now,
   });
   ctx.log("experiment.registered", { experimentId: plan.id, stages, variable: plan.variableUnderTest, cells: plan.cells.map((c) => c.geo), budgetCents: plan.maxBudgetCents, minSample: plan.minSamplePerCell }, v.id);
+  const registered = ctx.store.ventures.require(v.id);
+  if (registered.stage === "iterating") transition(ctx.store, ctx.ports.clock, registered, "live_test", `${plan.variableUnderTest} variant under test in ${plan.id}`);
   await staffCells(ctx, deps, plan, plan.cells.filter((c) => c.phase === 1).map((c) => c.id));
   return `registered ${plan.id} in ${plan.cells.map((c) => c.geo).join(", ")}`;
 }
