@@ -19,14 +19,20 @@ export function hashString(input: string): number {
 
 export class Rng {
   private state: number;
+  private readonly seed: number;
 
   constructor(seed: number) {
-    this.state = seed >>> 0 || 0x9e3779b9;
+    this.seed = seed >>> 0 || 0x9e3779b9;
+    this.state = this.seed;
   }
 
-  /** Independent deterministic stream for a label, e.g. rng.fork(`venture:${id}`). */
+  /**
+   * Independent deterministic stream for a label, e.g. rng.fork(`${today}:sim:${ventureId}`).
+   * Depends only on the seed and the label, never on how many draws were made before, so
+   * adding a draw in one module cannot reshuffle another module's history.
+   */
   fork(label: string): Rng {
-    return new Rng(hashString(`${this.state}:${label}`));
+    return new Rng(hashString(`${this.seed}:${label}`));
   }
 
   /** mulberry32, uniform in [0, 1). */
