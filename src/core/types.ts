@@ -587,6 +587,18 @@ export interface Venture {
   build?: BuildRecord;
   stores: StoreRecord[];
   bindings: VentureBindings;
+  /** The next variable to test after a failed variant, held until its delivery completes. */
+  pendingVariant?: {
+    variableUnderTest: string;
+    variant: Record<string, string | number | boolean>;
+    hypothesis: string;
+    deliveryMode: DeliveryMode;
+    parentExperimentId: string;
+    /** Storefronts to reuse (harness re-runs); otherwise fresh ones are picked. */
+    geos?: string[];
+    /** Set once the variant is live (remote config executed, build live, hooks created). */
+    readyAt?: Iso;
+  };
   /** Human task ids this venture is waiting on; blocked time does not count against the time box. */
   blockedOn: string[];
   blockedMs: number;
