@@ -138,6 +138,8 @@ export const StudioConfig = z.object({
       /** VAT/GST included in storefront prices (US prices exclude tax). */
       vatInclusiveRateByGeo: z.record(z.string(), Rate).default({ GB: 0.2, IE: 0.23, SE: 0.25, NL: 0.21, AU: 0.1, NZ: 0.15, CA: 0.13, US: 0 }),
       refundHaircutPrior: Rate.default(0.083),
+      /** Verdict-backend inference cost per app session (Opus at low effort, ~1.5K in / 600 out tokens). */
+      inferenceCentsPerSession: z.number().min(0).default(2),
       refundLagDays: z.number().int().default(90),
       settlementLagDays: z.object({ ios: z.number().int(), android: z.number().int(), web: z.number().int() }).default({ ios: 45, android: 30, web: 3 }),
       /** Subscription survival priors (RevenueCat SOSA 2026). */
