@@ -1,0 +1,31 @@
+{
+  "name": "fast",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An autonomous AI company that ideates, builds, launches, tests and scales viral consumer apps.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "bin": {
+    "factory": "./bin/factory.mjs"
+  },
+  "scripts": {
+    "factory": "tsx src/cli/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "^4.0.116",
+    "@anthropic-ai/sdk": "^0.135.0",
+    "ai": "^7.0.143",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}
