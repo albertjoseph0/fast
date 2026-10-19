@@ -258,6 +258,18 @@ export const SETUP_CHECKLIST: readonly SetupStep[] = [
     inputs: [CONFIRM],
   },
   {
+    kind: "social.finish_draft",
+    scope: "venture",
+    title: "Post a brand-account draft with its disclosure labels",
+    instructions: [
+      "Until the TikTok Content Posting API audit passes, owned posts arrive as drafts in the account's TikTok inbox, and the API cannot set their labels.",
+      "1. Open the [TikTok app](https://www.tiktok.com/) on the brand account and find the draft named in the context.",
+      "2. Turn on exactly the labels listed in the context (AI-generated content; 'Your brand' or 'Branded content') before posting. Do not edit the caption.",
+      "3. Post it, then confirm here.",
+    ].join("\n"),
+    inputs: [CONFIRM],
+  },
+  {
     kind: "store.manual_step",
     scope: "venture",
     title: "Finish a store step the API cannot do",

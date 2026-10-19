@@ -431,7 +431,9 @@ export type HumanTaskKind =
   /** Deploy the venture's tenant file (composed system prompt) and RevenueCat secret to the verdict backend. */
   | "backend.add_tenant"
   /** App Store metadata no API covers well: age rating questionnaire, category, copyright, content rights, price. */
-  | "apple.app_info";
+  | "apple.app_info"
+  /** Post an owned-account draft (TikTok inbox) by hand, applying the exact disclosure labels listed. */
+  | "social.finish_draft";
 
 export interface HumanTask {
   id: string;

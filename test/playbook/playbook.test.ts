@@ -294,6 +294,7 @@ describe("setup checklist", () => {
     "integrations.bind_projects",
     "backend.add_tenant",
     "apple.app_info",
+    "social.finish_draft",
   ];
 
   it("covers every human task kind exactly once", () => {
