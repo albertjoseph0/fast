@@ -1,6 +1,6 @@
 node_modules/
 .scratch/
-.factory/
+.factory*/
 dist/
 *.log
 .env
