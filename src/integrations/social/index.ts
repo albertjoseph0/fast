@@ -71,7 +71,7 @@ export class LiveSocialRead implements SocialRead {
     this.adapters = adapters ?? socialAdapters(opts);
   }
 
-  postStats(req: Parameters<SocialRead["postStats"]>[0]): Promise<PostStats> {
+  async postStats(req: Parameters<SocialRead["postStats"]>[0]): Promise<PostStats> {
     return adapterFor(this.adapters, req.platform).postStats(req.externalId, req.account);
   }
 

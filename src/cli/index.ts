@@ -14,6 +14,7 @@
  *   factory stop | resume                     kill switch for every external action
  *   factory freeze <scope> --reason TEXT | unfreeze <scope>
  *   factory go-live --confirm                 turn dry-run off (real API writes)
+ *   factory env                               which credentials the live adapters read, and which are set
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -109,6 +110,16 @@ async function main(): Promise<void> {
     const config = StudioConfig.parse({ mode: "live", dryRun: true, dataDir });
     writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
     process.stdout.write(`Wrote ${path} (live mode, dry-run on). Edit company details, then run \`factory tick\`.\n`);
+    return;
+  }
+
+  if (command === "env") {
+    const { LIVE_ENV_VARS } = await import("../integrations/live.ts");
+    for (const group of LIVE_ENV_VARS) {
+      process.stdout.write(`${group.service}\n`);
+      for (const v of group.vars) process.stdout.write(`  ${process.env[v.name] ? "set    " : v.required ? "MISSING" : "unset  "} ${v.name.padEnd(30)} ${v.purpose}\n`);
+    }
+    process.stdout.write("Account-level credentials are named per publisher and brand account (PublisherAccount.secretRefs, OwnedAccount.tokenSecretRef).\n");
     return;
   }
 

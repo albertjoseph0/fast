@@ -95,7 +95,7 @@ describe("installsPer1kViews from verified views", () => {
         stage: "post_approved",
         postedAt,
         verification: { fetchedAt: postedAt, postIsPublic: true, authorHandleMatches: true, platformDisclosureLabel: true, viewsFromPlatform: views, audienceGeo: { CA: 0.8 } },
-      }) as CreatorSubmission;
+      }) as unknown as CreatorSubmission;
     store.submissions.put(sub("s1", "2026-10-05T10:00:00.000Z", 10_000));
     store.submissions.put(sub("s2", "2026-10-09T18:00:00.000Z", 50_000)); // younger than 48h: not counted
     const out = await metrics.cellMetric(req({ numerator: "install", denominator: "view", maturityHours: 48, windowHours: undefined }));
@@ -224,5 +224,18 @@ describe("daily and cohorts", () => {
     expect(d0).toMatchObject({ lane: "v1|creator_ugc|CA|cr1", geo: "CA", installs: 2, trialStarts: 1, conversions: 0, experimentId: "exp1", cellId: "cellCA" });
     const d3 = rows[3]!;
     expect(d3).toMatchObject({ conversions: 1, grossRevenueCents: 699, activeSubscribers: 1 });
+  });
+});
+
+describe("attentionHitRate from owned posts", () => {
+  it("counts mature owned posts of the experiment and hits at the configured view threshold", async () => {
+    const { metrics, store } = world(null);
+    const piece = (id: string, postedAt: string, views: number) =>
+      ({ id, ventureId: "v1", experimentId: "exp1", status: "posted", postedAt, stats: { asOf: postedAt, views } }) as never;
+    store.content.put(piece("c1", "2026-10-01T00:00:00.000Z", 6_000));
+    store.content.put(piece("c2", "2026-10-02T00:00:00.000Z", 100));
+    store.content.put(piece("c3", "2026-10-10T00:00:00.000Z", 9_000)); // younger than 48h
+    const out = await metrics.cellMetric(req({ numerator: "post_hit", denominator: "post", maturityHours: 48, windowHours: undefined }));
+    expect(out).toEqual({ successes: 1, trials: 2, bySource: { c1: { successes: 1, trials: 1 }, c2: { successes: 0, trials: 1 } } });
   });
 });

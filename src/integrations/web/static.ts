@@ -27,6 +27,8 @@ export interface WebWriteOptions {
   dryRun: boolean;
   recorder?: DryRunRecorder;
   fetch?: typeof fetch;
+  /** Overrides config.dataDir (the studio's resolved data directory). */
+  dataDir?: string;
 }
 
 export function sha256File(path: string): string {
@@ -94,7 +96,7 @@ export class LocalStaticWebWrite implements WebWrite {
   readonly root: string;
 
   constructor(private readonly opts: WebWriteOptions) {
-    this.root = join(opts.config.dataDir, "web");
+    this.root = join(opts.dataDir ?? opts.config.dataDir, "web");
   }
 
   private copy(from: string, to: string): void {
