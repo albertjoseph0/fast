@@ -190,6 +190,8 @@ export const StudioConfig = z.object({
        * Marketplace creators typically apply, get a draft approved and post within a week.
        */
       maxHoursToFirstExposure: z.number().int().min(1).default(168),
+      /** Creators post across this many hours after their first post; creator-led reads cover it. */
+      creatorPostingWindowHours: z.number().int().min(0).default(120),
       /** Absolute per-metric sample floors in denominator units (posts for post-unit metrics). */
       minSampleFloor: z
         .record(z.string(), z.number().int().min(1))

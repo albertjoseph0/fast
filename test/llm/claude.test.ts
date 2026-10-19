@@ -103,7 +103,7 @@ describe("Claude adapter requests", () => {
     expect(calls).toHaveLength(1);
     const call = calls[0];
     expect(call?.api).toBe("messages");
-    expect(call?.method).toBe("create");
+    expect(call?.method).toBe("stream");
     const body = call?.body;
     expect(body?.model).toBe("anthropic/claude-opus-5.5");
     expect(body?.max_tokens).toBe(16_000);
@@ -194,7 +194,8 @@ describe("Claude adapter retries and errors", () => {
   });
 
   it("retries a max_tokens stop once with double the budget, streaming above 16K", async () => {
-    const { llm, calls } = setup("gateway", [reply('{"lens":', { stop_reason: "max_tokens" }), reply(JSON.stringify(CRITIQUE))]);
+    // The direct API streams only large requests (the gateway always streams).
+    const { llm, calls } = setup("anthropic", [reply('{"lens":', { stop_reason: "max_tokens" }), reply(JSON.stringify(CRITIQUE))]);
     expect(await llm.object(critiqueReq())).toEqual(CRITIQUE);
     expect(calls.map((c) => [c.method, c.body.max_tokens])).toEqual([
       ["create", 16_000],

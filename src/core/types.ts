@@ -483,6 +483,8 @@ export interface BuildRecord {
   version: string;
   buildNumber: number;
   specVersion: number;
+  /** The published site the render baked into the app (legal links, deep-link domain). */
+  webBaseUrl?: string;
   checks: { name: string; passed: boolean; detail: string }[];
   builtAt: Iso;
   easBuildId?: string;

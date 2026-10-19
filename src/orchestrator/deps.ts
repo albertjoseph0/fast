@@ -15,6 +15,9 @@ export type RenderApp = (input: {
   domains: SensitiveDomain[];
   outRoot: string;
   templateDir: string;
+  /** Apple team id for the universal-link files (the publisher account's team). */
+  appleTeamId?: string;
+  builtAt?: string;
 }) => BuildRecord & { files: string[] };
 
 export interface StudioDeps {

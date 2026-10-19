@@ -63,8 +63,13 @@ export function testingDays(v: Venture, now: Iso): number {
   return Math.max(0, (new Date(now).getTime() - new Date(v.timeboxStartedAt).getTime() - v.blockedMs) / 86_400_000);
 }
 
+/** A venture that completed its ladder has met the time box, even while its scale decision is pending. */
+export function ladderComplete(v: Venture): boolean {
+  return v.ladder.steps.length > 0 && v.ladder.stepIndex >= v.ladder.steps.length;
+}
+
 export function timeboxExpired(v: Venture, now: Iso, config: StudioConfig): boolean {
-  return TESTING_STAGES.includes(v.stage) && testingDays(v, now) > config.portfolio.maxDaysToValidate;
+  return TESTING_STAGES.includes(v.stage) && !ladderComplete(v) && testingDays(v, now) > config.portfolio.maxDaysToValidate;
 }
 
 /** Latest job of an op for a venture, if any. */

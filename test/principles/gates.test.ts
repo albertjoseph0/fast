@@ -259,3 +259,14 @@ describe("individual gates", () => {
     expect(gateDifferentiation(astra(), ["Strum"]).verdict).toBe("pass");
   });
 });
+
+describe("keyword backstop precision", () => {
+  it("flags dating apps and budgeting tools but not other senses of the words", async () => {
+    const { keywordDomains } = await import("../../src/principles/sensitivity.ts");
+    expect(keywordDomains("Paste the text you're about to send your match on a dating app")).toContain("dating_safety");
+    expect(keywordDomains("Back to dating after a divorce")).toContain("dating_safety");
+    expect(keywordDomains("Snap a vintage tee's tag for dating the print era")).not.toContain("dating_safety");
+    expect(keywordDomains("A budgeting coach for your first paycheck")).toContain("finance");
+    expect(keywordDomains("Budget-friendly thrift flips for resellers")).not.toContain("finance");
+  });
+});

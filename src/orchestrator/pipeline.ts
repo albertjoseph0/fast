@@ -83,7 +83,10 @@ async function ensureBuild(ctx: TickContext, deps: StudioDeps, v: Venture): Prom
     });
   }
   if (!v.bindings.backendUrl) return v; // the render bakes in the backend URL; advanceBuilding waits for it
-  if (!v.build || v.build.specVersion !== v.specVersion) {
+  // Re-render for a new spec version, and once after the site is published so the app links to it.
+  const staleUrls = v.build !== undefined && v.bindings.webBaseUrl !== undefined && v.build.webBaseUrl !== v.bindings.webBaseUrl && !v.build.easBuildId;
+  if (!v.build || v.build.specVersion !== v.specVersion || staleUrls) {
+    const teamId = ctx.store.publishers.get(v.bindings.publisherAccountIds.ios ?? "")?.externalTeamId;
     const record = deps.renderApp({
       venture: v,
       spec: v.spec as NonNullable<Venture["spec"]>,
@@ -92,13 +95,16 @@ async function ensureBuild(ctx: TickContext, deps: StudioDeps, v: Venture): Prom
       domains: domainsFor(ctx, v),
       outRoot: deps.outRoot,
       templateDir: deps.templateDir,
+      builtAt: clock.iso(),
+      ...(teamId ? { appleTeamId: teamId } : {}),
     });
     const failed = record.checks.filter((c) => !c.passed);
     if (failed.length) {
       transition(ctx.store, clock, v, "killed", `build checks failed: ${failed.map((c) => c.name).join(", ")}`);
       return null;
     }
-    const { files: _files, ...build } = record;
+    const { files: _files, ...rendered } = record;
+    const build = { ...rendered, ...(v.bindings.webBaseUrl ? { webBaseUrl: v.bindings.webBaseUrl } : {}) };
     // A new spec version is a new binary: forget the previously uploaded build so the new one is uploaded.
     const stores = v.build ? v.stores.map(({ storeBuildId: _old, ...rest }) => rest) : v.stores;
     v = patch(ctx.store, clock, v, { build, stores });
@@ -176,7 +182,10 @@ export async function advanceBuilding(ctx: TickContext, deps: StudioDeps, ventur
   const listingJob = latestJob(ctx.store, v.id, "store.update_listing");
   const listingDone = done(ctx, v, "store.update_listing", `v${v.specVersion}`) && listingJob?.status === "succeeded";
   if (!listingDone) {
-    if (!v.bindings.privacyUrl || !v.bindings.supportUrl) return "waiting for legal URLs";
+    if (!v.bindings.privacyUrl || !v.bindings.supportUrl) {
+      // The executor derives these from the published site's privacy/terms/support pages.
+      throw new Error(`site published at ${v.bindings.webBaseUrl} without privacy or support pages; the listing cannot be submitted`);
+    }
     if (listingJob?.status === "running") return "listing processing";
     const screenshots = listFiles(join(build.projectDir, "..", "store", "screenshots"));
     propose({

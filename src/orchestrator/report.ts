@@ -9,7 +9,7 @@ import type { TickContext } from "../core/context.ts";
 import type { AllocationPlan, Venture } from "../core/types.ts";
 import type { LedgerSync } from "../governance/ledger.ts";
 import type { StudioDeps } from "./deps.ts";
-import { testingDays } from "./lifecycle.ts";
+import { TESTING_STAGES, testingDays } from "./lifecycle.ts";
 
 const usd = (cents: number) => `${cents < 0 ? "-" : ""}$${(Math.abs(cents) / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -44,7 +44,7 @@ function ventureDetail(ctx: TickContext, v: Venture): string {
   const rec = v.stores.find((s) => s.platform === "ios");
   if (rec) parts.push(`store ${rec.status}${rec.territories.length ? ` [${rec.territories.join(",")}]` : ""}`);
   if (v.blockedOn.length) parts.push(`blocked on ${v.blockedOn.join(",")}`);
-  if (v.timeboxStartedAt) parts.push(`${testingDays(v, ctx.ports.clock.iso()).toFixed(0)}d in test`);
+  if (v.timeboxStartedAt && TESTING_STAGES.includes(v.stage)) parts.push(`${testingDays(v, ctx.ports.clock.iso()).toFixed(0)}d in test`);
   const net = ctx.store.net({ ventureId: v.id });
   if (net !== 0) parts.push(`net ${usd(net)}`);
   if (v.endedReason) parts.push(`ended: ${v.endedReason}`);

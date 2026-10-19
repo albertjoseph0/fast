@@ -41,13 +41,13 @@ function conceptText(r: IdeaRecord): string {
   return `${r.idea.title} ${r.idea.oneLiner} ${r.idea.verdictMoment} ${r.idea.aiCapability}`;
 }
 
-function nearestVenture(ctx: TickContext, record: IdeaRecord): { id: string; score: number } | null {
+/** The closest earlier idea: a venture's idea (reported as the venture) or any previously screened idea. */
+function nearestConsidered(ctx: TickContext, record: IdeaRecord): { id: string; score: number } | null {
+  const ventureOf = new Map(ctx.store.ventures.list().map((v) => [v.ideaId, v.id]));
   let best: { id: string; score: number } | null = null;
-  for (const v of ctx.store.ventures.list()) {
-    const other = ctx.store.ideas.get(v.ideaId);
-    if (!other) continue;
+  for (const other of ctx.store.ideas.list((r) => r.id !== record.id && (ventureOf.has(r.id) || ctx.store.latestScreening(r.id) !== undefined))) {
     const score = overlap(conceptText(record), conceptText(other));
-    if (!best || score > best.score) best = { id: v.id, score };
+    if (!best || score > best.score) best = { id: ventureOf.get(other.id) ?? other.id, score };
   }
   return best;
 }
@@ -128,8 +128,8 @@ export async function runDiscovery(ctx: TickContext, deps: StudioDeps, freeCashC
   for (const record of records) {
     ctx.store.ideas.put(record);
     ctx.log("idea.created", { ideaId: record.id, title: record.idea.title, coreNeed: record.idea.coreNeed }, undefined);
-    // An idea the portfolio already tried (live or dead) under another name is not a new shot on goal.
-    const twin = nearestVenture(ctx, record);
+    // An idea the studio already considered (built, killed or rejected) under another name is not a new shot on goal.
+    const twin = nearestConsidered(ctx, record);
     if (twin && twin.score >= NOVELTY_OVERLAP) {
       ctx.log("idea.screened", { ideaId: record.id, verdict: "reject", score: 0, reasons: [`near-duplicate of ${twin.id} (${Math.round(twin.score * 100)}% overlap)`] });
       continue;

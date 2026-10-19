@@ -95,3 +95,15 @@ describe("ventureEconomics and planAllocation", () => {
     expect(plan.lanes.reduce((s, l) => s + l.proposedDailyCents, 0)).toBeLessThanOrEqual(w.ledger.dailySpendCap() - plan.testBudgetCents);
   });
 });
+
+describe("time box", () => {
+  it("does not expire for a venture that completed its ladder and awaits a scale decision", async () => {
+    const { timeboxExpired } = await import("../../src/orchestrator/lifecycle.ts");
+    const w = makeWorld();
+    const v = w.store.ventures.require(w.venture.id);
+    const later = new Date(new Date(v.timeboxStartedAt as string).getTime() + 90 * 86_400_000).toISOString();
+    expect(timeboxExpired(v, later, w.config)).toBe(true);
+    const done = { ...v, ladder: { ...v.ladder, stepIndex: v.ladder.steps.length, validated: ["S1_distribution", "S1_activation", "S4_monetization"] as typeof v.ladder.validated } };
+    expect(timeboxExpired(done, later, w.config)).toBe(false);
+  });
+});

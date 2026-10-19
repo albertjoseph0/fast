@@ -9,7 +9,7 @@ const KEYWORDS: Record<SensitiveDomain, RegExp> = {
   astrology_fortune:
     /\b(astrolog\w*|horoscopes?|zodiac|birth chart|natal chart|star signs?|sun signs?|moon signs?|rising signs?|tarot|fortune[- ]?tell\w*|psychics?|numerolog\w*|palm[- ]?reading|palmistry|synastry)\b/i,
   dating_safety:
-    /\b(dating|tinder|hinge|bumble|hook-?ups?|catfish\w*|first dates?|pick-?up lines?|rizz|flirt\w*|matches on)\b/i,
+    /\b(online dating|speed dating|dating (apps?|profiles?|life|advice|coach\w*|scene|matches|messages|texts?|prospects?)|(back to|returning to|start(ing)?|out) dating|dating (again|after)|tinder|hinge|bumble|hook-?ups?|catfish\w*|first dates?|pick-?up lines?|rizz|flirt\w*|matches on|your match|crush(es)?)\b/i,
   health:
     /\b((?<!mental )health(care|y)?|calories?|calorie counting|diet(s|ing)?|nutrition\w*|macros|weight[- ]loss|lose weight|medical|symptoms?|doctors?|diseases?|medications?|pregnan\w*|fertility|period track\w*|glucose|blood pressure|bmi)\b/i,
   mental_health:
@@ -19,7 +19,7 @@ const KEYWORDS: Record<SensitiveDomain, RegExp> = {
   ai_companion:
     /\b(ai (girl|boy)friends?|(ai|virtual|digital) companions?|companion (chat|bot)s?|chatbot friends?|virtual (partners?|girlfriends?|boyfriends?|friends?)|ai friends?|role-?play\w*|character chat)\b/i,
   finance:
-    /\b(invest\w*|stocks?|crypto\w*|bitcoin|forex|day[- ]?trad\w*|options trading|credit scores?|loans?|debts?|budget\w*|tax (returns?|filing)|retirement|financial advice)\b/i,
+    /\b(invest\w*|stocks?|crypto\w*|bitcoin|forex|day[- ]?trad\w*|options trading|credit scores?|loans?|debts?|budget(ing| apps?| trackers?| planners?)|personal finance|money management|tax (returns?|filing)|retirement|financial advice)\b/i,
   minors:
     /\b(teens?|teenagers?|tweens?|kids?|children|child|minors?|middle[- ]school\w*|high[- ]school\w*|junior high|underage|under 1[38])\b/i,
   religion:

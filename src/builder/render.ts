@@ -32,6 +32,9 @@ export interface RenderInput {
   domains: SensitiveDomain[];
   outRoot: string;
   templateDir: string;
+  /** Apple team id for studio.json and the AASA appID; a placeholder when unknown. */
+  appleTeamId?: string;
+  builtAt?: string;
 }
 
 type Check = BuildRecord["checks"][number];
@@ -124,7 +127,7 @@ export function renderApp(input: RenderInput): BuildRecord & { files: string[] }
   copyTemplate(input.templateDir, projectDir);
 
   const urls = ventureUrls(venture, config);
-  const studio = buildStudioJson({ venture, spec, config });
+  const studio = buildStudioJson({ venture, spec, config, ...(input.appleTeamId ? { appleTeamId: input.appleTeamId } : {}) });
   write(join(projectDir, "spec.json"), json(spec), files);
   write(join(projectDir, "studio.json"), json(studio), files);
   const easPath = join(projectDir, "eas.json");
@@ -213,7 +216,7 @@ export function renderApp(input: RenderInput): BuildRecord & { files: string[] }
     buildNumber: venture.specVersion,
     specVersion: venture.specVersion,
     checks,
-    builtAt: venture.updatedAt,
+    builtAt: input.builtAt ?? venture.updatedAt,
     files: [...listFiles(projectDir).filter((f) => !f.includes(`${join(projectDir, "node_modules")}`) && !generated.has(f)), ...files],
   };
 }

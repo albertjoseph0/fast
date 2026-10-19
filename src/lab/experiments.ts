@@ -212,7 +212,11 @@ export function designExperiment(input: DesignInput): DesignResult {
   const disjoint = assertDisjoint(cells);
   if (disjoint.length) return { ok: false, reason: disjoint.join("; ") };
 
-  const readHours = Math.max(...input.stages.map((s) => config.lab.readHours[s] ?? 96));
+  // Creator posts go up across a posting window and each needs to mature before it counts, so a
+  // creator-staffed read covers the whole window (otherwise only the first posts decide).
+  const viewMaturity = Math.max(0, ...metrics.filter((m) => m.denominator === "view").map((m) => m.maturityHours));
+  const postingWindow = channel === "creator_ugc" && viewMaturity > 0 ? config.lab.creatorPostingWindowHours + viewMaturity : 0;
+  const readHours = Math.max(postingWindow, ...input.stages.map((s) => config.lab.readHours[s] ?? 96));
   const validity: ValidityRequirement[] = [
     { id: "exposure_delivered", description: "Each cell starts receiving traffic within the exposure SLA", threshold: config.lab.maxHoursToFirstExposure },
     { id: "min_sample", description: "Each required metric reaches its registered sample by the read deadline" },

@@ -81,7 +81,7 @@ export interface StudioJson {
   testGeos: string[];
 }
 
-export function buildStudioJson(input: { venture: Venture; spec: AppSpec; config: StudioConfig }): StudioJson {
+export function buildStudioJson(input: { venture: Venture; spec: AppSpec; config: StudioConfig; appleTeamId?: string }): StudioJson {
   const { venture, spec, config } = input;
   const b = venture.bindings;
   const urls = ventureUrls(venture, config);
@@ -93,7 +93,7 @@ export function buildStudioJson(input: { venture: Venture; spec: AppSpec; config
     company: { legalName: config.company.legalName, supportEmail: config.company.supportEmail },
     bundleId: b.bundleId,
     androidPackage: b.androidPackage,
-    appleTeamId: TEAM_ID_PLACEHOLDER,
+    appleTeamId: input.appleTeamId ?? TEAM_ID_PLACEHOLDER,
     deepLinkDomain: urls.deepLinkDomain,
     backendUrl: (b.backendUrl ?? "").replace(/\/+$/, ""),
     urls: { site: urls.site, privacy: urls.privacy, terms: urls.terms, support: urls.support, appStore: b.appStoreUrl ?? null, play: b.playUrl ?? null },

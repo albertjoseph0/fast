@@ -255,7 +255,10 @@ class ClaudeLlm implements LlmPort {
     const api = this.provider === "anthropic" ? this.client.beta.messages : this.client.messages;
     let res: ClaudeResponse;
     try {
-      res = body.max_tokens > STREAM_ABOVE_TOKENS ? await api.stream(body).finalMessage() : await api.create(body);
+      // Stream through the gateway: proxies drop long idle non-streaming requests (seen as 502s on
+      // high-effort idea batches), and streaming keeps bytes flowing while the model thinks.
+      const stream = this.provider === "gateway" || body.max_tokens > STREAM_ABOVE_TOKENS;
+      res = stream ? await api.stream(body).finalMessage() : await api.create(body);
     } catch (err) {
       throw new LlmError("api", `Claude API call failed for ${meta.purpose}: ${(err as Error).message}`, { cause: err });
     }
