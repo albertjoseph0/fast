@@ -77,7 +77,7 @@ export function creatorPool(niche: string, platform: Platform, seed: number): Si
     const medianViews30d = Math.round(Math.min(2_000_000, Math.max(500, rng.lognormal(15_000, 1))));
     const under18 = rng.chance(0.1) ? null : Math.round(Math.min(0.6, rng.lognormal(0.12, 0.6)) * 1000) / 1000;
     pool.push({
-      externalId: `simc_${platform}_${(hashString(key) % 100_000).toString(36)}_${i}`,
+      externalId: `simc_${platform}_${((hashString(key) >>> 0) % 100_000).toString(36)}_${i}`,
       platform,
       handle: `${name}.${tag}${i}`,
       niche,

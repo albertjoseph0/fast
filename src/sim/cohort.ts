@@ -220,12 +220,6 @@ export function sampleCohort(seed: CohortSeed, rates: FunnelRates, product: Coho
 // As-of counting (cohort maturity and windows)
 // ---------------------------------------------------------------------------
 
-function sum(xs: readonly number[]): number {
-  let s = 0;
-  for (const x of xs) s += x;
-  return s;
-}
-
 function sumWhere(xs: readonly number[], keep: (offset: number) => boolean): number {
   let s = 0;
   for (let o = 0; o < xs.length; o++) if (keep(o)) s += xs[o] as number;
@@ -338,8 +332,4 @@ export function cumulativeAt(c: Cohort, ageDays: number) {
     proceedsCents: charged * c.proceedsPerCharge,
     refundsCents: refunded * c.proceedsPerCharge,
   };
-}
-
-export function totalTrials(c: Cohort): number {
-  return sum(c.trials);
 }

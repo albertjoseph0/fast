@@ -1,0 +1,191 @@
+{
+  "appName": "Astra",
+  "slug": "astra",
+  "version": "1.0.0",
+  "buildNumber": 1,
+  "company": {
+    "legalName": "Fast Studio LLC",
+    "supportEmail": "help@faststudio.example"
+  },
+  "bundleId": "com.faststudio.astra",
+  "androidPackage": "com.faststudio.astra",
+  "appleTeamId": "<TEAM_ID>",
+  "deepLinkDomain": "astra.faststudio.example",
+  "backendUrl": "https://verdict.faststudio.example",
+  "urls": {
+    "site": "https://faststudio.example/astra",
+    "privacy": "https://faststudio.example/astra/privacy",
+    "terms": "https://faststudio.example/astra/terms",
+    "support": "https://faststudio.example/astra/support",
+    "appStore": null,
+    "play": null
+  },
+  "easProjectId": null,
+  "env": {
+    "posthogApiKey": "EXPO_PUBLIC_POSTHOG_API_KEY",
+    "posthogHost": "EXPO_PUBLIC_POSTHOG_HOST",
+    "revenueCatIosKey": "EXPO_PUBLIC_REVENUECAT_IOS_KEY",
+    "revenueCatAndroidKey": "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY"
+  },
+  "entitlementId": "pro",
+  "products": [
+    {
+      "ladderId": "week_499_t3",
+      "productId": "com.faststudio.astra.week_499_t3",
+      "period": "week",
+      "trialDays": 3,
+      "terms": "3-day free trial, then {price}/week. Renews automatically until cancelled. Cancel anytime in Settings at least 24 hours before renewal."
+    },
+    {
+      "ladderId": "week_599_t3",
+      "productId": "com.faststudio.astra.week_599_t3",
+      "period": "week",
+      "trialDays": 3,
+      "terms": "3-day free trial, then {price}/week. Renews automatically until cancelled. Cancel anytime in Settings at least 24 hours before renewal."
+    },
+    {
+      "ladderId": "week_699_t3",
+      "productId": "com.faststudio.astra.week_699_t3",
+      "period": "week",
+      "trialDays": 3,
+      "terms": "3-day free trial, then {price}/week. Renews automatically until cancelled. Cancel anytime in Settings at least 24 hours before renewal."
+    },
+    {
+      "ladderId": "week_699_t0",
+      "productId": "com.faststudio.astra.week_699_t0",
+      "period": "week",
+      "trialDays": 0,
+      "terms": "{price}/week. Renews automatically until cancelled. Cancel anytime in Settings at least 24 hours before renewal."
+    },
+    {
+      "ladderId": "week_799_t3",
+      "productId": "com.faststudio.astra.week_799_t3",
+      "period": "week",
+      "trialDays": 3,
+      "terms": "3-day free trial, then {price}/week. Renews automatically until cancelled. Cancel anytime in Settings at least 24 hours before renewal."
+    },
+    {
+      "ladderId": "week_999_t7",
+      "productId": "com.faststudio.astra.week_999_t7",
+      "period": "week",
+      "trialDays": 7,
+      "terms": "7-day free trial, then {price}/week. Renews automatically until cancelled. Cancel anytime in Settings at least 24 hours before renewal."
+    },
+    {
+      "ladderId": "month_1499_t0",
+      "productId": "com.faststudio.astra.month_1499_t0",
+      "period": "month",
+      "trialDays": 0,
+      "terms": "{price}/month. Renews automatically until cancelled. Cancel anytime in Settings at least 24 hours before renewal."
+    },
+    {
+      "ladderId": "month_1999_t3",
+      "productId": "com.faststudio.astra.month_1999_t3",
+      "period": "month",
+      "trialDays": 3,
+      "terms": "3-day free trial, then {price}/month. Renews automatically until cancelled. Cancel anytime in Settings at least 24 hours before renewal."
+    },
+    {
+      "ladderId": "year_2999_t3",
+      "productId": "com.faststudio.astra.year_2999_t3",
+      "period": "year",
+      "trialDays": 3,
+      "terms": "3-day free trial, then {price}/year. Renews automatically until cancelled. Cancel anytime in Settings at least 24 hours before renewal."
+    },
+    {
+      "ladderId": "year_3999_t0",
+      "productId": "com.faststudio.astra.year_3999_t0",
+      "period": "year",
+      "trialDays": 0,
+      "terms": "{price}/year. Renews automatically until cancelled. Cancel anytime in Settings at least 24 hours before renewal."
+    },
+    {
+      "ladderId": "year_4999_t7",
+      "productId": "com.faststudio.astra.year_4999_t7",
+      "period": "year",
+      "trialDays": 7,
+      "terms": "7-day free trial, then {price}/year. Renews automatically until cancelled. Cancel anytime in Settings at least 24 hours before renewal."
+    }
+  ],
+  "aiProviders": [
+    {
+      "id": "anthropic",
+      "name": "Anthropic, PBC",
+      "role": "AI model provider (Claude) that generates your results"
+    },
+    {
+      "id": "studio_backend",
+      "name": "our own servers",
+      "role": "relays your request to the AI provider and enforces usage limits"
+    }
+  ],
+  "privacyManifest": {
+    "NSPrivacyTracking": false,
+    "NSPrivacyTrackingDomains": [],
+    "NSPrivacyCollectedDataTypes": [
+      {
+        "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeOtherUserContent",
+        "NSPrivacyCollectedDataTypeLinked": false,
+        "NSPrivacyCollectedDataTypeTracking": false,
+        "NSPrivacyCollectedDataTypePurposes": [
+          "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+        ]
+      },
+      {
+        "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeDeviceID",
+        "NSPrivacyCollectedDataTypeLinked": false,
+        "NSPrivacyCollectedDataTypeTracking": false,
+        "NSPrivacyCollectedDataTypePurposes": [
+          "NSPrivacyCollectedDataTypePurposeAnalytics"
+        ]
+      },
+      {
+        "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeProductInteraction",
+        "NSPrivacyCollectedDataTypeLinked": false,
+        "NSPrivacyCollectedDataTypeTracking": false,
+        "NSPrivacyCollectedDataTypePurposes": [
+          "NSPrivacyCollectedDataTypePurposeAnalytics"
+        ]
+      },
+      {
+        "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypePurchaseHistory",
+        "NSPrivacyCollectedDataTypeLinked": true,
+        "NSPrivacyCollectedDataTypeTracking": false,
+        "NSPrivacyCollectedDataTypePurposes": [
+          "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+        ]
+      }
+    ],
+    "NSPrivacyAccessedAPITypes": [
+      {
+        "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+        "NSPrivacyAccessedAPITypeReasons": [
+          "CA92.1"
+        ]
+      },
+      {
+        "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+        "NSPrivacyAccessedAPITypeReasons": [
+          "C617.1"
+        ]
+      },
+      {
+        "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
+        "NSPrivacyAccessedAPITypeReasons": [
+          "35F9.1"
+        ]
+      },
+      {
+        "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
+        "NSPrivacyAccessedAPITypeReasons": [
+          "E174.1"
+        ]
+      }
+    ]
+  },
+  "testGeos": [
+    "CA",
+    "AU",
+    "NZ"
+  ]
+}

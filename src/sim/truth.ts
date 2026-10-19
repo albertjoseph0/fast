@@ -83,12 +83,12 @@ function activationBase(idea: Idea): number {
   const sustained = idea.interaction.requiresSustainedAttention ? 0.4 : 1;
   const audio = idea.interaction.requiresAudio || idea.interaction.requiresVoiceInput ? 0.75 : 1;
   const taps = idea.interaction.tapsToCoreAction > 5 ? 0.85 : 1;
-  return 0.6 * (idea.singlePlayerValue ? 1 : 0.7) * conditions * friends * sustained * audio * taps;
+  return 0.56 * (idea.singlePlayerValue ? 1 : 0.7) * conditions * friends * sustained * audio * taps;
 }
 
 /** Draw a venture's ground truth. Pass a forked Rng (e.g. rng.fork(`truth:${ventureId}`)). */
 export function truthFor(idea: Idea, rng: Rng): VentureTruth {
-  const luck = rng.lognormal(1, 0.75);
+  const luck = rng.lognormal(1, 0.85);
   const appeal = attention(idea) * luck;
   const hard = idea.monetization.model === "hard_paywall";
   const sensitive = idea.sensitiveDomains.some((d) => REFUND_PRONE.has(d));
@@ -97,9 +97,9 @@ export function truthFor(idea: Idea, rng: Rng): VentureTruth {
 
   return {
     appeal,
-    installsPer1kViews: clamp(0.0016 * appeal ** 1.1 * rng.lognormal(1, 0.15), 0.00005, 0.03),
+    installsPer1kViews: clamp(0.0013 * appeal ** 1.1 * rng.lognormal(1, 0.15), 0.00005, 0.03),
     activationRate: clamp(activationBase(idea) * appeal ** 0.25 * rng.lognormal(1, 0.1), 0.02, 0.92),
-    trialStartRate: clamp(0.12 * MODEL_TRIAL[idea.monetization.model] * appeal ** 0.4 * rng.lognormal(1, 0.2), 0.003, 0.55),
+    trialStartRate: clamp(0.11 * MODEL_TRIAL[idea.monetization.model] * appeal ** 0.4 * rng.lognormal(1, 0.2), 0.003, 0.55),
     trialKeep24h: clamp(0.46 * appeal ** 0.12 * rng.lognormal(1, 0.1), 0.12, 0.88),
     trialToPaidGivenKeep: clamp(0.84 * rng.lognormal(1, 0.05), 0.5, 0.97),
     weeklyFirstRenewal: clamp(0.65 * appeal ** 0.08 * rng.lognormal(1, 0.07), 0.3, 0.9),
