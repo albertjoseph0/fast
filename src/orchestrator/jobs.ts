@@ -4,6 +4,7 @@
  */
 import type { TickContext } from "../core/context.ts";
 import type { ExternalJob, JobPoll, Venture } from "../core/types.ts";
+import { taskDraft } from "../playbook/setup.ts";
 import { patch } from "./lifecycle.ts";
 
 const RETRY_SECONDS = 3_600;
@@ -29,7 +30,10 @@ export async function pollDueJobs(ctx: TickContext): Promise<ExternalJob[]> {
     };
     if (next.status === "running" && now > job.deadlineAt) next = { ...next, status: "failed", error: `deadline ${job.deadlineAt} passed` };
     ctx.store.jobs.put(next);
-    if (next.status !== "running") {
+    if (next.status === "needs_human") {
+      ctx.log("job.updated", { jobId: job.id, op: job.op, status: next.status, error: next.error ?? null }, job.ventureId);
+      if (job.ventureId) ctx.outbox.openTask(taskDraft("store.manual_step", job.ventureId, `${job.op} (${job.id}): ${next.error ?? "the store needs a console step"}`));
+    } else if (next.status !== "running") {
       ctx.log("job.updated", { jobId: job.id, op: job.op, status: next.status, result: next.result ?? null, error: next.error ?? null }, job.ventureId);
       applyJobResult(ctx, next);
     }

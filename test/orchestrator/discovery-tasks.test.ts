@@ -139,3 +139,22 @@ describe("differentiation overlap", () => {
     expect(overlap("AI astrology compatibility reading", "golf swing analyzer for weekend golfers")).toBe(0);
   });
 });
+
+describe("store console steps", () => {
+  it("opens a task when a job needs a human and re-arms the job when it is done", async () => {
+    const { pollDueJobs } = await import("../../src/orchestrator/jobs.ts");
+    const w = makeWorld();
+    const now = w.clock.iso();
+    w.store.jobs.put({ id: "job_000001", op: "store.upsert_subscriptions", ventureId: w.venture.id, actionId: "act_x", externalRef: {}, status: "running", nextPollAt: now, deadlineAt: "2099-01-01T00:00:00.000Z", attempts: 0, createdAt: now });
+    const store = { kind: "sim", poll: async () => ({ status: "needs_human" as const, error: "subscription needs a review screenshot" }) };
+    const ctx = tickContext(w, { ports: { store: store as never } });
+    await pollDueJobs(ctx);
+    const task = w.store.tasks.list((t) => t.kind === "store.manual_step")[0];
+    expect(task?.instructions).toMatch(/review screenshot/);
+    expect(w.store.jobs.require("job_000001").status).toBe("needs_human");
+    w.clock.advanceHours(2);
+    w.gov.completeTask(task?.id as string, { confirmed: "yes" }, "owner");
+    expect(applyTaskOutcomes(ctx)).toContain("job_000001 re-armed after " + task?.id);
+    expect(w.store.jobs.require("job_000001").status).toBe("running");
+  });
+});

@@ -105,6 +105,13 @@ export function applyTaskOutcomes(ctx: TickContext): string[] {
     const r = applyReviewDecision(ctx, t);
     if (r) out.push(r);
   }
+  // A finished console step re-arms the venture's jobs that were waiting on it.
+  for (const t of ctx.store.tasks.list((x) => x.status === "done" && x.kind === "store.manual_step" && Boolean(x.ventureId))) {
+    for (const job of ctx.store.jobs.list((j) => j.ventureId === t.ventureId && j.status === "needs_human" && j.createdAt <= (t.completedAt ?? ""))) {
+      ctx.store.jobs.put({ ...job, status: "running", nextPollAt: ctx.ports.clock.iso() });
+      out.push(`${job.id} re-armed after ${t.id}`);
+    }
+  }
   const shared = studioBindings(ctx);
   for (const v of ctx.store.ventures.list(isActive)) {
     const missingBackend = shared.backendUrl && !v.bindings.backendUrl;

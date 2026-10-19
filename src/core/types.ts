@@ -423,7 +423,9 @@ export type HumanTaskKind =
   | "creators.fund_wallet"
   | "web.deploy_site"
   | "backend.deploy"
-  | "legal.review";
+  | "legal.review"
+  /** A store console step an adapter reported it cannot do by API (e.g. a subscription's review screenshot). */
+  | "store.manual_step";
 
 export interface HumanTask {
   id: string;

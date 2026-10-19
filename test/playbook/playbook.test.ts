@@ -290,6 +290,7 @@ describe("setup checklist", () => {
     "web.deploy_site",
     "backend.deploy",
     "legal.review",
+    "store.manual_step",
   ];
 
   it("covers every human task kind exactly once", () => {

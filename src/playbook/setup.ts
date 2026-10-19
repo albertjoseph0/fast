@@ -217,6 +217,18 @@ export const SETUP_CHECKLIST: readonly SetupStep[] = [
     inputs: [{ key: "backendUrl", label: "Backend base URL", pattern: HTTPS_URL }],
   },
   {
+    kind: "store.manual_step",
+    scope: "venture",
+    title: "Finish a store step the API cannot do",
+    instructions: [
+      "A store adapter reported a step that only the console allows, most often the App Review screenshot a new subscription needs.",
+      "1. Open the console link in the context below ([App Store Connect](https://appstoreconnect.apple.com/apps) or [Play Console](https://play.google.com/console)).",
+      "2. Complete the missing item exactly as the console asks; do not change prices, territories or copy.",
+      "3. Confirm here; the studio re-checks the store and continues.",
+    ].join("\n"),
+    inputs: [CONFIRM],
+  },
+  {
     kind: "legal.review",
     scope: "venture",
     title: "Legal review of a sensitive venture",
