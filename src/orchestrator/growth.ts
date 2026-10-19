@@ -13,6 +13,7 @@ import type {
   CreatorSubmission,
   ExperimentPlan,
   ExternalSubmission,
+  Hook,
   OwnedAccount,
   Platform,
   Venture,
@@ -65,8 +66,15 @@ function upsertCreator(ctx: TickContext, v: Venture, ext: ExternalSubmission): C
   return ctx.store.creators.put(creator);
 }
 
-function paidSoFar(ctx: TickContext, campaign: CreatorCampaign): number {
-  return ctx.store.submissions.list((s) => s.campaignId === campaign.id).reduce((sum, s) => sum + (s.stage === "paid" ? s.payoutCents : 0), 0);
+/** Paid plus already-proposed payouts: payouts proposed in the same tick must share the remaining budget. */
+function committedOnCampaign(ctx: TickContext, campaign: CreatorCampaign): number {
+  const subs = ctx.store.submissions.list((s) => s.campaignId === campaign.id);
+  const ids = new Set(subs.map((s) => s.id));
+  const paid = subs.reduce((sum, s) => sum + (s.stage === "paid" ? s.payoutCents : 0), 0);
+  const pending = ctx.store.actions
+    .list((a) => a.kind === "creator.payout" && OPEN_STATUSES.includes(a.status) && ids.has((a.payload as { submissionId: string }).submissionId))
+    .reduce((sum, a) => sum + (a.payload as { amountCents: number }).amountCents, 0);
+  return paid + pending;
 }
 
 function hasOpen(ctx: TickContext, kind: string, naturalKey: string, ventureId: string): boolean {
@@ -141,7 +149,7 @@ async function stepSubmission(ctx: TickContext, deps: StudioDeps, v: Venture, ca
     sub = ctx.store.submissions.put({ ...sub, verification, viewsAtLock, lockedAt: now });
     const amountCents = computePayout(
       { flatFeeCents: campaign.flatFeeCents, cpmCents: campaign.cpmCents, maxPayoutCents: campaign.maxPayoutPerVideoCents },
-      { viewsAtLock, campaignRemainingCents: Math.max(0, campaign.budgetCents - paidSoFar(ctx, campaign)) },
+      { viewsAtLock, campaignRemainingCents: Math.max(0, campaign.budgetCents - committedOnCampaign(ctx, campaign)) },
     );
     if (amountCents <= 0) return;
     ctx.outbox.propose({
@@ -341,6 +349,37 @@ function attributedInstalls(ctx: TickContext, ventureId: string, campaigns: Crea
   return [...latest.values()].reduce((s, n) => s + n, 0);
 }
 
+const MIN_LIVE_HOOKS = 3;
+
+/** Known arms keep their Thompson share; arms new this week split the exploration share. */
+function armShares(arms: string[], allocation: Record<string, number> | undefined, exploreShare: number): Record<string, number> {
+  if (!allocation) return Object.fromEntries(arms.map((a) => [a, 1 / arms.length]));
+  const fresh = arms.filter((a) => !(a in allocation));
+  const known = arms.filter((a) => a in allocation);
+  const knownTotal = known.reduce((s, a) => s + (allocation[a] ?? 0), 0);
+  const freshShare = fresh.length ? (known.length ? exploreShare : 1) : 0;
+  const out: Record<string, number> = {};
+  for (const a of known) out[a] = knownTotal > 0 ? ((allocation[a] ?? 0) / knownTotal) * (1 - freshShare) : (1 - freshShare) / known.length;
+  for (const a of fresh) out[a] = freshShare / fresh.length;
+  return out;
+}
+
+/** New hooks riffing on the current winners, so culling never leaves the bandit without arms. */
+async function refreshHooks(ctx: TickContext, deps: StudioDeps, v: Venture, live: Hook[], count: number): Promise<Hook[]> {
+  const idea = ideaFor(ctx, v);
+  const seeds = live.length ? live.map((h) => h.text) : idea.hookExamples;
+  const drafts = await deps.agents.draftContent(ctx, { ventureId: v.id, idea, ...(v.spec ? { spec: v.spec } : {}), purpose: "creator_reference", platform: "tiktok", count, hooks: seeds });
+  const taken = new Set(ctx.store.hooks.list((h) => h.ventureId === v.id).map((h) => h.text.toLowerCase()));
+  const now = ctx.ports.clock.iso();
+  const added: Hook[] = [];
+  for (const d of drafts) {
+    if (taken.has(d.hook.toLowerCase())) continue;
+    taken.add(d.hook.toLowerCase());
+    added.push(ctx.store.hooks.put({ id: ctx.store.nextId("hook"), ventureId: v.id, formatId: d.formatId, text: d.hook, angle: d.angle, ...(live[0] ? { parentHookId: live[0].id } : {}), source: "generated", status: "exploring", createdAt: now }));
+  }
+  return added.slice(0, count);
+}
+
 /**
  * Weekly creator batches for a scaling venture: close the last batch (cull losing hooks),
  * then open a new one with posts allocated by Thompson sampling.
@@ -371,20 +410,22 @@ export async function runCreativeLoop(ctx: TickContext, deps: StudioDeps, v: Ven
   }
   const spec = v.spec;
   if (!spec || dailyBudgetCents <= 0) return "no budget for a batch";
-  const hooks = ctx.store.hooks.list((h) => h.ventureId === v.id && h.status !== "culled").slice(0, 5);
+  const idea = ideaFor(ctx, v);
+  let hooks = ctx.store.hooks.list((h) => h.ventureId === v.id && h.status !== "culled").slice(0, 5);
+  if (hooks.length < MIN_LIVE_HOOKS) hooks = [...hooks, ...(await refreshHooks(ctx, deps, v, hooks, MIN_LIVE_HOOKS - hooks.length))];
   if (!hooks.length) return "no live hooks";
   const arms = hooks.map((h) => `${h.formatId}:${h.id}`);
-  const shares = allocation && arms.every((a) => a in allocation) ? allocation : Object.fromEntries(arms.map((a) => [a, 1 / arms.length]));
+  const shares = armShares(arms, allocation, cfg.exploreShare);
   const batchBudget = dailyBudgetCents * cfg.batchDays;
   const batchId = ctx.store.nextId("batch");
   const posts = postsPerArm(shares, Math.max(arms.length, Math.round(batchBudget / Math.max(1, ctx.config.creators.defaultDeal.maxPayoutCents))));
   ctx.store.batches.put({ id: batchId, ventureId: v.id, family: "creator", startedAt: now, closesAt: addDays(now, cfg.batchDays), arms, allocation: shares, results: {}, culled: [], status: "open" });
-  const idea = ideaFor(ctx, v);
   const geos = [...new Set([...ctx.config.lab.scaleGeos, ...(v.stores.find((s) => s.platform === "ios")?.territories ?? [])])];
   for (const hook of hooks) {
     const arm = `${hook.formatId}:${hook.id}`;
     const share = shares[arm] ?? 0;
-    const budgetCents = Math.floor(batchBudget * share);
+    // Never above the hard per-action cap; batches are not split to slip under approval thresholds.
+    const budgetCents = Math.min(Math.floor(batchBudget * share), ctx.config.autonomy.hardActionCapCents);
     if (budgetCents < ctx.config.creators.defaultDeal.flatFeeCents || (posts[arm] ?? 0) === 0) continue;
     const brief = await deps.agents.writeBrief(ctx, { idea, spec, topHooks: [hook.text] });
     const campaign: CreatorCampaign = {

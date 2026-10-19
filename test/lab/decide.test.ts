@@ -101,7 +101,22 @@ describe("cell reads", () => {
     const cell = { ...p.cells[0]! };
     delete cell.firstExposureAt;
     expect(evaluateCell({ plan: p, cell, config, now: "2026-01-06T09:00:00.000Z", clockStart: NOW }).decision).toBe("pending");
-    expect(evaluateCell({ plan: p, cell, config, now: LATER, clockStart: NOW }).decision).toBe("invalid");
+    const pastSla = new Date(new Date(NOW).getTime() + (p.maxHoursToFirstExposure + 1) * 3_600_000).toISOString();
+    expect(evaluateCell({ plan: p, cell, config, now: pastSla, clockStart: NOW }).decision).toBe("invalid");
+  });
+
+  it("keeps a concentrated cell valid when its verdict survives dropping the top source", () => {
+    const p = plan(["S1_activation"]);
+    const id = p.cells[0]!.id;
+    const n = (p.minSamplePerCell.activationRate ?? 200) * 2;
+    const bySource: Record<string, { successes: number; trials: number }> = { viral: { successes: Math.round(n * 0.6 * 0.7), trials: Math.round(n * 0.6) } };
+    for (let s = 0; s < 8; s++) bySource[`p${s}`] = { successes: Math.round((n * 0.05) * 0.7), trials: Math.round(n * 0.05) };
+    const total = Object.values(bySource).reduce((a, x) => ({ successes: a.successes + x.successes, trials: a.trials + x.trials }), { successes: 0, trials: 0 });
+    const obs = obsAt(p, id, {});
+    obs.metrics.activationRate = { ...total, bySource };
+    const v = evaluateCell({ plan: p, cell: p.cells[0]!, obs, config, now: LATER, clockStart: NOW });
+    expect(v.validity.find((x) => x.id === "source_concentration")?.passed).toBe(true);
+    expect(v.decision).toBe("pass");
   });
 
   it("passes at target, fails just under the floor, and stops early for futility", () => {
@@ -134,6 +149,25 @@ describe("cell reads", () => {
     const small = obsAt(p, id, {});
     small.metrics.trialStartRate = counts(20, 100, 18);
     expect(evaluateCell({ plan: p, cell: p.cells[0]!, obs: small, config, now: LATER, clockStart: NOW }).decision).toBe("invalid");
+  });
+
+  it("still fails a short cell at the deadline when the shortfall cannot change the answer", () => {
+    const p = plan();
+    const id = p.cells[0]!.id;
+    const n = Math.ceil((p.minSamplePerCell.trialStartRate ?? 300) * 0.4);
+    const weak = obsAt(p, id, {});
+    weak.metrics.trialStartRate = counts(Math.round(n * 0.03), n, 18);
+    const v = evaluateCell({ plan: p, cell: p.cells[0]!, obs: weak, config, now: LATER, clockStart: NOW });
+    expect(v.decision).toBe("fail");
+    expect(v.validity.find((x) => x.id === "min_sample")?.passed).toBe(true);
+  });
+
+  it("does not treat installs outrunning counted views as broken instrumentation", () => {
+    const p = plan();
+    const id = p.cells[0]!.id;
+    const early = obsAt(p, id, {});
+    early.metrics.installsPer1kViews = { successes: 40, trials: 10, bySource: {} };
+    expect(evaluateCell({ plan: p, cell: p.cells[0]!, obs: early, config, now: NOW, clockStart: NOW }).validity.find((x) => x.id === "instrumentation")?.passed).toBe(true);
   });
 });
 

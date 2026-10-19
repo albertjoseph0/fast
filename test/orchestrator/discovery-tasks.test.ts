@@ -28,7 +28,16 @@ describe("discovery", () => {
     const deps = fakeDeps({
       scanMarket: async () => [],
       generateIdeas: async () =>
-        ["Alpha", "Beta", "Gamma"].map((title) => ({ id: w.store.nextId("idea"), idea: { ...IDEA, title }, sourceSignalIds: [], createdAt: w.clock.iso() })),
+        [
+          ["Alpha", "Rates your golf swing from one video", "swing score with three fixes", "pose estimation coaching"],
+          ["Beta", "Turns any song into guitar chords", "chord sheet in seconds", "music transcription"],
+          ["Gamma", "Identifies houseplants and their problems", "plant name and care verdict", "image classification"],
+        ].map(([title, oneLiner, verdictMoment, aiCapability]) => ({
+          id: `idea_${title}`,
+          idea: { ...IDEA, title: title as string, oneLiner: oneLiner as string, verdictMoment: verdictMoment as string, aiCapability: aiCapability as string },
+          sourceSignalIds: [],
+          createdAt: w.clock.iso(),
+        })),
       screen: async (_ctx, record) => ({ ...screening([]), id: `scr_${++n}`, ideaId: record.id, score: record.idea.title === "Gamma" ? 90 : record.idea.title === "Alpha" ? 70 : 40, verdict: record.idea.title === "Beta" ? "reject" : "advance" }),
     });
     const ctx = tickContext(w, { tick: 1 });
@@ -38,6 +47,23 @@ describe("discovery", () => {
     const created = w.store.ventures.list((v) => v.stage === "screened").map((v) => v.name);
     expect(created).toEqual(["Gamma", "Alpha"]);
     expect(w.store.ventures.list((v) => v.name === "Gamma")[0]?.bindings.bundleId).toBe("com.faststudio.gamma");
+  });
+
+  it("skips an idea that re-runs an existing venture's concept under a new name", async () => {
+    const w = makeWorld();
+    let screened = 0;
+    const deps = fakeDeps({
+      scanMarket: async () => [],
+      generateIdeas: async () => [{ id: "idea_astra_go", idea: { ...IDEA, title: "Astra Go" }, sourceSignalIds: [], createdAt: w.clock.iso() }],
+      screen: async () => {
+        screened++;
+        return screening([]);
+      },
+    });
+    const out = await runDiscovery(tickContext(w, { tick: 1 }), deps, 5_000_000);
+    expect(screened).toBe(0);
+    expect(out).toMatch(/0 advanced/);
+    expect(w.store.recentEvents((e) => e.type === "idea.screened").at(-1)?.data["reasons"]).toEqual([expect.stringMatching(/near-duplicate of ven_000001/)]);
   });
 
   it("holds a flagged idea until a human approves it and respects build slots", () => {

@@ -54,18 +54,30 @@ function hoursBetween(a: Iso, b: Iso): number {
 }
 
 function posteriorFor(m: MetricSpec, counts: MetricCounts): { post: Posterior; nEffective: number } {
-  const eff = effectiveCounts({ successes: counts.successes, trials: counts.trials }, counts.bySource);
+  // Per-view metrics join two sources (storefront installs over in-geo post views), so early on installs
+  // can outrun counted views; the posterior caps successes at trials instead of treating that as breakage.
+  const successes = m.kind === "proportion" ? Math.min(counts.successes, counts.trials) : counts.successes;
+  const eff = effectiveCounts({ successes, trials: counts.trials }, counts.bySource);
   const post = m.kind === "rate" ? ratePosterior(eff.successes, eff.trials, m.floor) : proportionPosterior(eff.successes, eff.trials, m.floor);
   return { post, nEffective: eff.trials };
 }
 
-function sourceProblem(counts: MetricCounts, config: StudioConfig): string | null {
+function sourceProblem(counts: MetricCounts, config: StudioConfig): { kind: "few_sources" | "concentrated"; detail: string } | null {
   const sources = Object.values(counts.bySource).filter((s) => s.trials > 0);
-  if (sources.length < config.lab.minSources) return `${sources.length} sources (< ${config.lab.minSources})`;
+  if (sources.length < config.lab.minSources) return { kind: "few_sources", detail: `${sources.length} sources (< ${config.lab.minSources})` };
   const top = Math.max(...sources.map((s) => s.trials));
   const share = counts.trials > 0 ? top / counts.trials : 1;
-  if (share > config.lab.maxSourceShare) return `top source is ${(share * 100).toFixed(0)}% of the denominator`;
+  if (share > config.lab.maxSourceShare) return { kind: "concentrated", detail: `top source is ${(share * 100).toFixed(0)}% of the denominator` };
   return null;
+}
+
+/** Counts with the largest traffic source removed (leave-one-out robustness). */
+function withoutTopSource(k: MetricCounts): MetricCounts {
+  const entries = Object.entries(k.bySource);
+  const top = entries.reduce<[string, { successes: number; trials: number }] | null>((best, e) => (!best || e[1].trials > best[1].trials ? e : best), null);
+  if (!top) return k;
+  const bySource = Object.fromEntries(entries.filter(([id]) => id !== top[0]));
+  return { ...k, successes: Math.max(0, k.successes - top[1].successes), trials: Math.max(0, k.trials - top[1].trials), bySource };
 }
 
 export interface CellEvalInput {
@@ -106,7 +118,7 @@ export function evaluateCell(i: CellEvalInput): CellVerdict {
   // Instrumentation is checked continuously: impossible counts are never a product signal.
   const broken = plan.metrics.filter((m) => {
     const k = counts(m);
-    return k.successes < 0 || k.trials < 0 || (m.kind === "proportion" && k.successes > k.trials);
+    return k.successes < 0 || k.trials < 0 || (m.kind === "proportion" && m.unit === "user" && k.successes > k.trials);
   });
   validity.push({
     id: "instrumentation",
@@ -148,21 +160,42 @@ export function evaluateCell(i: CellEvalInput): CellVerdict {
   const spend = obs?.spendCents ?? 0;
   const overBudget = cell.budgetCents > 0 && spend > cell.budgetCents * 1.1;
   validity.push({ id: "budget_not_exceeded", passed: !overBudget, detail: `spend ${spend}c of ${cell.budgetCents}c` });
-  const concentration = required.map((m) => [m.key, sourceProblem(counts(m), config)] as const).filter(([, p]) => p);
+  // Virality makes one post carry most of a cell's traffic. That only invalidates the read when the
+  // verdict depends on it: drop the top source and check the pass/fail call is unchanged.
+  const concentration = required
+    .map((m) => {
+      const k = counts(m);
+      const problem = sourceProblem(k, config);
+      if (!problem || problem.kind === "few_sources") return [m.key, problem?.detail ?? null] as const;
+      const passes = (x: MetricCounts) => probAtLeast(posteriorFor(m, x).post, m.floor) >= c;
+      return [m.key, passes(k) === passes(withoutTopSource(k)) ? null : `${problem.detail} and the read depends on it`] as const;
+    })
+    .filter(([, p]) => p);
   validity.push({
     id: "source_concentration",
     passed: concentration.length === 0,
     detail: concentration.length ? concentration.map(([k, p]) => `${k}: ${p}`).join("; ") : "diverse",
   });
-  const short = futile ? [] : required.filter((m) => counts(m).trials < (plan.minSamplePerCell[m.key] ?? 1));
+  // A metric short of its planned sample still decides at the deadline when its posterior is conclusive
+  // (P6: under-delivered traffic is a harness problem only when it leaves the answer open). A conclusive
+  // fail counts at any sample; a pass needs at least half the planned sample so winners stay well powered.
+  const minN = (m: MetricSpec) => plan.minSamplePerCell[m.key] ?? 1;
+  const isShort = (m: MetricSpec) => counts(m).trials < minN(m);
+  const conclusiveFail = (m: MetricSpec) => probBelow(posteriorFor(m, counts(m)).post, m.floor) >= c;
+  const conclusive = (m: MetricSpec) => ((perMetric[m.key]?.pAtLeastFloor ?? 0) >= c && counts(m).trials >= 0.5 * minN(m)) || conclusiveFail(m);
+  const short = futile ? [] : required.filter(isShort);
+  const open = short.filter((m) => !conclusive(m));
+  const decidedFail = required.some((m) => (isShort(m) ? conclusiveFail(m) : perMetric[m.key]?.decision === "fail"));
   validity.push({
     id: "min_sample",
-    passed: short.length === 0,
-    detail: short.length ? short.map((m) => `${m.key} ${counts(m).trials}/${plan.minSamplePerCell[m.key]}`).join(", ") : "reached",
+    passed: open.length === 0 || decidedFail,
+    detail: short.length ? `${short.map((m) => `${m.key} ${counts(m).trials}/${plan.minSamplePerCell[m.key]}`).join(", ")}${open.length ? "" : " (conclusive)"}` : "reached",
   });
 
-  if (internal > 0.05 || overBudget || concentration.length || short.length) return verdict("invalid", perMetric);
+  if (internal > 0.05 || overBudget || concentration.length) return verdict("invalid", perMetric);
   if (futile) return verdict("futile", perMetric);
+  if (decidedFail) return verdict("fail", perMetric);
+  if (open.length) return verdict("invalid", perMetric);
   const requiredDecisions = required.map((m) => perMetric[m.key]?.decision);
   if (requiredDecisions.every((d) => d === "pass")) return verdict("pass", perMetric);
   return verdict("fail", perMetric);

@@ -45,6 +45,8 @@ export interface Outbox {
   propose<K extends ActionKind>(input: ProposeInput<K>): Action<K>;
   /** Open (or return the existing open) human task, blocking the given actions until done. */
   openTask(draft: HumanTaskDraft, blocksActionIds?: string[]): HumanTask;
+  /** Cancel an open action (e.g. spend for a venture that is winding down). */
+  cancel(id: string, reason: string): Action;
   /** Actions in a given status, optionally for one venture. */
   list(filter?: { status?: Action["status"][]; ventureId?: string; kind?: ActionKind[] }): Action[];
 }

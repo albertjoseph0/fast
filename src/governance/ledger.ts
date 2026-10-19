@@ -51,10 +51,25 @@ export class LedgerSync implements CostMeter {
   private readonly config: StudioConfig;
   private readonly clock: Clock;
 
+  /** Derived figures cached for one store revision: every write invalidates them. */
+  private memoRevision = -1;
+  private readonly memo = new Map<string, unknown>();
+
   constructor(deps: { store: StudioStore; config: StudioConfig; clock: Clock }) {
     this.store = deps.store;
     this.config = deps.config;
     this.clock = deps.clock;
+  }
+
+  private cached<T>(key: string, compute: () => T): T {
+    if (this.store.revision !== this.memoRevision) {
+      this.memo.clear();
+      this.memoRevision = this.store.revision;
+    }
+    if (this.memo.has(key)) return this.memo.get(key) as T;
+    const value = compute();
+    this.memo.set(key, value);
+    return value;
   }
 
   // -- cost meter (LLM + media) ------------------------------------------------
@@ -173,14 +188,17 @@ export class LedgerSync implements CostMeter {
 
   /** Starting cash plus every entry, except store proceeds that have not settled yet. */
   cash(asOf: Iso = this.clock.iso()): Cents {
+    return this.cached(`cash|${asOf}`, () => {
     const sum = this.store
       .ledger((e) => !(e.category === "revenue" && e.settlesAt !== undefined && e.settlesAt > asOf))
       .reduce((s, e) => s + e.amountCents, 0);
     return this.config.budgets.startingCashCents + sum;
+    });
   }
 
   /** Money executed actions can still spend: daily budgets to their end, lifetime caps not yet used. */
   outstandingCommitments(asOf: Iso = this.clock.iso()): Cents {
+    return this.cached(`commitments|${asOf}`, () => {
     // A later executed action on the same campaign (a budget change) supersedes the earlier commitment.
     const latest = new Map<string, Action>();
     for (const a of this.store.actions.list((x) => x.status === "executed" && x.commitment !== undefined)) {
@@ -191,6 +209,7 @@ export class LedgerSync implements CostMeter {
     let total = 0;
     for (const a of latest.values()) total += this.remainingCommitment(a, asOf);
     return total;
+    });
   }
 
   /** Approved-but-unpaid creator submissions, at the amount the payout rule would compute. */
@@ -207,21 +226,25 @@ export class LedgerSync implements CostMeter {
 
   /** Expected refunds on recent gross revenue. */
   refundReserve(asOf: Iso = this.clock.iso()): Cents {
+    return this.cached(`refunds|${asOf}`, () => {
     const since = shiftIso(asOf, -this.config.economics.refundLagDays);
     const gross = this.store
       .ledger((e) => e.category === "revenue" && e.at >= since && e.at <= asOf)
       .reduce((s, e) => s + (e.grossCents ?? e.amountCents), 0);
     return Math.ceil(this.config.economics.refundHaircutPrior * Math.max(0, gross));
+    });
   }
 
   /** Cash the studio never spends: max(floor, fixedBurnDays x trailing 30-day fixed burn per day). */
   reserve(asOf: Iso = this.clock.iso()): Cents {
+    return this.cached(`reserve|${asOf}`, () => {
     const since = shiftIso(asOf, -30);
     const burn = -this.store
       .ledger((e) => FIXED_BURN.includes(e.category) && e.at >= since && e.at <= asOf)
       .reduce((s, e) => s + e.amountCents, 0);
     const perDay = Math.max(0, burn) / 30;
     return Math.max(this.config.budgets.reserveFloorCents, Math.ceil(this.config.budgets.reserveFixedBurnDays * perDay));
+    });
   }
 
   freeCash(asOf: Iso = this.clock.iso()): Cents {
@@ -243,7 +266,7 @@ export class LedgerSync implements CostMeter {
   // -- internals ---------------------------------------------------------------
 
   private book(entry: Omit<LedgerEntry, "id" | "at"> & { at?: string }, emit = true): LedgerEntry {
-    const before = this.store.ledger((e) => e.sourceKey === entry.sourceKey)[0];
+    const before = this.store.ledgerEntry(entry.sourceKey);
     const row = this.store.book(entry);
     if (emit && (!before || before.amountCents !== row.amountCents)) {
       this.store.emit(
@@ -256,7 +279,7 @@ export class LedgerSync implements CostMeter {
   }
 
   private has(sourceKey: string): boolean {
-    return this.store.ledger((e) => e.sourceKey === sourceKey).length > 0;
+    return this.store.ledgerEntry(sourceKey) !== undefined;
   }
 
   private limitFor(kind: CostEvent["kind"]): Cents {
@@ -312,8 +335,7 @@ export class LedgerSync implements CostMeter {
     if (typeof p.adCampaignId === "string") {
       const campaign = this.store.adCampaigns.get(p.adCampaignId);
       if (!campaign) return 0;
-      const prefix = adsKeyPrefix(campaign);
-      return -this.store.ledger((e) => e.sourceKey.startsWith(prefix)).reduce((s, e) => s + e.amountCents, 0);
+      return -(this.ledgerSums().byPrefix.get(adsKeyPrefix(campaign)) ?? 0);
     }
     if (typeof p.campaignId === "string") {
       // Accrued liabilities are counted separately, so they also use up the campaign's commitment.
@@ -323,17 +345,43 @@ export class LedgerSync implements CostMeter {
       for (const [subId, amount] of this.accruals()) if (subIds.has(subId)) accrued += amount;
       return this.paidOnCampaign(campaignId) + accrued;
     }
-    return -this.store.ledger((e) => e.actionId === a.id).reduce((s, e) => s + e.amountCents, 0);
+    return -(this.ledgerSums().byAction.get(a.id) ?? 0);
   }
 
   /** Creator payouts already booked against a creator campaign (positive cents). */
   paidOnCampaign(campaignId: string): Cents {
-    const subIds = new Set(this.store.submissions.list((s) => s.campaignId === campaignId).map((s) => s.id));
-    const keys = new Set(this.store.payouts.list((p) => subIds.has(p.submissionId)).map((p) => `payout:${p.id}`));
-    return -this.store.ledger((e) => keys.has(e.sourceKey)).reduce((s, e) => s + e.amountCents, 0);
+    return this.paidByCampaign().get(campaignId) ?? 0;
+  }
+
+  private paidByCampaign(): Map<string, Cents> {
+    return this.cached("paidByCampaign", () => {
+      const campaignOf = new Map(this.store.submissions.list().map((s) => [s.id, s.campaignId]));
+      const out = new Map<string, Cents>();
+      for (const p of this.store.payouts.list()) {
+        const campaignId = campaignOf.get(p.submissionId);
+        const entry = this.store.ledgerEntry(`payout:${p.id}`);
+        if (campaignId && entry) out.set(campaignId, (out.get(campaignId) ?? 0) - entry.amountCents);
+      }
+      return out;
+    });
+  }
+
+  /** Booked amounts summed by source-key prefix (up to the last ':') and by action id. */
+  private ledgerSums(): { byPrefix: Map<string, Cents>; byAction: Map<string, Cents> } {
+    return this.cached("ledgerSums", () => {
+      const byPrefix = new Map<string, Cents>();
+      const byAction = new Map<string, Cents>();
+      for (const e of this.store.ledger()) {
+        const prefix = e.sourceKey.slice(0, e.sourceKey.lastIndexOf(":") + 1);
+        byPrefix.set(prefix, (byPrefix.get(prefix) ?? 0) + e.amountCents);
+        if (e.actionId) byAction.set(e.actionId, (byAction.get(e.actionId) ?? 0) + e.amountCents);
+      }
+      return { byPrefix, byAction };
+    });
   }
 
   private accruals(): Map<string, Cents> {
+    return this.cached("accruals", () => {
     const out = new Map<string, Cents>();
     const remaining = new Map<string, Cents>();
     const subs = this.store.submissions
@@ -351,6 +399,7 @@ export class LedgerSync implements CostMeter {
       out.set(s.id, amount);
     }
     return out;
+    });
   }
 }
 

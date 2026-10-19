@@ -562,8 +562,12 @@ describe("monetization rules", () => {
     const v = makeVenture();
     w.store.ventures.put({ ...v, bindings: { ...v.bindings, products: [{ ...v.bindings.products[0]!, status: "in_review" }] } });
     expect(severities(w.gov.propose(paywall(["week_699_t3"])), "monetization.products")).toEqual(["block"]);
+    // Setup before the first review may map products awaiting review, but never rejected ones.
     const configure = w.gov.propose(input("monetization.configure", { productIds: ["com.faststudio.astra.week_699_t3"], entitlementId: "pro" }));
-    expect(severities(configure, "monetization.products")).toEqual(["block"]);
+    expect(severities(configure, "monetization.products")).toEqual([]);
+    w.store.ventures.put({ ...v, bindings: { ...v.bindings, products: [{ ...v.bindings.products[0]!, status: "rejected" }] } });
+    const rejected = w.gov.propose(input("monetization.configure", { productIds: ["com.faststudio.astra.week_699_t3"], entitlementId: "pro" }, { naturalKey: "again" }));
+    expect(severities(rejected, "monetization.products")).toEqual(["block"]);
   });
 
   it("blocks prices outside the grid and disallowed trials", () => {

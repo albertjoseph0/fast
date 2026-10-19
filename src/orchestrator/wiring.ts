@@ -88,7 +88,7 @@ export function createSimStudio(opts: {
   const clock = new SimClock(opts.startDate ?? "2026-01-05T09:00:00.000Z");
   const root = opts.dataDir ?? opts.scratchDir ?? join(REPO_ROOT, ".scratch", `sim-${config.seed}`);
   mkdirSync(root, { recursive: true });
-  const store = new StudioStore(opts.dataDir ? join(opts.dataDir, "state") : null, clock, config.seed);
+  const store = new StudioStore(opts.dataDir ? join(opts.dataDir, "state") : null, clock, config.seed, { durability: "checkpoint" });
   seedStudioAccounts(store, config);
   const rng = new Rng(config.seed);
   const ledger = new LedgerSync({ store, config, clock });

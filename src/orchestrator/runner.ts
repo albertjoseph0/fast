@@ -66,7 +66,7 @@ export async function runSimulation(o: SimulationOptions): Promise<SimulationRes
     for (const e of last.errors) errors.push(`${last.date} ${e}`);
     board.act();
     world.advanceDay();
-    store.commit();
+    if (day % 7 === 6 || day === o.days - 1) store.checkpoint();
     o.onTick?.(last, sim);
     clock.advanceDays(1);
   }

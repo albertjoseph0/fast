@@ -4,15 +4,13 @@
  * and move mature ventures to harvest, sunset or an exit flag.
  */
 import type { TickContext } from "../core/context.ts";
-import type { AllocationPlan, Cents, CohortMetrics, Venture } from "../core/types.ts";
+import type { Action, AllocationPlan, Cents, CohortMetrics, Venture } from "../core/types.ts";
 import type { PriceLadderEntry } from "../config/schema.ts";
-import type { Governance } from "../governance/outbox.ts";
 import type { LedgerSync } from "../governance/ledger.ts";
-import { OPEN_STATUSES } from "../governance/outbox.ts";
 import { chargesWithin, netPriceCents } from "../lab/ltv.ts";
 import { proportionPosterior, quantile } from "../lab/stats.ts";
 import { ladderEntry, storeProductDefs } from "../playbook/product.ts";
-import { isActive, LIVE_STAGES, transition } from "./lifecycle.ts";
+import { isActive, isLiveOnStore, LIVE_STAGES, ORGANIC_CATEGORIES, transition, windDown } from "./lifecycle.ts";
 
 const DAY_MS = 86_400_000;
 /** Marginal CAC is assumed this much worse than average CAC when spend rises (conservative heuristic). */
@@ -31,80 +29,63 @@ function daysBetween(a: string, b: string): number {
 // Lifecycle decisions (venture.kill / venture.sunset / venture.scale)
 // ---------------------------------------------------------------------------
 
-const KEEP_ON_WIND_DOWN = new Set(["venture.kill", "venture.sunset", "store.remove_from_sale", "creator.campaign_close", "ads.pause", "creator.payout", "creator.review_post"]);
-
-/** Stop spending on a venture: cancel open spend actions, close campaigns, pause ads, abort experiments. */
-function windDown(ctx: TickContext, gov: Governance, v: Venture, reason: string): void {
-  for (const a of ctx.store.actions.list((x) => x.ventureId === v.id && OPEN_STATUSES.includes(x.status) && !KEEP_ON_WIND_DOWN.has(x.kind) && x.status !== "executing")) {
-    gov.cancel(a.id, `venture wind-down: ${reason}`);
-  }
-  for (const c of ctx.store.campaigns.list((x) => x.ventureId === v.id && (x.status === "open" || x.status === "paused") && Boolean(x.externalId))) {
-    ctx.outbox.propose({ kind: "creator.campaign_close", ventureId: v.id, payload: { campaignId: c.id }, summary: `Close ${c.id}`, rationale: reason, proposedBy: "allocator", naturalKey: c.id });
-  }
-  for (const c of ctx.store.adCampaigns.list((x) => x.ventureId === v.id && x.status === "active")) {
-    ctx.outbox.propose({ kind: "ads.pause", ventureId: v.id, payload: { adCampaignId: c.id, reason }, summary: `Pause ${c.id}`, rationale: reason, proposedBy: "allocator", naturalKey: c.id });
-  }
-  for (const e of ctx.store.experiments.list((x) => x.ventureId === v.id && (x.status === "running" || x.status === "registered"))) {
-    ctx.store.experiments.put({ ...e, status: "aborted", decidedAt: ctx.ports.clock.iso() });
-  }
-  for (const b of ctx.store.batches.list((x) => x.ventureId === v.id && x.status === "open")) {
-    ctx.store.batches.put({ ...b, status: "closed" });
-  }
-}
-
-function isLiveOnStore(v: Venture): boolean {
-  return v.stores.some((s) => s.status === "live" || s.status === "pending_release");
-}
-
 /**
  * Turn executed lifecycle actions into stage transitions. Each transition's reason starts
  * with the action id, which makes this idempotent across ticks.
  */
-export function applyLifecycleDecisions(ctx: TickContext, gov: Governance): string[] {
+export function applyLifecycleDecisions(ctx: TickContext): string[] {
   const applied: string[] = [];
   const executed = ctx.store.actions
-    .list((a) => a.status === "executed" && (a.kind === "venture.kill" || a.kind === "venture.sunset" || a.kind === "venture.scale" || a.kind === "store.remove_from_sale"))
+    .list((a) => a.status === "executed" && (a.kind === "venture.kill" || a.kind === "venture.sunset" || a.kind === "venture.scale"))
     .sort((a, b) => ((a.executedAt ?? "") < (b.executedAt ?? "") ? -1 : 1));
   for (const a of executed) {
     if (!a.ventureId) continue;
     const v = ctx.store.ventures.get(a.ventureId);
     if (!v || v.history.some((h) => h.reason.startsWith(`${a.id}:`))) continue;
-    const clock = ctx.ports.clock;
-    switch (a.kind) {
-      case "venture.kill": {
-        if (!isActive(v)) break;
-        const reason = (a.payload as { reason: string }).reason;
-        windDown(ctx, gov, v, reason);
-        if (isLiveOnStore(v)) {
-          ctx.outbox.propose({ kind: "store.remove_from_sale", ventureId: v.id, payload: { platform: "ios", reason }, summary: `Remove ${v.name} from sale`, rationale: reason, proposedBy: "allocator", naturalKey: "ios" });
-        }
-        transition(ctx.store, clock, v, "killed", `${a.id}: ${reason}`);
-        applied.push(`${v.id} killed`);
-        break;
+    try {
+      applied.push(...applyDecision(ctx, a, v));
+    } catch (err) {
+      // One bad decision must not stop the others; the next tick retries it.
+      applied.push(`${v.id} ${a.kind} failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  return applied;
+}
+
+function applyDecision(ctx: TickContext, a: Action, v: Venture): string[] {
+  const applied: string[] = [];
+  const clock = ctx.ports.clock;
+  switch (a.kind) {
+    case "venture.kill": {
+      if (!isActive(v)) break;
+      const reason = (a.payload as { reason: string }).reason;
+      windDown(ctx, v, reason);
+      if (isLiveOnStore(v)) {
+        ctx.outbox.propose({ kind: "store.remove_from_sale", ventureId: v.id, payload: { platform: "ios", reason }, summary: `Remove ${v.name} from sale`, rationale: reason, proposedBy: "allocator", naturalKey: "ios" });
       }
-      case "venture.sunset": {
-        if (!isActive(v) || v.stage === "sunsetting") break;
-        const reason = (a.payload as { reason: string }).reason;
-        windDown(ctx, gov, v, reason);
-        transition(ctx.store, clock, v, "sunsetting", `${a.id}: ${reason}`);
-        applied.push(`${v.id} sunsetting`);
-        break;
+      transition(ctx.store, clock, v, "killed", `${a.id}: ${reason}`);
+      applied.push(`${v.id} killed`);
+      break;
+    }
+    case "venture.sunset": {
+      if (!isActive(v) || v.stage === "sunsetting") break;
+      const reason = (a.payload as { reason: string }).reason;
+      windDown(ctx, v, reason);
+      // Stop new sales and renewals now; the backend serves paying users until their periods lapse.
+      if (isLiveOnStore(v)) {
+        ctx.outbox.propose({ kind: "store.remove_from_sale", ventureId: v.id, payload: { platform: "ios", reason: `sunset: ${reason}` }, summary: `Stop sales of ${v.name}`, rationale: "Sunset serves existing subscribers until their paid periods lapse", proposedBy: "allocator", naturalKey: "ios" });
       }
-      case "venture.scale": {
-        if (v.stage !== "live_test" && v.stage !== "iterating" && v.stage !== "harvest") break;
-        const p = a.payload as { addTerritories: string[]; proposedDailyCents: Cents };
-        transition(ctx.store, clock, v, "scaling", `${a.id}: validated, scaling at ${(p.proposedDailyCents / 100).toFixed(0)} USD/day`);
-        expandTerritories(ctx, ctx.store.ventures.require(v.id), p.addTerritories);
-        applied.push(`${v.id} scaling`);
-        break;
-      }
-      case "store.remove_from_sale": {
-        if (v.stage === "sunsetting") {
-          transition(ctx.store, clock, v, "killed", `${a.id}: sunset complete, removed from sale`);
-          applied.push(`${v.id} sunset complete`);
-        }
-        break;
-      }
+      transition(ctx.store, clock, v, "sunsetting", `${a.id}: ${reason}`);
+      applied.push(`${v.id} sunsetting`);
+      break;
+    }
+    case "venture.scale": {
+      if (v.stage !== "live_test" && v.stage !== "iterating" && v.stage !== "harvest") break;
+      const p = a.payload as { addTerritories: string[]; proposedDailyCents: Cents };
+      transition(ctx.store, clock, v, "scaling", `${a.id}: validated, scaling at ${(p.proposedDailyCents / 100).toFixed(0)} USD/day`);
+      expandTerritories(ctx, ctx.store.ventures.require(v.id), p.addTerritories);
+      applied.push(`${v.id} scaling`);
+      break;
     }
   }
   return applied;
@@ -335,8 +316,12 @@ export function reviewMatureVentures(ctx: TickContext, plan: AllocationPlan): st
     const lane = plan.lanes.find((l) => l.ventureId === v.id);
 
     if (v.stage === "sunsetting") {
-      if (activeSubscribers(ctx, v.id) === 0) {
+      if (activeSubscribers(ctx, v.id) > 0) continue;
+      if (isLiveOnStore(v)) {
         ctx.outbox.propose({ kind: "store.remove_from_sale", ventureId: v.id, payload: { platform: "ios", reason: "sunset: no active subscribers remain" }, summary: `Remove ${v.name} from sale`, rationale: "Every paid period has lapsed", proposedBy: "allocator", naturalKey: "ios" });
+      } else {
+        transition(ctx.store, ctx.ports.clock, v, "killed", "sunset complete: no active subscribers remain");
+        out.push(`${v.id} sunset complete`);
       }
       continue;
     }
@@ -346,13 +331,17 @@ export function reviewMatureVentures(ctx: TickContext, plan: AllocationPlan): st
       continue;
     }
     if (v.stage === "harvest" && lane === undefined) {
-      const contribution30 = ctx.store.net({ ventureId: v.id, since: addDays(now, -30) });
-      const contribution60 = ctx.store.net({ ventureId: v.id, since: addDays(now, -60), until: addDays(now, -30) });
-      if (contribution30 < 0 && contribution60 < 0 && x.sunsetNegativeContributionMonths <= 2) {
+      // Harvest is judged on what the app earns without growth spend (trailing payouts from its test
+      // phase are sunk), month by month for sunsetNegativeContributionMonths months.
+      const months = Array.from({ length: x.sunsetNegativeContributionMonths }, (_, m) =>
+        ctx.store.net({ ventureId: v.id, categories: ORGANIC_CATEGORIES, since: addDays(now, -30 * (m + 1)), until: addDays(now, -30 * m) }),
+      );
+      const harvestedFor = (new Date(now).getTime() - new Date(v.history.findLast((h) => h.to === "harvest")?.at ?? now).getTime()) / DAY_MS;
+      if (harvestedFor >= 30 * x.sunsetNegativeContributionMonths && months.every((c) => c < 0)) {
         ctx.outbox.propose({
           kind: "venture.sunset",
           ventureId: v.id,
-          payload: { activeSubscribers: activeSubscribers(ctx, v.id), plan: "serve_until_lapse", reason: "negative contribution for two consecutive months" },
+          payload: { activeSubscribers: activeSubscribers(ctx, v.id), plan: "serve_until_lapse", reason: `negative organic contribution for ${x.sunsetNegativeContributionMonths} consecutive months` },
           summary: `Sunset ${v.name}`,
           rationale: "Harvest no longer covers its inference and tooling costs",
           proposedBy: "allocator",

@@ -13,6 +13,7 @@ import type { AllocationPlan, StudioEventType, Venture } from "../core/types.ts"
 import { Executor } from "../governance/executor.ts";
 import { BudgetExceededError, LedgerSync } from "../governance/ledger.ts";
 import { Governance } from "../governance/outbox.ts";
+import { LlmError } from "../llm/errors.ts";
 import { applyLifecycleDecisions, planAllocation, reviewMatureVentures } from "./allocator.ts";
 import type { StudioDeps } from "./deps.ts";
 import { promoteScreened, runDiscovery } from "./discovery.ts";
@@ -27,6 +28,11 @@ import { boardMemo, renderReport, type TickSummary, ventureLines, writeReport } 
 const DAY_MS = 86_400_000;
 const METRIC_RESYNC_DAYS = 7;
 const COHORT_WINDOW_DAYS = 120;
+
+/** The LLM adapter wraps the meter's BudgetExceededError in an LlmError; media lets it through. */
+function isBudgetError(err: unknown): boolean {
+  return err instanceof BudgetExceededError || (err instanceof LlmError && err.code === "budget_exceeded");
+}
 
 export interface StudioOptions {
   config: StudioConfig;
@@ -117,7 +123,7 @@ export class Studio {
         this.onPhase?.(name, detail);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        if (err instanceof BudgetExceededError) llmBudgetHit = true;
+        if (isBudgetError(err)) llmBudgetHit = true;
         phases.push({ name, detail: "", ms: Date.now() - started, error: message });
         errors.push(`${name}: ${message}`);
         this.onPhase?.(name, `ERROR ${message}`);
@@ -132,7 +138,7 @@ export class Studio {
         try {
           out.push(`${v.id}: ${await fn(v)}`);
         } catch (err) {
-          if (err instanceof BudgetExceededError) llmBudgetHit = true;
+          if (isBudgetError(err)) llmBudgetHit = true;
           const message = err instanceof Error ? err.message : String(err);
           errors.push(`${v.id}: ${message}`);
           out.push(`${v.id}: ERROR ${message}`);
@@ -151,7 +157,7 @@ export class Studio {
       const applied = applyTaskOutcomes(ctx);
       return [...opened.map((id) => `opened ${id}`), ...applied].join(", ") || "no task outcomes";
     });
-    await run("lifecycle", () => applyLifecycleDecisions(ctx, this.governance).join(", ") || "no decisions");
+    await run("lifecycle", () => applyLifecycleDecisions(ctx).join(", ") || "no decisions");
     await run("lab", async () => {
       const outcomes = await runExperiments(ctx, this.deps);
       return outcomes.map((o) => `${o.experimentId} ${o.decision}`).join(", ") || "no decisions";
@@ -186,7 +192,7 @@ export class Studio {
       const stuck = this.executor.reconcile().length;
       const executed = await this.executor.runApproved();
       // Lifecycle decisions approved and executed this tick take effect today.
-      const applied = applyLifecycleDecisions(ctx, this.governance);
+      const applied = applyLifecycleDecisions(ctx);
       return `${reevaluated} re-evaluated, ${stuck} reconciled, ${executed.length} executed${applied.length ? `, ${applied.join(", ")}` : ""}`;
     });
 

@@ -12,7 +12,7 @@ import { designExperiment } from "../lab/experiments.ts";
 import { ladderEntry } from "../playbook/product.ts";
 import type { StudioDeps } from "./deps.ts";
 import { ideaFor } from "./pipeline.ts";
-import { patch, transition } from "./lifecycle.ts";
+import { isLiveOnStore, ORGANIC_CATEGORIES, patch, transition, windDown } from "./lifecycle.ts";
 
 function cellCampaigns(ctx: TickContext, experimentId: string, cellId?: string): CreatorCampaign[] {
   return ctx.store.campaigns.list((c) => c.experimentId === experimentId && (cellId === undefined || c.cellId === cellId));
@@ -22,13 +22,13 @@ function cellCampaigns(ctx: TickContext, experimentId: string, cellId?: string):
 function cellSpend(ctx: TickContext, experimentId: string, cellId: string): number {
   let spend = 0;
   for (const c of cellCampaigns(ctx, experimentId, cellId)) {
-    for (const s of ctx.store.submissions.list((x) => x.campaignId === c.id)) {
-      if (s.stage === "paid") spend += s.payoutCents;
-      else if (s.stage === "post_approved") {
-        const views = s.viewsAtLock ?? s.verification?.viewsFromPlatform ?? 0;
-        spend += computePayout({ flatFeeCents: c.flatFeeCents, cpmCents: c.cpmCents, maxPayoutCents: c.maxPayoutPerVideoCents }, { viewsAtLock: views, campaignRemainingCents: c.budgetCents });
-      }
+    const subs = ctx.store.submissions.list((x) => x.campaignId === c.id);
+    let campaignSpend = subs.reduce((sum, s) => sum + (s.stage === "paid" ? s.payoutCents : 0), 0);
+    for (const s of subs.filter((x) => x.stage === "post_approved")) {
+      const views = s.viewsAtLock ?? s.verification?.viewsFromPlatform ?? 0;
+      campaignSpend += computePayout({ flatFeeCents: c.flatFeeCents, cpmCents: c.cpmCents, maxPayoutCents: c.maxPayoutPerVideoCents }, { viewsAtLock: views, campaignRemainingCents: Math.max(0, c.budgetCents - campaignSpend) });
     }
+    spend += campaignSpend;
   }
   return spend;
 }
@@ -61,8 +61,13 @@ async function observeCell(ctx: TickContext, plan: ExperimentPlan, cellId: strin
   return { cellId, metrics, exposureViews: views, spendCents: cellSpend(ctx, plan.id, cellId), internalShare, observedAt: now };
 }
 
-function hasExposure(obs: CellObservation): boolean {
-  return obs.exposureViews > 0 || Object.values(obs.metrics).some((m) => (m?.trials ?? 0) > 0);
+/**
+ * A cell is exposed once the variant reaches its audience: in-geo views of the cell's posts when the plan
+ * measures distribution (organic storefront installs must not start the clock), otherwise any user.
+ */
+function hasExposure(plan: ExperimentPlan, obs: CellObservation): boolean {
+  if (plan.metrics.some((m) => m.denominator === "view")) return obs.exposureViews > 0;
+  return Object.values(obs.metrics).some((m) => (m?.trials ?? 0) > 0);
 }
 
 /** Register the venture's next ladder experiment if it has none running. */
@@ -171,9 +176,27 @@ function closeCampaigns(ctx: TickContext, plan: ExperimentPlan): void {
   }
 }
 
+const DAY_MS = 86_400_000;
+
+/** Last 28 days of contribution without acquisition spend: what the app earns if growth spending stops. */
+export function organicContributionCents(ctx: TickContext, v: Venture): number {
+  const since = new Date(new Date(ctx.ports.clock.iso()).getTime() - 28 * DAY_MS).toISOString();
+  return ctx.store.net({ ventureId: v.id, since, categories: ORGANIC_CATEGORIES });
+}
+
+/**
+ * Stop testing a venture. An app with paying users and positive organic contribution is harvested
+ * (no further growth spend) rather than shut off; one with paying users otherwise goes to a human
+ * sunset decision; one without users is killed.
+ */
 export function proposeKill(ctx: TickContext, v: Venture, reason: string): void {
-  const latest = ctx.store.metrics(v.id, (m) => m.cellId === null).at(-1);
+  const latest = ctx.store.metrics(v.id, (m) => m.cellId === null && m.geo === null).at(-1);
   const subscribers = latest?.activeSubscribers ?? 0;
+  if (subscribers > 0 && isLiveOnStore(v) && organicContributionCents(ctx, v) > 0) {
+    windDown(ctx, v, reason);
+    transition(ctx.store, ctx.ports.clock, ctx.store.ventures.require(v.id), "harvest", `${reason}; organic contribution is positive, harvesting without growth spend`);
+    return;
+  }
   if (subscribers > 0) {
     ctx.outbox.propose({ kind: "venture.sunset", ventureId: v.id, payload: { activeSubscribers: subscribers, plan: "serve_until_lapse", reason }, summary: `Sunset ${v.name}`, rationale: reason, proposedBy: "lab", naturalKey: "sunset" });
   } else {
@@ -200,12 +223,23 @@ export async function runExperiments(ctx: TickContext, deps: StudioDeps): Promis
       const obs = await observeCell(ctx, plan, cell.id);
       ctx.store.addObservation(plan.id, obs);
       observations.set(cell.id, obs);
-      if (!cell.firstExposureAt && hasExposure(obs)) {
+      if (!cell.firstExposureAt && hasExposure(plan, obs)) {
         plan = { ...plan, cells: plan.cells.map((c) => (c.id === cell.id ? { ...c, firstExposureAt: now } : c)) };
       }
     }
     ctx.store.experiments.put(plan);
     const replicatedAt = previous.find((o) => o.decision === "replicate")?.decidedAt;
+    // The exposure SLA runs from when the cell's creator campaign went live, not from registration:
+    // approvals and marketplace setup are not the audience's fault.
+    const launchedAt = (cellId: string): string | null => {
+      const campaigns = cellCampaigns(ctx, plan.id, cellId);
+      if (!campaigns.length) return null;
+      const executed = campaigns
+        .map((c) => ctx.store.actions.list((a) => a.kind === "creator.campaign_create" && (a.payload as { campaignId: string }).campaignId === c.id && (a.status === "executed" || a.status === "dry_run"))[0]?.executedAt)
+        .filter((t): t is string => Boolean(t))
+        .sort();
+      return executed[0] ?? now;
+    };
     const verdicts = active.map((cell) =>
       evaluateCell({
         plan,
@@ -213,7 +247,7 @@ export async function runExperiments(ctx: TickContext, deps: StudioDeps): Promis
         obs: observations.get(cell.id),
         config: ctx.config,
         now,
-        clockStart: cell.phase === 2 && replicatedAt ? replicatedAt : (plan.startedAt ?? plan.registeredAt),
+        clockStart: launchedAt(cell.id) ?? (cell.phase === 2 && replicatedAt ? replicatedAt : (plan.startedAt ?? plan.registeredAt)),
       }),
     );
     const spec = v.spec;

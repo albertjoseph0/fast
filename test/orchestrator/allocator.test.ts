@@ -11,14 +11,14 @@ describe("applyLifecycleDecisions", () => {
     const kill = w.gov.propose({ kind: "venture.kill", ventureId: w.venture.id, payload: { reason: "S1 futile" }, summary: "Kill", rationale: "S1 futile", proposedBy: "lab", naturalKey: "kill" });
     markExecuted(w, kill);
 
-    expect(applyLifecycleDecisions(ctx, w.gov)).toEqual(["ven_000001 killed"]);
+    expect(applyLifecycleDecisions(ctx)).toEqual(["ven_000001 killed"]);
     const v = w.store.ventures.require(w.venture.id);
     expect(v.stage).toBe("killed");
     expect(v.history.at(-1)?.reason).toMatch(new RegExp(`^${kill.id}:`));
     expect(openActions(w, "creator.campaign_close")).toHaveLength(1);
     expect(openActions(w, "store.remove_from_sale")).toHaveLength(1);
     // Idempotent: the same executed action is not applied twice.
-    expect(applyLifecycleDecisions(ctx, w.gov)).toEqual([]);
+    expect(applyLifecycleDecisions(ctx)).toEqual([]);
   });
 
   it("moves a validated venture to scaling and prices the scale storefronts before opening them", () => {
@@ -35,7 +35,7 @@ describe("applyLifecycleDecisions", () => {
       naturalKey: "scale",
     });
     markExecuted(w, scale);
-    applyLifecycleDecisions(ctx, w.gov);
+    applyLifecycleDecisions(ctx);
     expect(w.store.ventures.require(w.venture.id).stage).toBe("scaling");
     const [subs] = openActions(w, "store.upsert_subscriptions");
     const [territories] = openActions(w, "store.set_territories");
@@ -48,7 +48,7 @@ describe("applyLifecycleDecisions", () => {
     w.store.ventures.put({ ...w.venture, stage: "sunsetting" });
     const scale = w.gov.propose({ kind: "venture.scale", ventureId: w.venture.id, payload: { evidence: "", experimentIds: [], proposedDailyCents: 1, addTerritories: [] }, summary: "s", rationale: "r", proposedBy: "lab", naturalKey: "scale" });
     markExecuted(w, scale);
-    expect(applyLifecycleDecisions(tickContext(w), w.gov)).toEqual([]);
+    expect(applyLifecycleDecisions(tickContext(w))).toEqual([]);
     expect(w.store.ventures.require(w.venture.id).stage).toBe("sunsetting");
   });
 });

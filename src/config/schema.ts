@@ -184,8 +184,12 @@ export const StudioConfig = z.object({
         S3_cross_cell: 168,
         S4_monetization: 96,
       }),
-      /** A cell with no exposure by this many hours after start is invalid (harness failure). */
-      maxHoursToFirstExposure: z.number().int().min(1).default(96),
+      /**
+       * A cell with no exposure this many hours after its traffic source launched (the creator campaign
+       * went live, or the experiment started for owned and product-side cells) is invalid (harness failure).
+       * Marketplace creators typically apply, get a draft approved and post within a week.
+       */
+      maxHoursToFirstExposure: z.number().int().min(1).default(168),
       /** Absolute per-metric sample floors in denominator units (posts for post-unit metrics). */
       minSampleFloor: z
         .record(z.string(), z.number().int().min(1))

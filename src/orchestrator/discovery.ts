@@ -7,6 +7,7 @@ import type { TickContext } from "../core/context.ts";
 import type { IdeaRecord, Screening, StorePlatform, Venture } from "../core/types.ts";
 import { ladderFor, ladderSteps } from "../principles/ladder.ts";
 import type { StudioDeps } from "./deps.ts";
+import { overlap } from "./differentiation.ts";
 import { isActive, slugify, transition } from "./lifecycle.ts";
 import { studioBindings } from "./tasks.ts";
 import { taskDraft } from "../playbook/setup.ts";
@@ -31,6 +32,24 @@ function uniqueSlug(ctx: TickContext, title: string): string {
     const candidate = `${base.slice(0, 21)}-${n}`;
     if (!used.has(candidate)) return candidate;
   }
+}
+
+/** Text overlap at which an idea counts as a re-run of an existing venture's concept. */
+const NOVELTY_OVERLAP = 0.5;
+
+function conceptText(r: IdeaRecord): string {
+  return `${r.idea.title} ${r.idea.oneLiner} ${r.idea.verdictMoment} ${r.idea.aiCapability}`;
+}
+
+function nearestVenture(ctx: TickContext, record: IdeaRecord): { id: string; score: number } | null {
+  let best: { id: string; score: number } | null = null;
+  for (const v of ctx.store.ventures.list()) {
+    const other = ctx.store.ideas.get(v.ideaId);
+    if (!other) continue;
+    const score = overlap(conceptText(record), conceptText(other));
+    if (!best || score > best.score) best = { id: v.id, score };
+  }
+  return best;
 }
 
 /** Create a venture for a screened idea. Store records and bindings start empty; the pipeline fills them. */
@@ -97,7 +116,8 @@ export function createVenture(ctx: TickContext, record: IdeaRecord, screening: S
 export async function runDiscovery(ctx: TickContext, deps: StudioDeps, freeCashCents: number): Promise<string> {
   const p = ctx.config.portfolio;
   if ((ctx.tick - 1) % p.discoveryEveryTicks !== 0) return "not a discovery tick"; // ticks 1, 1+N, 1+2N, ...
-  const active = ctx.store.ventures.list(isActive).length;
+  // Harvested and sunsetting ventures get no growth work or spend: they take no slot.
+  const active = ctx.store.ventures.list((v) => isActive(v) && v.stage !== "sunsetting" && v.stage !== "harvest").length;
   const slots = ventureCapacity(ctx, freeCashCents) - active;
   if (slots <= 0) return `portfolio full (${active} active)`;
 
@@ -108,6 +128,12 @@ export async function runDiscovery(ctx: TickContext, deps: StudioDeps, freeCashC
   for (const record of records) {
     ctx.store.ideas.put(record);
     ctx.log("idea.created", { ideaId: record.id, title: record.idea.title, coreNeed: record.idea.coreNeed }, undefined);
+    // An idea the portfolio already tried (live or dead) under another name is not a new shot on goal.
+    const twin = nearestVenture(ctx, record);
+    if (twin && twin.score >= NOVELTY_OVERLAP) {
+      ctx.log("idea.screened", { ideaId: record.id, verdict: "reject", score: 0, reasons: [`near-duplicate of ${twin.id} (${Math.round(twin.score * 100)}% overlap)`] });
+      continue;
+    }
     const screening = await deps.agents.screen(ctx, record, { exposures: ctx.store.exposures(), existingTitles: takenTitles(ctx).filter((t) => t !== record.idea.title) });
     ctx.store.screenings.put(screening);
     ctx.log("idea.screened", { ideaId: record.id, verdict: screening.verdict, score: screening.score, reasons: screening.reasons.slice(0, 6) });

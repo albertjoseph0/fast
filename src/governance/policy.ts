@@ -573,7 +573,10 @@ export const RULES: PolicyRule[] = [
         out.push(flag("block", `Product ${id} is not bound to this venture`));
         continue;
       }
-      if (product.status !== "approved") out.push(flag("block", `Product ${id} is ${product.status}, not approved`));
+      // Setup may map products still awaiting review (Apple reviews the first subscriptions with the first
+      // build, and the reviewer must be able to buy them); live paywalls may only offer approved products.
+      const usable = a.kind === "monetization.configure" ? ["created", "in_review", "approved"] : ["approved"];
+      if (!usable.includes(product.status)) out.push(flag("block", `Product ${id} is ${product.status}, not ${a.kind === "monetization.configure" ? "created" : "approved"}`));
       const entry = ctx.config.monetization.ladder.find((l) => l.id === product.ladderId);
       if (!entry) {
         out.push(flag("block", `Product ${id} has no price-ladder entry ${product.ladderId}`));

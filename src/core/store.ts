@@ -121,6 +121,7 @@ export class Collection<T> implements ReadonlyCollection<T> {
   constructor(
     private readonly records: () => Record<string, T>,
     private readonly keyOf: (t: T) => string,
+    private readonly onWrite: () => void = () => {},
   ) {}
 
   get(id: string): T | undefined {
@@ -135,6 +136,7 @@ export class Collection<T> implements ReadonlyCollection<T> {
 
   put(value: T): T {
     this.records()[this.keyOf(value)] = value;
+    this.onWrite();
     return value;
   }
 
@@ -205,6 +207,9 @@ export class StudioStore {
   private readonly recent: StudioEvent[] = [];
   private eventSeq = 0;
   private lockPath: string | null = null;
+  private readonly durability: "commit" | "checkpoint";
+  private rev = 0;
+  private ledgerIndex: Map<string, number> | null = null;
 
   readonly signals: Collection<Signal>;
   readonly ideas: Collection<IdeaRecord>;
@@ -233,13 +238,17 @@ export class StudioStore {
   /**
    * @param dir directory for state.json + events.jsonl, or null for an in-memory store
    * @param opts.lock take the single-writer lock (default true when dir is set)
+   * @param opts.durability "commit" (default) persists on every commit, which write-ahead execution
+   *   relies on in live mode; "checkpoint" persists only on checkpoint() and close(), for simulations,
+   *   where nothing external can be half-done when the process dies.
    */
   constructor(
     readonly dir: string | null,
     private readonly clock: Clock,
     seed = 1,
-    opts: { lock?: boolean } = {},
+    opts: { lock?: boolean; durability?: "commit" | "checkpoint" } = {},
   ) {
+    this.durability = opts.durability ?? "commit";
     this.state = emptyState(clock.iso(), seed);
     if (dir) {
       mkdirSync(dir, { recursive: true });
@@ -252,7 +261,7 @@ export class StudioStore {
       if (existsSync(log)) this.eventSeq = readFileSync(log, "utf8").split("\n").filter(Boolean).length;
     }
     const keyed = <T extends { id: string }>(name: KeyedCollection) =>
-      new Collection<T>(() => this.state[name] as unknown as Record<string, T>, (t) => t.id);
+      new Collection<T>(() => this.state[name] as unknown as Record<string, T>, (t) => t.id, () => this.touch());
     this.signals = keyed<Signal>("signals");
     this.ideas = keyed<IdeaRecord>("ideas");
     this.screenings = keyed<Screening>("screenings");
@@ -304,6 +313,7 @@ export class StudioStore {
   // -- observations / outcomes ------------------------------------------------
 
   addObservation(experimentId: string, obs: CellObservation): void {
+    this.touch();
     (this.state.observations[experimentId] ??= []).push(obs);
   }
 
@@ -319,6 +329,7 @@ export class StudioStore {
   }
 
   addOutcome(outcome: ExperimentOutcome): void {
+    this.touch();
     (this.state.outcomes[outcome.experimentId] ??= []).push(outcome);
   }
 
@@ -329,6 +340,7 @@ export class StudioStore {
   // -- metrics and cohorts (upserts, so overlapping sync windows never duplicate) ----
 
   upsertMetrics(ventureId: string, rows: DailyMetrics[]): void {
+    this.touch();
     const table = (this.state.metrics[ventureId] ??= {});
     for (const r of rows) table[`${r.date}|${r.cellId ?? "*"}|${r.geo ?? "*"}`] = r;
   }
@@ -339,6 +351,7 @@ export class StudioStore {
   }
 
   upsertCohorts(ventureId: string, rows: CohortMetrics[]): void {
+    this.touch();
     const table = (this.state.cohorts[ventureId] ??= {});
     for (const r of rows) table[`${r.cohortDate}|${r.lane}|${r.ageDays}`] = r;
   }
@@ -351,6 +364,7 @@ export class StudioStore {
   // -- audiences (Bier P4: don't exhaust an audience) ----------------------------
 
   recordExposure(e: AudienceExposure): void {
+    this.touch();
     this.state.exposures.push(e);
   }
 
@@ -365,16 +379,19 @@ export class StudioStore {
   }
 
   setQuota(key: string, q: QuotaWindow): void {
+    this.touch();
     this.state.quotas[key] = q;
   }
 
   // -- freezes (platform strikes, tripwires) ---------------------------------------
 
   freeze(f: Freeze): void {
+    this.touch();
     this.state.freezes[f.scope] = f;
   }
 
   unfreeze(scope: string): void {
+    this.touch();
     delete this.state.freezes[scope];
   }
 
@@ -391,15 +408,36 @@ export class StudioStore {
    * amounts (e.g. a revenue day restated by the store) instead of adding a duplicate.
    * Only src/governance/ledger.ts calls this.
    */
+  /** Increases on every write, so derived figures (balances, accruals) can be cached per revision. */
+  get revision(): number {
+    return this.rev;
+  }
+
+  private touch(): void {
+    this.rev++;
+  }
+
+  /** The ledger entry booked under a source key, if any. */
+  ledgerEntry(sourceKey: string): LedgerEntry | undefined {
+    const i = this.ledgerPosition(sourceKey);
+    return i >= 0 ? this.state.ledger[i] : undefined;
+  }
+
+  private ledgerPosition(sourceKey: string): number {
+    if (!this.ledgerIndex) this.ledgerIndex = new Map(this.state.ledger.map((e, i) => [e.sourceKey, i]));
+    return this.ledgerIndex.get(sourceKey) ?? -1;
+  }
+
   book(entry: Omit<LedgerEntry, "id" | "at"> & { at?: string }): LedgerEntry {
-    const existing = this.state.ledger.findIndex((e) => e.sourceKey === entry.sourceKey);
+    this.touch();
+    const existing = this.ledgerPosition(entry.sourceKey);
     const row: LedgerEntry = {
       ...entry,
       id: existing >= 0 ? (this.state.ledger[existing] as LedgerEntry).id : this.nextId("ledger"),
       at: entry.at ?? this.clock.iso(),
     };
     if (existing >= 0) this.state.ledger[existing] = row;
-    else this.state.ledger.push(row);
+    else this.ledgerIndex?.set(row.sourceKey, this.state.ledger.push(row) - 1);
     return row;
   }
 
@@ -435,7 +473,18 @@ export class StudioStore {
   // -- persistence -------------------------------------------------------------
 
   /** Persist the snapshot atomically, then append buffered events. */
+  /** Persist the snapshot and buffered events (a no-op between checkpoints in checkpoint mode). */
   commit(): void {
+    if (this.durability === "checkpoint") return;
+    this.flush();
+  }
+
+  /** Persist now, whatever the durability mode. */
+  checkpoint(): void {
+    this.flush();
+  }
+
+  private flush(): void {
     if (!this.dir) {
       this.pendingEvents = [];
       return;
@@ -458,7 +507,7 @@ export class StudioStore {
 
   /** Release the single-writer lock. */
   close(): void {
-    this.commit();
+    this.flush();
     if (this.lockPath && existsSync(this.lockPath)) rmSync(this.lockPath);
     this.lockPath = null;
   }
