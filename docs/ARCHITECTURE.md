@@ -82,10 +82,17 @@ winner (`docs/PRINCIPLES.md`).
 ## 4. Venture lifecycle
 
 ```
-screened → building ─→ in_review → live_test ⇄ iterating → scaling → harvest → sunsetting
+screened → building ─→ in_review → live_test ⇄ iterating → scaling → harvest → sunsetting → killed
     (S0 attention probe runs alongside building; it can only kill)
-any stage → killed (gate fail · iterations exhausted · time box · test-spend cap · guardrail breach)
+stop testing (iterations exhausted · time box · test-spend cap · futility · human decision):
+    paying users + positive organic contribution → harvest (no growth spend)
+    paying users otherwise                       → venture.sunset (human gate)
+    no paying users                              → venture.kill
 ```
+
+A variant that ships as a new build sends a live venture back through `building` and `in_review`; it can
+still be harvested or sunset from there. A venture that has completed its ladder is outside the time box
+while its `venture.scale` decision is pending.
 
 **Build first, test with creators.** Vert ships builds every ~3 days. A pre-build "concept test" can't
 be measured: TikTok and Reels have no clickable links, and creators would be endorsing a product that
@@ -136,6 +143,15 @@ friends, or its primary channel is invites.
 * **Decision table** (`lab/decide.ts`): continue / pass / replicate (sequential phase 2 is pre-registered)
   / iterate / kill / fix_harness / escalate. Iterations are capped per step, harness fixes are capped
   and then escalate to a human, and a test-spend cap per venture applies.
+* **Read timing.** A cell's exposure clock starts when its creator campaign goes live, not at
+  registration, so approvals and marketplace setup don't count against it. Distribution tests start it
+  on the first in-geo post view, not on organic installs. Creator-led reads cover the posting window plus
+  post maturity, so the first few posts don't decide the test.
+* **Robust reads.** Viral concentration is normal: one post often brings most of a cell's traffic. A
+  cell is invalid for concentration only when its pass/fail verdict changes after dropping the top source
+  (leave-one-out). A cell short of its planned sample at the deadline still decides when the posterior
+  is conclusive. A fail can be conclusive at any sample; a pass needs at least half the planned sample.
+  Only an open answer is a harness failure.
 * **S4 unit economics.** The 20th percentile of predicted net D60 revenue per install (`lab/ltv.ts`:
   install → trial → keep-proxy → renewal survival, net of store fee and VAT) divided by the cell's CAC
   must reach `s4MinRoasD60P20`.
@@ -155,7 +171,7 @@ friends, or its primary channel is invites.
    human. Instagram Trial Reels are the hook-testing surface. TikTok posts go as **inbox drafts** a human
    finishes, because the audit rejects uploaders for your own accounts. Posting caps sit well under
    platform limits, and near-duplicates are capped.
-4. **Paid amplification (winners only).** Step 1, eligibility: the post's predicted net RPM_D60 is at
+4. **Paid amplification (winners only; designed, not yet built: the allocator funds creator batches only).** Step 1, eligibility: the post's predicted net RPM_D60 is at
    least 1.5× its effective creator CPM, with ≥ 50 attributed installs. Step 2: a capped 3-day probe.
    The creative scales only if the probe's p20 ROAS_D60 ≥ 1. A fatigue rule pauses it. Apple Ads
    brand-defense search is exempt but capped.
@@ -169,13 +185,24 @@ friends, or its primary channel is invites.
   lag. Cash counts settled proceeds only.
 * **Free cash** = cash − outstanding commitments − accrued creator liabilities − refund reserve. Every
   spend policy check uses free cash.
-* **Allocator.** Lanes are `venture|channel|geo|source`. Each lane gets a power-law response curve, and
-  budget goes greedily to the highest marginal ROAS_D60 (p20) in $50 steps, ramping at most 25% every 3
-  days. A projected 120-day cash trough must stay above the reserve. 35% of spend is held back for testing.
-* **Harvest and exit.** Decay half-life and NPV-versus-sale estimates drive the stage moves: scaling →
-  harvest, harvest → exit flag, and two months of negative contribution → sunset. Killing an app with
-  paying users routes to `venture.sunset` (a human gate). The backend keeps serving users until their
-  paid period ends.
+* **Allocator** (`orchestrator/allocator.ts`). Each scaling venture is one lane today. Its unit economics
+  come from cohorts at least one trial period old over the last 28 days. Predicted D60 net revenue per
+  install is computed at the 20th percentile of the conversion posterior. Marginal CAC is the average CAC
+  × 1.25, a deliberately conservative stand-in for a fitted response curve. Budget moves +25% at most
+  every 3 days when marginal ROAS(D60, p20) ≥ 1 and payback fits the window (30 days, or 60 when free cash
+  is high). It is cut by 25% below the S4 bar and set to zero below half of it. The pool is the daily cap
+  minus the 35% held back for validation. Spend committed until payback must fit in free cash (the cash
+  trough). The scaling budget funds weekly Thompson-sampled creator batches.
+* **Harvest, sunset and exit.**
+  * Scaling → harvest when the lane is cut to zero and weekly proceeds fall more than 30% below peak.
+  * Harvest → sunset after the configured number of consecutive months of negative *organic*
+    contribution, i.e. revenue, refunds, inference and infrastructure. Trailing creator payouts from the
+    test phase are sunk costs and don't count.
+  * Sunset removes the app and its subscriptions from sale at once, so there are no new sales or
+    renewals. The backend serves users until their paid periods lapse, and the venture is killed when no
+    subscribers remain.
+  * An exit flag is raised when trailing-year proceeds are material and declining, and a sale is worth
+    more than holding.
 
 ## 9. Governance
 
@@ -250,3 +277,30 @@ friends, or its primary channel is invites.
 * Google Ads (deferred).
 
 **Rejected:** copying Vert's multi-LLC account structure.
+
+## 12. What end-to-end runs changed
+
+Simulated company runs (`factory sim`) exercise every phase against the simulated market, and real
+Claude agents can run against it too (`--llm gateway`). They exposed problems no unit test caught:
+
+* **Harness false alarms killed good apps.** Four causes:
+  * the exposure clock started on organic installs;
+  * a per-view metric was flagged "impossible" when installs outran counted views;
+  * reads closed before most posts had matured;
+  * any viral post invalidated a cell.
+
+  Each one sent ventures through `fix_harness`, escalation and the time box.
+* **Money leaks.**
+  * Payouts proposed in the same tick each saw the full remaining campaign budget.
+  * Sunsetting apps stayed on sale and kept acquiring users.
+  * Discovery stalled because sunsetting apps held portfolio slots.
+* **Deadlocks.**
+  * Policy demanded approved subscriptions before RevenueCat setup, but Apple approves them with the
+    first build.
+  * A validated venture was harvested by the time box while its scale approval was pending.
+* **Throughput.** The write-ahead executor persisted the full state twice per action, and the ledger
+  recomputed balances on every policy check. Simulations now checkpoint weekly. The ledger caches its
+  figures per store revision.
+* **Gateway.** Long, high-effort structured calls (idea batches) were dropped as 502s when sent
+  non-streaming. Gateway calls now always stream.
+
