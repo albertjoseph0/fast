@@ -86,7 +86,8 @@ async function ensureBuild(ctx: TickContext, deps: StudioDeps, v: Venture): Prom
   // Re-render for a new spec version, and once after the site is published so the app links to it.
   const staleUrls = v.build !== undefined && v.bindings.webBaseUrl !== undefined && v.build.webBaseUrl !== v.bindings.webBaseUrl && !v.build.easBuildId;
   if (!v.build || v.build.specVersion !== v.specVersion || staleUrls) {
-    const teamId = ctx.store.publishers.get(v.bindings.publisherAccountIds.ios ?? "")?.externalTeamId;
+    const publisherTeam = ctx.store.publishers.get(v.bindings.publisherAccountIds.ios ?? "")?.externalTeamId;
+    const teamId = publisherTeam && publisherTeam !== "UNSET" ? publisherTeam : undefined;
     const record = deps.renderApp({
       venture: v,
       spec: v.spec as NonNullable<Venture["spec"]>,

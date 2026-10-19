@@ -36,6 +36,14 @@ export interface EnvVar {
 
 /** Every environment variable a live adapter reads, grouped by service (for `factory env` and the runbook). */
 export const LIVE_ENV_VARS: readonly { service: string; vars: readonly EnvVar[] }[] = [
+  {
+    service: "Studio",
+    vars: [
+      { name: "APPLE_TEAM_ID", purpose: "Apple Developer team id of the studio's organization account (universal links, publisher record)", required: true },
+      { name: "AI_GATEWAY_API_KEY", purpose: "Vercel AI Gateway key for Claude and media (or ANTHROPIC_API_KEY for the Anthropic API)", required: false },
+      { name: "ANTHROPIC_API_KEY", purpose: "Anthropic API key; when set, agents call the Anthropic API directly", required: false },
+    ],
+  },
   { service: "App Store Connect", vars: ASC_ENV },
   { service: "Store ports", vars: STORES_ENV },
   { service: "Google Play", vars: PLAY_ENV },

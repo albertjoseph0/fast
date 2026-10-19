@@ -24,6 +24,9 @@ import { differentiationReport } from "./differentiation.ts";
 import { SimBoard, type SimBoardPolicy } from "./simBoard.ts";
 import { Studio } from "./studio.ts";
 
+/** Placeholder until APPLE_TEAM_ID is set; renders then keep the universal-link placeholder. */
+export const UNSET_TEAM_ID = "UNSET";
+
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const TEMPLATE_DIR = join(REPO_ROOT, "templates", "expo-app");
 
@@ -119,6 +122,8 @@ export async function createLiveStudio(opts: { config: StudioConfig; dataDir: st
   const env = opts.env ?? process.env;
   const clock = new SystemClock();
   const store = new StudioStore(join(opts.dataDir, "state"), clock, config.seed);
+  // The entity and its developer accounts are registered by humans; the studio records them once.
+  seedStudioAccounts(store, config, { appleTeamId: env.APPLE_TEAM_ID ?? UNSET_TEAM_ID });
   const ledger = new LedgerSync({ store, config, clock });
   const llm = makeLlm(config, ledger, clock, env);
   const media = createMedia({ config, meter: ledger, provider: config.media.provider, env });
