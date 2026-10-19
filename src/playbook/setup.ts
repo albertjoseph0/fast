@@ -217,6 +217,47 @@ export const SETUP_CHECKLIST: readonly SetupStep[] = [
     inputs: [{ key: "backendUrl", label: "Backend base URL", pattern: HTTPS_URL }],
   },
   {
+    kind: "integrations.bind_projects",
+    scope: "venture",
+    title: "Create the venture's analytics, subscription and build projects",
+    instructions: [
+      "Each venture gets its own projects so data, flags and builds never mix between apps.",
+      "1. [PostHog](https://us.posthog.com/project/settings): create a project named after the app; copy its numeric project id and its public project API key (the key goes into the venture's EAS environment as EXPO_PUBLIC_POSTHOG_API_KEY).",
+      "2. [RevenueCat](https://app.revenuecat.com/projects): create a project; copy its project id (proj...) and add the app's public SDK key to the EAS environment as EXPO_PUBLIC_REVENUECAT_IOS_KEY. Enable the PostHog integration with the event names in the runbook.",
+      "3. [Expo](https://expo.dev/accounts): create a project for the app's slug (or run `eas init` in the rendered app folder); copy the EAS project id (a UUID).",
+    ].join("\n"),
+    inputs: [
+      { key: "posthogProjectId", label: "PostHog project id", pattern: "^\\d+$" },
+      { key: "revenueCatProjectId", label: "RevenueCat project id", pattern: "^proj[A-Za-z0-9]+$" },
+      { key: "easProjectId", label: "EAS project id (UUID)", pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
+    ],
+  },
+  {
+    kind: "backend.add_tenant",
+    scope: "venture",
+    title: "Add the venture to the verdict backend",
+    instructions: [
+      "The verdict backend serves one tenant file per app; the studio renders it but never holds deploy credentials.",
+      "1. Copy `<data dir>/ventures/<slug>/app/server/tenants/<slug>.json` into the deployed backend's `tenants/` directory (or its tenant store).",
+      "2. Set the server secret named in the file's `revenueCatSecretEnv` to the venture's RevenueCat secret key ([RevenueCat API keys](https://app.revenuecat.com/projects)).",
+      "3. Check `GET <backendUrl>/v1/config?slug=<slug>` returns 200, then confirm here.",
+    ].join("\n"),
+    inputs: [CONFIRM],
+  },
+  {
+    kind: "apple.app_info",
+    scope: "venture",
+    title: "Complete the App Store information Apple requires before the first submission",
+    instructions: [
+      "Set these in [App Store Connect](https://appstoreconnect.apple.com/apps) → the app, using the context below:",
+      "1. **Age Rating**: answer the questionnaire so the rating is at least the minimum age in the context (gambling, mature themes, unrestricted web access, AI-generated content and user-generated content as applicable).",
+      "2. **App Information**: primary category, content rights (the app shows no third-party content unless the context says so).",
+      "3. **Version**: copyright line `<year> <legal entity name>`.",
+      "4. **Pricing and Availability**: price Free (subscriptions are sold in-app); do not change availability, the studio manages territories.",
+    ].join("\n"),
+    inputs: [CONFIRM],
+  },
+  {
     kind: "store.manual_step",
     scope: "venture",
     title: "Finish a store step the API cannot do",

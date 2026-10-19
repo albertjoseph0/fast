@@ -425,7 +425,13 @@ export type HumanTaskKind =
   | "backend.deploy"
   | "legal.review"
   /** A store console step an adapter reported it cannot do by API (e.g. a subscription's review screenshot). */
-  | "store.manual_step";
+  | "store.manual_step"
+  /** Per-venture analytics, subscription and build projects (PostHog, RevenueCat, EAS) the adapters write into. */
+  | "integrations.bind_projects"
+  /** Deploy the venture's tenant file (composed system prompt) and RevenueCat secret to the verdict backend. */
+  | "backend.add_tenant"
+  /** App Store metadata no API covers well: age rating questionnaire, category, copyright, content rights, price. */
+  | "apple.app_info";
 
 export interface HumanTask {
   id: string;

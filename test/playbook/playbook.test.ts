@@ -291,6 +291,9 @@ describe("setup checklist", () => {
     "backend.deploy",
     "legal.review",
     "store.manual_step",
+    "integrations.bind_projects",
+    "backend.add_tenant",
+    "apple.app_info",
   ];
 
   it("covers every human task kind exactly once", () => {
