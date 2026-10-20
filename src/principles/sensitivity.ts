@@ -3,7 +3,7 @@
  * LLM classifier labels it again; these keyword lists catch what both miss. The effective
  * domain set is the union, so a label can only be added, never removed, by later steps.
  */
-import type { Idea, SensitiveDomain } from "../core/types.ts";
+import type { AppSpec, Idea, SensitiveDomain } from "../core/types.ts";
 
 const KEYWORDS: Record<SensitiveDomain, RegExp> = {
   astrology_fortune:
@@ -60,6 +60,44 @@ export function ideaText(idea: Idea): string {
 /** Sorted union of the ideator's labels, the classifier's labels and the keyword backstop. */
 export function effectiveDomains(idea: Idea, classifier: SensitiveDomain[]): SensitiveDomain[] {
   return [...new Set([...idea.sensitiveDomains, ...classifier, ...keywordDomains(ideaText(idea))])].sort();
+}
+
+/** A photo input judged on how the person looks (face, body, outfit, style). */
+const JUDGES_APPEARANCE =
+  /\b(face|faces|facial|body|bodies|looks?|appearance|attractive\w*|beauty|outfits?|style|selfies?|skin|hair\w*|physique|jawline|smile)\b/i;
+
+/** The spec's product text the AI and the user see: prompt, sections, input label and copy. */
+export function specText(spec: AppSpec): string {
+  return [
+    spec.appName,
+    spec.subtitle,
+    spec.core.inputLabel,
+    spec.core.aiSystemPrompt,
+    ...spec.core.outputSections,
+    ...spec.core.loadingMessages,
+    ...spec.onboarding.flatMap((s) => [s.title, s.subtitle ?? "", ...s.options]),
+    spec.paywall.headline,
+    ...spec.paywall.bullets,
+    spec.share.artifact,
+    spec.share.cardHeadline,
+    spec.share.caption,
+    spec.aso.description,
+    spec.aso.promotionalText,
+    ...spec.aso.keywords,
+    ...spec.aso.screenshotCaptions,
+  ].join("\n");
+}
+
+/**
+ * Domains for a spec version: the idea's effective domains plus keyword matches over the
+ * spec's own text, biometric for a photo of a person judged on appearance, and minors
+ * whenever the wedge admits users under 18. Re-run on every spec version.
+ */
+export function specDomains(spec: AppSpec, idea: Idea, classifier: SensitiveDomain[]): SensitiveDomain[] {
+  const domains = new Set([...effectiveDomains(idea, classifier), ...keywordDomains(specText(spec))]);
+  if (spec.core.inputKind === "photo" && (domains.has("appearance_rating") || JUDGES_APPEARANCE.test(spec.core.aiSystemPrompt))) domains.add("biometric");
+  if (idea.wedge.minAge < 18) domains.add("minors");
+  return [...domains].sort();
 }
 
 /** Domains that make an app adults-only regardless of the wedge (Apple 1.1.4, 5.3; state chatbot laws). */

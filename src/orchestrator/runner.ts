@@ -102,5 +102,6 @@ export async function runSimulation(o: SimulationOptions): Promise<SimulationRes
     elapsedMs: Date.now() - started,
   };
   if (o.dataDir) writeFileSync(join(o.dataDir, "simulation.json"), `${JSON.stringify(result, null, 2)}\n`);
+  store.close();
   return result;
 }

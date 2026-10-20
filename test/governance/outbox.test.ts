@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { HumanTaskDraft } from "../../src/core/types.ts";
 import { payloadHash } from "../../src/governance/hash.ts";
+import { Governance, REJECTION_COOLDOWN_DAYS } from "../../src/governance/outbox.ts";
 import { POLICY_VERSION } from "../../src/governance/policy.ts";
 import { START, input, makeWorld, metricsRow } from "./fixtures.ts";
 
@@ -81,7 +82,7 @@ describe("approvals", () => {
     expect(() => gov.approve(a.id, "intern")).toThrow(/not on the board/);
     const approved = gov.approve(a.id, "cfo", { channel: "web", note: "ok" });
     expect(approved.status).toBe("approved");
-    expect(approved.approvals).toEqual([{ approver: "cfo", payloadHash: a.payloadHash, at: START, channel: "web", note: "ok" }]);
+    expect(approved.approvals).toEqual([{ approver: "cfo", payloadHash: a.payloadHash, at: START, channel: "web", coveredRuleIds: ["always_approve"], note: "ok" }]);
     expect(store.recentEvents((e) => e.type === "action.decided").at(-1)?.data).toMatchObject({ from: "awaiting_approval", status: "approved", approver: "cfo" });
   });
 
@@ -120,7 +121,7 @@ describe("approvals", () => {
     expect(r.findings.at(-1)).toMatchObject({ ruleId: "board.rejected", message: "owner: not yet" });
     expect(() => gov.approve(a.id, "owner")).toThrow(/rejected/);
     expect(() => gov.cancel(a.id, "x")).toThrow(/rejected/);
-    const b = gov.propose(sunset());
+    const b = gov.propose({ ...sunset(), payload: { ...sunset().payload, reason: "changed" } });
     expect(gov.cancel(b.id, "obsolete").status).toBe("cancelled");
   });
 });
@@ -196,5 +197,39 @@ describe("list", () => {
     expect(gov.list({ status: ["approved"] }).map((x) => x.id)).toEqual([b.id]);
     expect(gov.list({ kind: ["venture.sunset"] }).map((x) => x.id)).toEqual([a.id]);
     expect(gov.list({ ventureId: "ven_other" })).toEqual([]);
+  });
+});
+
+describe("review regressions", () => {
+  it("#33 a board rejection of the same payload stands for the cool-down", () => {
+    const { gov, clock } = makeWorld();
+    const first = gov.propose(sunset());
+    gov.reject(first.id, "owner", "keep running it");
+    const again = gov.propose(sunset());
+    expect(again.id).toBe(first.id);
+    expect(again.status).toBe("rejected");
+    // A changed payload is a new question.
+    const changed = gov.propose(sunset("subscribers dropped"));
+    expect(changed.id).not.toBe(first.id);
+    gov.cancel(changed.id, "test");
+    clock.advanceHours(REJECTION_COOLDOWN_DAYS * 24 + 1);
+    const later = gov.propose(sunset());
+    expect(later.id).not.toBe(first.id);
+    expect(later.status).toBe("awaiting_approval");
+  });
+
+  it("#29 while dry-run is on, a dry run of the same payload holds its dedupe key", () => {
+    const { store, config, clock, ledger } = makeWorld();
+    const dry = new Governance({ store, config, clock, ledger, killSwitchPath: null, dryRun: true });
+    const site = (localPath = "/tmp/site/index.html") => input("web.publish_site", { files: [{ path: "index.html", localPath }] });
+    const first = dry.propose(site());
+    store.governanceActions().put({ ...store.actions.require(first.id), status: "dry_run" });
+    expect(dry.propose(site()).id).toBe(first.id);
+    expect(dry.propose(site("/tmp/site/v2.html")).id).not.toBe(first.id);
+    // Once dry-run is off the real action is proposed.
+    const live = new Governance({ store, config, clock, ledger, killSwitchPath: null });
+    const real = live.propose(site());
+    expect(real.id).not.toBe(first.id);
+    expect(real.status).toBe("approved");
   });
 });

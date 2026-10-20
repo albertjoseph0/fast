@@ -11,10 +11,12 @@ import type { StudioStore } from "../core/store.ts";
 import type { Action, ActionKind, ActionStatus, HumanTask, HumanTaskDraft, PolicyFinding, VentureBindings } from "../core/types.ts";
 import { payloadHash } from "./hash.ts";
 import type { LedgerSync } from "./ledger.ts";
-import { POLICY_VERSION, evaluateAction, statusFor, type PolicyContext } from "./policy.ts";
+import { POLICY_VERSION, evaluateAction, statusFor, type CoveringApproval, type PolicyContext } from "./policy.ts";
 
 /** Statuses that hold the dedupe key: a new proposal with the same key returns the open one. */
 export const OPEN_STATUSES: readonly ActionStatus[] = ["proposed", "blocked", "awaiting_approval", "awaiting_human_task", "approved", "executing"];
+/** How long a board rejection of an unchanged payload stands before the same proposal may ask again. */
+export const REJECTION_COOLDOWN_DAYS = 14;
 /** Statuses re-run through policy as the world changes (cash, time, tasks, approvals). */
 const REEVALUATE: readonly ActionStatus[] = ["proposed", "blocked", "awaiting_approval", "awaiting_human_task"];
 const TERMINAL: readonly ActionStatus[] = ["executed", "dry_run", "failed", "rejected", "cancelled"];
@@ -43,13 +45,16 @@ export class Governance implements Outbox {
   private readonly clock: Clock;
   private readonly ledger: LedgerSync;
   private readonly killSwitchPath: string | null;
+  private readonly dryRun: boolean;
 
-  constructor(deps: { store: StudioStore; config: StudioConfig; clock: Clock; ledger: LedgerSync; killSwitchPath: string | null }) {
+  /** `dryRun` must match the executor's: while it is on, a dry_run of the same payload holds its dedupe key. */
+  constructor(deps: { store: StudioStore; config: StudioConfig; clock: Clock; ledger: LedgerSync; killSwitchPath: string | null; dryRun?: boolean }) {
     this.store = deps.store;
     this.config = deps.config;
     this.clock = deps.clock;
     this.ledger = deps.ledger;
     this.killSwitchPath = deps.killSwitchPath;
+    this.dryRun = deps.dryRun ?? false;
   }
 
   killSwitchActive(): boolean {
@@ -67,10 +72,15 @@ export class Governance implements Outbox {
     };
   }
 
+  /**
+   * Propose an action, or return the one already holding its dedupe key: an open action, a dry run
+   * of the same payload while dry-run is on, or a recent board rejection of the same payload.
+   */
   propose<K extends ActionKind>(input: ProposeInput<K>): Action<K> {
     const key = `${input.kind}:${input.ventureId ?? "studio"}:${input.naturalKey}`;
-    const open = this.store.actions.list((a) => a.dedupeKey === key && OPEN_STATUSES.includes(a.status))[0];
-    if (open) return open as Action<K>;
+    const hash = payloadHash(input.kind, input.ventureId, input.payload);
+    const held = this.holderOf(key, hash);
+    if (held) return held as Action<K>;
 
     const now = this.clock.iso();
     const draft: Action<K> = {
@@ -80,7 +90,7 @@ export class Governance implements Outbox {
       rationale: input.rationale,
       proposedBy: input.proposedBy,
       payload: input.payload,
-      payloadHash: payloadHash(input.kind, input.ventureId, input.payload),
+      payloadHash: hash,
       idempotencyKey: key,
       dedupeKey: key,
       costCents: input.costCents ?? input.commitment?.maxTotalCents ?? 0,
@@ -102,13 +112,21 @@ export class Governance implements Outbox {
     return action;
   }
 
-  /** Board approval bound to the action's current payload hash. */
+  /** Board approval bound to the action's current payload hash and to the needs_human findings the approver was shown. */
   approve(id: string, approver: string, opts: { channel?: "cli" | "web"; note?: string } = {}): Action {
     this.assertBoard(approver);
     const action = this.store.actions.require(id);
     if (TERMINAL.includes(action.status) || action.status === "executing") throw new Error(`action ${id} is ${action.status} and cannot be approved`);
     const hash = payloadHash(action.kind, action.ventureId, action.payload);
-    const approval = { approver, payloadHash: hash, at: this.clock.iso(), channel: opts.channel ?? "cli", ...(opts.note ? { note: opts.note } : {}) };
+    const coveredRuleIds = [...new Set(action.findings.filter((f) => f.severity === "needs_human").map((f) => f.ruleId))];
+    const approval: CoveringApproval = {
+      approver,
+      payloadHash: hash,
+      at: this.clock.iso(),
+      channel: opts.channel ?? "cli",
+      coveredRuleIds,
+      ...(opts.note ? { note: opts.note } : {}),
+    };
     return this.transition({ ...action, approvals: [...action.approvals, approval] }, { approver });
   }
 
@@ -202,6 +220,16 @@ export class Governance implements Outbox {
   }
 
   // -- internals ---------------------------------------------------------------
+
+  private holderOf(key: string, hash: string): Action | undefined {
+    const same = this.store.actions.list((a) => a.dedupeKey === key);
+    const open = same.find((a) => OPEN_STATUSES.includes(a.status));
+    if (open) return open;
+    const cooldownStart = new Date(this.clock.now().getTime() - REJECTION_COOLDOWN_DAYS * 86_400_000).toISOString();
+    return same.find(
+      (a) => a.payloadHash === hash && ((this.dryRun && a.status === "dry_run") || (a.status === "rejected" && (a.decidedAt ?? a.createdAt) >= cooldownStart)),
+    );
+  }
 
   /** The action with a fresh payload hash, findings and status. */
   private evaluated<K extends ActionKind>(a: Action<K>): Action<K> {

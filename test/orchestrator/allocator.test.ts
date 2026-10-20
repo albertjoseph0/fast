@@ -88,10 +88,25 @@ describe("ventureEconomics and planAllocation", () => {
     expect(badPlan.lanes[0]?.reason).toMatch(/below half the S4 bar/);
   });
 
-  it("keeps committed spend until payback within free cash", () => {
+  it("keeps a cut and the ramp cool-down across processes: the last plan lives on the venture", () => {
+    const bad = setup(2);
+    planAllocation(tickContext(bad), bad.ledger);
+    expect(bad.store.ventures.require("ven_000001").budget).toMatchObject({ dailyCents: 0 });
+    // A new process has no in-memory events; the cut still holds instead of reverting to the scale payload.
+    bad.store.ventures.put({ ...bad.store.ventures.require("ven_000001") });
+    expect(planAllocation(tickContext(bad), bad.ledger).lanes[0]?.currentDailyCents).toBe(0);
+
+    const good = setup(80);
+    const first = planAllocation(tickContext(good), good.ledger).lanes[0];
+    const second = planAllocation(tickContext(good), good.ledger).lanes[0];
+    expect(second?.currentDailyCents).toBe(first?.proposedDailyCents);
+    expect(second?.reason).toBe("ramp cooling down");
+  });
+
+  it("keeps committed spend until payback within the free cash validation does not hold", () => {
     const w = setup(80);
     const plan = planAllocation(tickContext(w), w.ledger);
-    expect(plan.projectedTroughCents).toBeGreaterThanOrEqual(0);
+    expect(plan.projectedTroughCents).toBeGreaterThanOrEqual(Math.floor(w.ledger.freeCash() * w.config.budgets.testBudgetShare) - 1);
     expect(plan.lanes.reduce((s, l) => s + l.proposedDailyCents, 0)).toBeLessThanOrEqual(w.ledger.dailySpendCap() - plan.testBudgetCents);
   });
 });

@@ -34,11 +34,13 @@ import type {
   ValidityCheckId,
   VentureLadder,
 } from "../core/types.ts";
-import { readDeadline } from "./experiments.ts";
+import { PLANNING, readDeadline } from "./experiments.ts";
 import { cellEconomics, type CellEconomics } from "./ltv.ts";
 import {
   credibleInterval,
+  DEFAULT_RHO_FLOOR,
   effectiveCounts,
+  isFutileRead,
   posteriorMean,
   probAtLeast,
   probBelow,
@@ -53,13 +55,19 @@ function hoursBetween(a: Iso, b: Iso): number {
   return (new Date(b).getTime() - new Date(a).getTime()) / 3_600_000;
 }
 
-function posteriorFor(m: MetricSpec, counts: MetricCounts): { post: Posterior; nEffective: number } {
+/**
+ * Posterior over clustered counts. The clustering floor is the metric family's planning prior: views are
+ * so many per post that a user-level floor would cap a cell at ~1/(0.01 x top share) effective views.
+ * `rho` reuses a clustering already estimated on the full cell.
+ */
+function posteriorFor(m: MetricSpec, counts: MetricCounts, rho?: number): { post: Posterior; nEffective: number; rho: number } {
   // Per-view metrics join two sources (storefront installs over in-geo post views), so early on installs
   // can outrun counted views; the posterior caps successes at trials instead of treating that as breakage.
   const successes = m.kind === "proportion" ? Math.min(counts.successes, counts.trials) : counts.successes;
-  const eff = effectiveCounts({ successes, trials: counts.trials }, counts.bySource);
+  const floor = m.denominator === "view" ? PLANNING.viewRho : DEFAULT_RHO_FLOOR;
+  const eff = effectiveCounts({ successes, trials: counts.trials }, counts.bySource, { kind: m.kind, floor, ...(rho === undefined ? {} : { rho }) });
   const post = m.kind === "rate" ? ratePosterior(eff.successes, eff.trials, m.floor) : proportionPosterior(eff.successes, eff.trials, m.floor);
-  return { post, nEffective: eff.trials };
+  return { post, nEffective: eff.trials, rho: eff.rho };
 }
 
 function sourceProblem(counts: MetricCounts, config: StudioConfig): { kind: "few_sources" | "concentrated"; detail: string } | null {
@@ -113,7 +121,10 @@ export function evaluateCell(i: CellEvalInput): CellVerdict {
   const counts = (m: MetricSpec) => obs?.metrics[m.key] ?? EMPTY;
   const required = plan.metrics.filter((m) => m.role === "required");
   const sampleReached = required.every((m) => counts(m).trials >= (plan.minSamplePerCell[m.key] ?? 1));
-  const decideNow = atDeadline || (required.length > 0 && sampleReached);
+  // Creators keep posting for a window after the first post; an early read before it closes lets the
+  // first few posts decide (and flags their concentration), so it waits for the window.
+  const postingDone = cell.channel !== "creator_ugc" || hoursBetween(cell.firstExposureAt, now) >= config.lab.creatorPostingWindowHours;
+  const decideNow = atDeadline || (required.length > 0 && sampleReached && postingDone);
 
   // Instrumentation is checked continuously: impossible counts are never a product signal.
   const broken = plan.metrics.filter((m) => {
@@ -134,8 +145,7 @@ export function evaluateCell(i: CellEvalInput): CellVerdict {
     const minN = plan.minSamplePerCell[m.key] ?? 1;
     const { post, nEffective } = posteriorFor(m, k);
     const pAtLeastFloor = probAtLeast(post, m.floor);
-    const isFutile =
-      m.role !== "informational" && k.trials >= 0.5 * minN && (pAtLeastFloor < 0.05 || probBelow(post, m.futility) >= c);
+    const isFutile = m.role !== "informational" && k.trials >= 0.5 * minN && isFutileRead(post, m.floor, m.futility, c);
     let decision: CellDecision;
     if (isFutile) decision = "futile";
     else if (!decideNow) decision = "pending";
@@ -161,14 +171,18 @@ export function evaluateCell(i: CellEvalInput): CellVerdict {
   const overBudget = cell.budgetCents > 0 && spend > cell.budgetCents * 1.1;
   validity.push({ id: "budget_not_exceeded", passed: !overBudget, detail: `spend ${spend}c of ${cell.budgetCents}c` });
   // Virality makes one post carry most of a cell's traffic. That only invalidates the read when the
-  // verdict depends on it: drop the top source and check the pass/fail call is unchanged.
+  // verdict depends on it: drop the top source and check the pass/fail call is unchanged. The rest is read
+  // with the full cell's clustering; re-estimating it without the dominant post would sharpen the read
+  // by itself and flip calls even when every post converts alike.
   const concentration = required
     .map((m) => {
       const k = counts(m);
       const problem = sourceProblem(k, config);
       if (!problem || problem.kind === "few_sources") return [m.key, problem?.detail ?? null] as const;
-      const passes = (x: MetricCounts) => probAtLeast(posteriorFor(m, x).post, m.floor) >= c;
-      return [m.key, passes(k) === passes(withoutTopSource(k)) ? null : `${problem.detail} and the read depends on it`] as const;
+      const full = posteriorFor(m, k);
+      const rest = posteriorFor(m, withoutTopSource(k), full.rho);
+      const same = probAtLeast(full.post, m.floor) >= c === probAtLeast(rest.post, m.floor) >= c;
+      return [m.key, same ? null : `${problem.detail} and the read depends on it`] as const;
     })
     .filter(([, p]) => p);
   validity.push({
@@ -241,7 +255,7 @@ export function diagnose(plan: ExperimentPlan, verdicts: CellVerdict[], observat
   });
 }
 
-/** Pool S4 counts across cells and read predicted D60 ROAS at the 20th percentile. */
+/** Pool S4 counts across cells and read predicted D60 ROAS at the 20th percentile, netting each storefront's VAT. */
 export function experimentEconomics(opts: {
   plan: ExperimentPlan;
   observations: Map<string, CellObservation>;
@@ -261,7 +275,11 @@ export function experimentEconomics(opts: {
   const ts = sum("trialStartRate");
   const keep = sum("trialKeep24h");
   const spend = opts.cellIds.reduce((s, id) => s + (opts.observations.get(id)?.spendCents ?? 0), 0);
-  const geo = opts.plan.cells.find((c) => c.id === opts.cellIds[0])?.geo ?? "US";
+  const geo: Record<string, number> = {};
+  for (const id of opts.cellIds) {
+    const cellGeo = opts.plan.cells.find((c) => c.id === id)?.geo;
+    if (cellGeo) geo[cellGeo] = (geo[cellGeo] ?? 0) + (opts.observations.get(id)?.metrics.trialStartRate?.trials ?? 0);
+  }
   return cellEconomics({
     trialStart: { ...ts, prior: opts.config.thresholds.trialStartRate.floor },
     keep24: { ...keep, prior: opts.config.thresholds.trialKeep24h.floor },

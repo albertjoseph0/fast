@@ -1,6 +1,9 @@
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { DryRunRecorder } from "../../../src/integrations/http.ts";
-import { EasCli, EasError, parseBuild, parseJsonOutput, parseSubmissionId } from "../../../src/integrations/expo/eas.ts";
+import { EasCli, EasError, parseBuild, parseJsonOutput, parseSubmission, parseSubmissionId } from "../../../src/integrations/expo/eas.ts";
 import type { EasRunner } from "../../../src/integrations/expo/eas.ts";
 
 const BUILD_JSON = [
@@ -74,6 +77,32 @@ describe("EasCli live", () => {
     const { runner } = recordingRunner([{ stdout: out }]);
     const eas = new EasCli({ env: { EXPO_TOKEN: "t" }, dryRun: false, runner });
     expect(await eas.submit({ platform: "ios", buildId: "b-3", projectDir: "/p" })).toEqual({ id: "0f1e2d3c-4b5a-4968-8776-655443322110" });
+  });
+
+  it("writes the submit profile into eas.json before submitting, and never in dry-run", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "eas-submit-"));
+    const original = { submit: { production: { ios: { language: "en-US" }, android: { track: "internal" } } } };
+    writeFileSync(join(dir, "eas.json"), JSON.stringify(original));
+    const profile = { ascAppId: "6400000001", ascApiKeyPath: "/keys/AuthKey_K1.p8", ascApiKeyId: "K1", ascApiKeyIssuerId: "issuer-1" };
+    const dry = new EasCli({ env: {}, dryRun: true });
+    await dry.submit({ platform: "ios", buildId: "b-1", projectDir: dir, submitProfile: profile });
+    expect(JSON.parse(readFileSync(join(dir, "eas.json"), "utf8"))).toEqual(original);
+    const { runner } = recordingRunner([{ stdout: "" }]);
+    const eas = new EasCli({ env: { EXPO_TOKEN: "t" }, dryRun: false, runner });
+    await eas.submit({ platform: "ios", buildId: "b-1", projectDir: dir, submitProfile: profile });
+    expect(JSON.parse(readFileSync(join(dir, "eas.json"), "utf8"))).toEqual({ submit: { production: { ios: { language: "en-US", ...profile }, android: { track: "internal" } } } });
+    await expect(eas.submit({ platform: "ios", buildId: "b-1", projectDir: join(dir, "missing"), submitProfile: profile })).rejects.toThrow(/eas\.json does not exist/);
+  });
+
+  it("reads submission status from submit:view --json", async () => {
+    const view = { id: "s-1", status: "ERRORED", platform: "IOS", error: { errorCode: "SUBMISSION_SERVICE_IOS_UNKNOWN_ERROR", message: "Upload failed" } };
+    const { runner, calls } = recordingRunner([{ stdout: `Fetching the submission…\n${JSON.stringify(view)}` }]);
+    const eas = new EasCli({ env: { EXPO_TOKEN: "t" }, dryRun: false, runner });
+    expect(await eas.submissionStatus({ id: "s-1", projectDir: "/p" })).toEqual({ id: "s-1", status: "ERRORED", error: "SUBMISSION_SERVICE_IOS_UNKNOWN_ERROR: Upload failed" });
+    expect(calls[0]!.args).toEqual(["submit:view", "s-1", "--json"]);
+    expect(await eas.submissionStatus({ id: "dry_eas_submit_ios_x", projectDir: "/p" })).toEqual({ id: "dry_eas_submit_ios_x", status: "FINISHED" });
+    expect(parseSubmission({ id: "s-2", status: "in-progress" })).toEqual({ id: "s-2", status: "IN_PROGRESS" });
+    expect(parseSubmission({ id: "s-3", status: "odd" }).status).toBe("UNKNOWN");
   });
 
   it("raises EasError on a non-zero exit and refuses to run without a token", async () => {

@@ -8,6 +8,22 @@ import { taskDraft } from "../playbook/setup.ts";
 import { patch } from "./lifecycle.ts";
 
 const RETRY_SECONDS = 3_600;
+const REVIEW_EXTENSION_MS = 7 * 86_400_000;
+/** Polls before a still-undecided App Review goes to a human (about a month at hourly-to-daily polling). */
+const MAX_REVIEW_POLLS = 60;
+/** Upload failures of one binary before it is rebuilt instead of re-uploaded. */
+const MAX_UPLOADS_PER_BUILD = 2;
+
+/** The human task a job waiting on a person needs: posting an inbox draft with its labels, or a console step. */
+function humanStepFor(ctx: TickContext, job: ExternalJob, next: ExternalJob) {
+  const ventureId = job.ventureId as string;
+  if (job.op === "social.publish") {
+    const labels = next.result?.["labelsToApply"] ?? next.result?.["labelsToApplyInApp"];
+    const contentId = str((ctx.store.actions.get(job.actionId)?.payload as { contentId?: string } | undefined)?.contentId) ?? job.externalRef["contentId"] ?? "";
+    return taskDraft("social.finish_draft", ventureId, `Draft for ${contentId} (${job.id}). Labels to turn on: ${labels ? JSON.stringify(labels) : "AI-generated content and your brand"}.`);
+  }
+  return taskDraft("store.manual_step", ventureId, `${job.op} (${job.id}): ${next.error ?? "the store needs a console step"}`);
+}
 
 export async function pollDueJobs(ctx: TickContext): Promise<ExternalJob[]> {
   const now = ctx.ports.clock.iso();
@@ -28,11 +44,19 @@ export async function pollDueJobs(ctx: TickContext): Promise<ExternalJob[]> {
       ...(poll.result ? { result: poll.result } : {}),
       ...(poll.error ? { error: poll.error } : {}),
     };
-    if (next.status === "running" && now > job.deadlineAt) next = { ...next, status: "failed", error: `deadline ${job.deadlineAt} passed` };
+    if (next.status === "running" && now > job.deadlineAt) {
+      // App Review of a new app or account can take weeks: a long review is not a rejection.
+      next =
+        job.op === "store.review" && job.attempts < MAX_REVIEW_POLLS
+          ? { ...next, deadlineAt: new Date(new Date(job.deadlineAt).getTime() + REVIEW_EXTENSION_MS).toISOString() }
+          : job.op === "store.review"
+            ? { ...next, status: "needs_human", error: `App Review has not decided since ${job.createdAt}` }
+            : { ...next, status: "failed", error: `deadline ${job.deadlineAt} passed` };
+    }
     ctx.store.jobs.put(next);
     if (next.status === "needs_human") {
       ctx.log("job.updated", { jobId: job.id, op: job.op, status: next.status, error: next.error ?? null }, job.ventureId);
-      if (job.ventureId) ctx.outbox.openTask(taskDraft("store.manual_step", job.ventureId, `${job.op} (${job.id}): ${next.error ?? "the store needs a console step"}`));
+      if (job.ventureId) ctx.outbox.openTask(humanStepFor(ctx, job, next));
     } else if (next.status !== "running") {
       ctx.log("job.updated", { jobId: job.id, op: job.op, status: next.status, result: next.result ?? null, error: next.error ?? null }, job.ventureId);
       applyJobResult(ctx, next);
@@ -73,7 +97,10 @@ export function applyJobResult(ctx: TickContext, job: ExternalJob): void {
       return;
     }
     case "store.submit_build": {
-      if (job.status !== "succeeded") return setStore({ status: "draft" });
+      if (job.status !== "succeeded") {
+        supersedeFailedBinary(ctx, job);
+        return setStore({ status: "draft" });
+      }
       const storeBuildId = str(result.storeBuildId);
       return setStore({ status: "ready_to_submit", ...(storeBuildId ? { storeBuildId } : {}) });
     }
@@ -83,12 +110,18 @@ export function applyJobResult(ctx: TickContext, job: ExternalJob): void {
         setStore({ status: "pending_release", rejectionReasons: [] });
         if (venture) {
           const v = store.ventures.require(venture.id);
-          patch(store, clock, v, {
-            bindings: {
-              ...v.bindings,
-              products: v.bindings.products.map((p) => (p.status === "created" || p.status === "in_review" ? { ...p, status: "approved" } : p)),
-            },
-          });
+          // Subscriptions are reviewed with the app but decided one by one: follow the store's state per
+          // product when it reports one (App Store Connect), otherwise the app's approval approves them.
+          const states = result.productStates && typeof result.productStates === "object" ? (result.productStates as Record<string, unknown>) : undefined;
+          const next = (p: (typeof v.bindings.products)[number]): (typeof v.bindings.products)[number] => {
+            if (p.status !== "created" && p.status !== "in_review") return p;
+            if (!states) return { ...p, status: "approved" };
+            const state = String(states[p.productId] ?? "");
+            if (state === "APPROVED") return { ...p, status: "approved" };
+            if (state === "REJECTED" || state === "DEVELOPER_ACTION_NEEDED") return { ...p, status: "rejected" };
+            return ["WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_BINARY_APPROVAL"].includes(state) ? { ...p, status: "in_review" } : p;
+          };
+          patch(store, clock, v, { bindings: { ...v.bindings, products: v.bindings.products.map(next) } });
         }
         return;
       }
@@ -115,5 +148,25 @@ export function applyJobResult(ctx: TickContext, job: ExternalJob): void {
     }
     default:
       return;
+  }
+}
+
+/**
+ * Apple processing rejected the binary (or uploads keep failing): mark its build job superseded so
+ * the pipeline starts a fresh build (with a new build number) instead of re-uploading the same one.
+ */
+function supersedeFailedBinary(ctx: TickContext, job: ExternalJob): void {
+  const easBuildId = str((ctx.store.actions.get(job.actionId)?.payload as { easBuildId?: string } | undefined)?.easBuildId);
+  if (!easBuildId || !job.ventureId) return;
+  const state = str(job.result?.["processingState"]);
+  const failures = ctx.store.jobs.count((j) => j.ventureId === job.ventureId && j.op === "store.submit_build" && j.status === "failed" && (ctx.store.actions.get(j.actionId)?.payload as { easBuildId?: string } | undefined)?.easBuildId === easBuildId);
+  if (job.result?.["rebuild"] !== true && state !== "INVALID" && state !== "FAILED" && failures < MAX_UPLOADS_PER_BUILD) return;
+  for (const b of ctx.store.jobs.list((j) => j.ventureId === job.ventureId && j.op === "store.build" && (str(j.result?.["easBuildId"]) ?? j.externalRef["easBuildId"]) === easBuildId)) {
+    ctx.store.jobs.put({ ...b, result: { ...b.result, superseded: true } });
+  }
+  const v = ctx.store.ventures.get(job.ventureId);
+  if (v?.build?.easBuildId === easBuildId) {
+    const { easBuildId: _bad, ...build } = v.build;
+    patch(ctx.store, ctx.ports.clock, v, { build });
   }
 }

@@ -25,7 +25,7 @@ import type {
 } from "../core/types.ts";
 import { assertDisjoint, pickTestGeos } from "./audiences.ts";
 import { METRICS, stageMetrics } from "./metrics.ts";
-import { requiredSamplePerCell } from "./stats.ts";
+import { futilityStopProbability, requiredSamplePerCell } from "./stats.ts";
 
 /** Hours between registration and first possible exposure, by how the variable ships. */
 export const LEAD_HOURS: Record<DeliveryMode, number> = {
@@ -212,10 +212,11 @@ export function designExperiment(input: DesignInput): DesignResult {
   const disjoint = assertDisjoint(cells);
   if (disjoint.length) return { ok: false, reason: disjoint.join("; ") };
 
-  // Creator posts go up across a posting window and each needs to mature before it counts, so a
-  // creator-staffed read covers the whole window (otherwise only the first posts decide).
-  const viewMaturity = Math.max(0, ...metrics.filter((m) => m.denominator === "view").map((m) => m.maturityHours));
-  const postingWindow = channel === "creator_ugc" && viewMaturity > 0 ? config.lab.creatorPostingWindowHours + viewMaturity : 0;
+  // Creator posts go up across a posting window and what they bring needs to mature before it counts
+  // (views, installs, invites), so a creator-staffed read covers the whole window (otherwise only the
+  // first posts decide).
+  const maturity = Math.max(0, ...metrics.map((m) => m.maturityHours));
+  const postingWindow = channel === "creator_ugc" ? config.lab.creatorPostingWindowHours + maturity : 0;
   const readHours = Math.max(postingWindow, ...input.stages.map((s) => config.lab.readHours[s] ?? 96));
   const validity: ValidityRequirement[] = [
     { id: "exposure_delivered", description: "Each cell starts receiving traffic within the exposure SLA", threshold: config.lab.maxHoursToFirstExposure },
@@ -257,7 +258,9 @@ export function designExperiment(input: DesignInput): DesignResult {
 
 /**
  * S0 attention probe: one owned brand account posting trial reels while the app is built.
- * Kill-only: a futile hit rate kills the concept; anything else lets the build continue.
+ * Kill-only: a futile hit rate kills the concept; anything else lets the build continue. Its
+ * operating characteristics are survival probabilities under the futility rule with a look at
+ * every matured post: powerAtTarget = P(not killed | target), falsePassAtFloor = P(not killed | floor).
  */
 export function designAttentionProbe(input: {
   experimentId: string;
@@ -270,6 +273,9 @@ export function designAttentionProbe(input: {
 }): ExperimentPlan {
   const metrics = stageMetrics(["S0_attention"], input.config);
   const posts = input.config.lab.attentionProbe.posts;
+  const hit = input.config.thresholds.attentionHitRate;
+  const survives = (p: number) =>
+    1 - futilityStopProbability({ p, n: posts, firstLook: Math.ceil(0.5 * posts), floor: hit.floor, futility: hit.futility, confidence: input.config.lab.confidence });
   const plan: ExperimentPlan = {
     id: input.experimentId,
     ventureId: input.venture.id,
@@ -296,7 +302,7 @@ export function designAttentionProbe(input: {
     ],
     mode: "sequential",
     minSamplePerCell: { attentionHitRate: posts },
-    operatingCharacteristics: { powerAtTarget: 1, falsePassAtFloor: 0 },
+    operatingCharacteristics: { powerAtTarget: survives(hit.target), falsePassAtFloor: survives(hit.floor) },
     readHours: input.config.lab.readHours.S0_attention ?? 72,
     maxHoursToFirstExposure: input.config.lab.maxHoursToFirstExposure,
     maxBudgetCents: 0,

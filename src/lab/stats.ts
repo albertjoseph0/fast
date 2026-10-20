@@ -8,7 +8,7 @@
  * the floor makes "no data" read as "not working". Rates (e.g. K-factor) use a Poisson
  * likelihood. Traffic is clustered by source (a few creator posts drive most
  * installs), so counts are deflated to an effective sample size via a method-of-moments
- * intraclass correlation before any posterior is formed.
+ * intraclass correlation (overdispersion for rates) before any posterior is formed.
  */
 
 // ---------------------------------------------------------------------------
@@ -215,11 +215,14 @@ export interface SourceCounts {
   trials: number;
 }
 
+/** Default lower bound on between-source correlation for user-level metrics. */
+export const DEFAULT_RHO_FLOOR = 0.01;
+
 /**
  * Method-of-moments (ANOVA) intraclass correlation for binary outcomes grouped by source,
- * floored at 0.01. A single source gives rho = 1 (one cluster is one observation).
+ * floored at `floor`. A single source gives rho = 1 (one cluster is one observation).
  */
-export function intraclassCorrelation(sources: SourceCounts[]): number {
+export function intraclassCorrelation(sources: SourceCounts[], floor = DEFAULT_RHO_FLOOR): number {
   const groups = sources.filter((s) => s.trials > 0);
   const k = groups.length;
   const N = groups.reduce((s, g) => s + g.trials, 0);
@@ -236,30 +239,67 @@ export function intraclassCorrelation(sources: SourceCounts[]): number {
   const msw = ssw / (N - k);
   const n0 = (N - groups.reduce((s, g) => s + g.trials ** 2, 0) / N) / (k - 1);
   const denom = msb + (n0 - 1) * msw;
-  if (denom <= 0) return 0.01;
-  return Math.min(1, Math.max(0.01, (msb - msw) / denom));
+  if (denom <= 0) return floor;
+  return Math.min(1, Math.max(floor, (msb - msw) / denom));
+}
+
+/**
+ * Overdispersion of Poisson counts grouped by source: phi = tau^2 / lambda, where tau^2 is the
+ * between-source variance of the true rates (method of moments: the spread of per-source rates
+ * minus its Poisson expectation). A source of n units then carries n / (1 + n * phi) units of
+ * information. Floored at `floor`; a single source gives 1.
+ */
+export function rateOverdispersion(sources: SourceCounts[], floor = DEFAULT_RHO_FLOOR): number {
+  const groups = sources.filter((s) => s.trials > 0);
+  const k = groups.length;
+  if (k < 2) return 1;
+  const N = groups.reduce((s, g) => s + g.trials, 0);
+  const lambda = groups.reduce((s, g) => s + g.successes, 0) / N;
+  const spread = N - groups.reduce((s, g) => s + g.trials ** 2, 0) / N;
+  if (lambda <= 0 || spread <= 0) return floor;
+  const q = groups.reduce((s, g) => s + (g.successes - g.trials * lambda) ** 2 / g.trials, 0);
+  const tau2 = (q - (k - 1) * lambda) / spread;
+  return Math.max(floor, tau2 / lambda);
 }
 
 export interface EffectiveCounts {
   successes: number;
   trials: number;
   designEffect: number;
+  /** Intraclass correlation (proportions) or overdispersion tau^2/lambda (rates). */
   rho: number;
 }
 
+export interface ClusterOptions {
+  kind?: "proportion" | "rate";
+  /** Lower bound on the estimated clustering: the planning prior for the metric family. */
+  floor?: number;
+  /** Use this clustering instead of estimating it (so a leave-one-out read keeps the full cell's). */
+  rho?: number;
+}
+
 /**
- * Deflate clustered counts: nEff = n / (1 + (m - 1) * rho), where m is the size-weighted
- * mean cluster size. Successes scale by the same factor.
+ * Deflate clustered counts to the information they carry. Each source is weighted by the inverse
+ * of its variance inflation, 1 + (n_i - 1) * rho for proportions and 1 + n_i * phi for rates, so
+ * nEff = sum n_i * w_i and successes = sum s_i * w_i: a viral source adds at most ~1/rho units
+ * instead of inflating everyone's design effect. Successes no source owns (organic installs) are
+ * spread at the average weight. designEffect = trials / nEff.
  */
-export function effectiveCounts(total: SourceCounts, bySource: Record<string, SourceCounts>): EffectiveCounts {
+export function effectiveCounts(total: SourceCounts, bySource: Record<string, SourceCounts>, opts: ClusterOptions = {}): EffectiveCounts {
   const groups = Object.values(bySource).filter((g) => g.trials > 0);
   if (total.trials <= 0) return { successes: 0, trials: 0, designEffect: 1, rho: 0 };
   if (groups.length === 0) return { ...total, designEffect: 1, rho: 0 };
-  const rho = intraclassCorrelation(groups);
+  const kind = opts.kind ?? "proportion";
+  const floor = opts.floor ?? DEFAULT_RHO_FLOOR;
+  const rho = opts.rho ?? (kind === "rate" ? rateOverdispersion(groups, floor) : intraclassCorrelation(groups, floor));
+  const weight = (n: number) => 1 / (1 + (kind === "rate" ? n : n - 1) * rho);
   const N = groups.reduce((s, g) => s + g.trials, 0);
-  const mBar = groups.reduce((s, g) => s + g.trials ** 2, 0) / N;
-  const designEffect = Math.max(1, 1 + (mBar - 1) * rho);
-  return { successes: total.successes / designEffect, trials: total.trials / designEffect, designEffect, rho };
+  const attributed = groups.reduce((s, g) => s + g.successes, 0);
+  const trials = (groups.reduce((s, g) => s + g.trials * weight(g.trials), 0) * total.trials) / N;
+  const unattributed = (total.successes - attributed) * (trials / total.trials);
+  const raw = groups.reduce((s, g) => s + g.successes * weight(g.trials), 0) + unattributed;
+  const successes = Math.max(0, kind === "proportion" ? Math.min(raw, trials) : raw);
+  return { successes, trials, designEffect: total.trials / trials, rho };
 }
 
 // ---------------------------------------------------------------------------
@@ -312,6 +352,11 @@ export function credibleInterval(p: Posterior, mass: number): [number, number] {
   return [quantile(p, tail), quantile(p, 1 - tail)];
 }
 
+/** Early-stop futility: the floor is all but ruled out, or the value is likely below `futility`. */
+export function isFutileRead(p: Posterior, floor: number, futility: number, confidence: number): boolean {
+  return probAtLeast(p, floor) < 0.05 || probBelow(p, futility) >= confidence;
+}
+
 // ---------------------------------------------------------------------------
 // Power
 // ---------------------------------------------------------------------------
@@ -354,6 +399,33 @@ export function passThresholdEvents(exposure: number, floor: number, confidence:
 function cellPassProb(kind: "proportion" | "rate", n: number, p: number, floor: number, confidence: number): number {
   if (kind === "proportion") return binomialUpperTail(passThresholdCount(n, floor, confidence), n, p);
   return poissonUpperTail(passThresholdEvents(n, floor, confidence), p * n);
+}
+
+/**
+ * Probability that a proportion read with one more unit per look (looks at n = firstLook..n) stops
+ * for futility at some look when the true value is `p` (exact, by dynamic programming over successes).
+ */
+export function futilityStopProbability(opts: { p: number; n: number; firstLook: number; floor: number; futility: number; confidence: number }): number {
+  const { p, n, floor, futility, confidence } = opts;
+  let alive = [1];
+  let stopped = 0;
+  for (let looks = 1; looks <= n; looks++) {
+    const next = new Array<number>(looks + 1).fill(0);
+    alive.forEach((mass, k) => {
+      next[k] = (next[k] as number) + mass * (1 - p);
+      next[k + 1] = (next[k + 1] as number) + mass * p;
+    });
+    if (looks >= opts.firstLook) {
+      next.forEach((mass, k) => {
+        if (mass > 0 && isFutileRead(proportionPosterior(k, looks, floor), floor, futility, confidence)) {
+          stopped += mass;
+          next[k] = 0;
+        }
+      });
+    }
+    alive = next;
+  }
+  return stopped;
 }
 
 /**

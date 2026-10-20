@@ -6,7 +6,7 @@ import type { StudioConfig } from "../config/schema.ts";
 import type { TickContext } from "../core/context.ts";
 import type { StudioStore } from "../core/store.ts";
 import type { Clock } from "../core/ports.ts";
-import type { ActionKind, Iso, JobOp, LedgerCategory, Venture, VentureStage } from "../core/types.ts";
+import type { ActionKind, HumanTask, Iso, JobOp, LedgerCategory, Venture, VentureStage } from "../core/types.ts";
 import { OPEN_STATUSES } from "../governance/outbox.ts";
 
 const ALLOWED: Record<VentureStage, VentureStage[]> = {
@@ -118,6 +118,23 @@ export function windDown(ctx: TickContext, v: Venture, reason: string): void {
   if (current.ladder.currentExperimentId) patch(ctx.store, ctx.ports.clock, current, { ladder: { ...current.ladder, currentExperimentId: null } });
 }
 
+/**
+ * On sale: released at least once and not removed. The store record's status tracks the version in
+ * flight (a variant build can be processing or in review) while the released version stays on sale.
+ */
 export function isLiveOnStore(v: Venture): boolean {
-  return v.stores.some((s) => s.status === "live" || s.status === "pending_release");
+  const rec = v.stores.find((s) => s.platform === "ios");
+  if (!rec || rec.status === "removed") return false;
+  return rec.status === "live" || rec.status === "pending_release" || v.history.some((h) => h.to === "live_test");
+}
+
+/** Tasks a venture can proceed without: they never block the pipeline, the lab or the time box. */
+export const OPTIONAL_TASK_KINDS: readonly HumanTask["kind"][] = ["social.connect_account", "social.finish_draft", "creators.payout_failed", "creators.verify_payout"];
+
+/** Open, required human tasks the venture is waiting on. */
+export function blockingTasks(store: StudioStore, v: Venture): string[] {
+  return v.blockedOn.filter((id) => {
+    const t = store.tasks.get(id);
+    return t?.status === "open" && !OPTIONAL_TASK_KINDS.includes(t.kind);
+  });
 }

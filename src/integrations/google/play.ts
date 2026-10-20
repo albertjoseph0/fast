@@ -217,7 +217,7 @@ export class PlayClient {
   }
 
   async updateListing(packageName: string, editId: string, listing: { language: string; title: string; shortDescription: string; fullDescription: string }): Promise<void> {
-    await this.http.request({ method: "PUT", url: `${this.app(packageName)}/edits/${editId}/listings/${listing.language}`, json: listing });
+    await this.http.request({ method: "PUT", url: `${this.app(packageName)}/edits/${editId}/listings/${encodeURIComponent(listing.language)}`, json: listing });
   }
 
   async patchDetails(packageName: string, editId: string, details: { contactEmail?: string; contactWebsite?: string; defaultLanguage?: string }): Promise<void> {
@@ -225,7 +225,7 @@ export class PlayClient {
   }
 
   async deleteAllImages(packageName: string, editId: string, language: string, imageType: "phoneScreenshots" | "featureGraphic" | "icon"): Promise<void> {
-    await this.http.request({ method: "DELETE", url: `${this.app(packageName)}/edits/${editId}/listings/${language}/${imageType}` });
+    await this.http.request({ method: "DELETE", url: `${this.app(packageName)}/edits/${editId}/listings/${encodeURIComponent(language)}/${imageType}` });
   }
 
   /** `aiGenerated` sets Play's developer-attested AI provenance; omitted, the image stays unspecified. */
@@ -240,7 +240,7 @@ export class PlayClient {
     const aiGeneratedState = opts.aiGenerated === undefined ? undefined : opts.aiGenerated ? "aiGeneratedStateAiGeneratedDeveloperAttested" : "aiGeneratedStateNotAiGenerated";
     await this.http.upload({
       method: "POST",
-      url: withQuery(`${PLAY_UPLOAD_API}/applications/${packageName}/edits/${editId}/listings/${language}/${imageType}`, { uploadType: "media", aiGeneratedState }),
+      url: withQuery(`${PLAY_UPLOAD_API}/applications/${packageName}/edits/${editId}/listings/${encodeURIComponent(language)}/${imageType}`, { uploadType: "media", aiGeneratedState }),
       headers: { "content-type": filePath.toLowerCase().endsWith(".jpg") || filePath.toLowerCase().endsWith(".jpeg") ? "image/jpeg" : "image/png" },
       file: { path: filePath },
     });

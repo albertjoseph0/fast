@@ -5,6 +5,7 @@
  */
 import type { TickContext } from "../core/context.ts";
 import type {
+  Action,
   CellObservation,
   ContentDraft,
   ContentPiece,
@@ -29,8 +30,13 @@ import { ideaFor } from "./pipeline.ts";
 import { proposeKill } from "./labPhase.ts";
 import { createHash } from "node:crypto";
 import { taskDraft } from "../playbook/setup.ts";
+import { lintCopy } from "../principles/copy.ts";
 
 const DAY_MS = 86_400_000;
+/** Payout attempts the marketplace may refuse before a human looks at the creator's setup. */
+const MAX_PAYOUT_ATTEMPTS = 3;
+/** Re-read a post's views at most this often while it waits for its view lock. */
+const VIEW_REFRESH_HOURS = 20;
 
 function addDays(iso: string, days: number): string {
   return new Date(new Date(iso).getTime() + days * DAY_MS).toISOString();
@@ -45,20 +51,25 @@ function similarityKey(formatId: string, hook: string): string {
 // Creator submissions
 // ---------------------------------------------------------------------------
 
+/** The creator record for a submission; audience figures the marketplace reports fill in what is unknown. */
 function upsertCreator(ctx: TickContext, v: Venture, ext: ExternalSubmission): Creator {
   const source: Creator["source"] = ctx.ports.creators.kind === "sim" ? "sim" : "sideshift";
   const existing = ctx.store.creators.list((c) => c.externalIds[source] === ext.creatorExternalId)[0];
-  if (existing) return existing;
+  const audience = ext.creatorAudience;
+  if (existing) {
+    if (!audience || existing.audienceUnder18Share !== null || audience.under18Share === null) return existing;
+    return ctx.store.creators.put({ ...existing, audienceGeo: audience.geo, audienceUnder18Share: audience.under18Share, followers: audience.followers, medianViews30d: audience.medianViews30d });
+  }
   const creator: Creator = {
     id: ctx.store.nextId("creator"),
     platform: ext.platform,
     handle: ext.creatorHandle,
     externalIds: { [source]: ext.creatorExternalId },
     niche: ideaFor(ctx, v).wedge.creatorNiche,
-    followers: 0,
-    medianViews30d: 0,
-    audienceGeo: {},
-    audienceUnder18Share: null,
+    followers: audience?.followers ?? 0,
+    medianViews30d: audience?.medianViews30d ?? 0,
+    audienceGeo: audience?.geo ?? {},
+    audienceUnder18Share: audience?.under18Share ?? null,
     source,
     status: "active",
     stats: { posts: 0, views: 0, attributedInstalls: 0, attributedTrials: 0, paidCents: 0 },
@@ -66,19 +77,20 @@ function upsertCreator(ctx: TickContext, v: Venture, ext: ExternalSubmission): C
   return ctx.store.creators.put(creator);
 }
 
-/** Paid plus already-proposed payouts: payouts proposed in the same tick must share the remaining budget. */
+/**
+ * Paid, held (outcome unknown, counted as paid until a human checks) and already-proposed payouts:
+ * payouts proposed in the same tick must share the remaining budget, as the policy computes it.
+ */
 function committedOnCampaign(ctx: TickContext, campaign: CreatorCampaign): number {
   const subs = ctx.store.submissions.list((s) => s.campaignId === campaign.id);
   const ids = new Set(subs.map((s) => s.id));
   const paid = subs.reduce((sum, s) => sum + (s.stage === "paid" ? s.payoutCents : 0), 0);
-  const pending = ctx.store.actions
-    .list((a) => a.kind === "creator.payout" && OPEN_STATUSES.includes(a.status) && ids.has((a.payload as { submissionId: string }).submissionId))
-    .reduce((sum, a) => sum + (a.payload as { amountCents: number }).amountCents, 0);
+  let pending = 0;
+  for (const a of ctx.store.actions.list((x) => x.kind === "creator.payout" && ids.has((x.payload as { submissionId: string }).submissionId))) {
+    if (OPEN_STATUSES.includes(a.status)) pending += (a.payload as { amountCents: number }).amountCents;
+    else if (a.status === "failed") pending += -(ctx.store.ledgerEntry(`payout:unknown:${a.id}`)?.amountCents ?? 0);
+  }
   return paid + pending;
-}
-
-function hasOpen(ctx: TickContext, kind: string, naturalKey: string, ventureId: string): boolean {
-  return ctx.store.actions.list((a) => a.kind === kind && a.dedupeKey === `${kind}:${ventureId}:${naturalKey}` && OPEN_STATUSES.includes(a.status)).length > 0;
 }
 
 /** Pull submissions for every live campaign and move each one one step along its review path. */
@@ -100,28 +112,59 @@ export async function syncCreatorSubmissions(ctx: TickContext, deps: StudioDeps)
           creatorId: creator.id,
           creatorHandle: ext.creatorHandle,
           platform: ext.platform,
-          untrustedCaption: ext.untrustedCaption,
+          untrustedCaption: ext.stage === "posted" ? (ext.untrustedPostCaption ?? ext.untrustedCaption) : ext.untrustedCaption,
           stage: ext.stage === "posted" ? "posted" : "draft_submitted",
           payoutCents: 0,
           submittedAt: ext.submittedAt,
           ...(ext.postUrl ? { postUrl: ext.postUrl } : {}),
-          ...(ext.stage === "posted" ? { postedAt: ext.submittedAt } : {}),
+          ...(ext.stage === "posted" ? { postedAt: ext.postedAt ?? ext.submittedAt } : {}),
         };
         sub = ctx.store.submissions.put(fresh);
       } else if (ext.stage === "posted" && sub.stage === "draft_approved") {
-        sub = ctx.store.submissions.put({ ...sub, stage: "posted", postedAt: now, untrustedCaption: ext.untrustedCaption, ...(ext.postUrl ? { postUrl: ext.postUrl } : {}) });
+        // What went live is reviewed again when it differs from the approved draft.
+        const posted = ext.untrustedPostCaption ?? sub.untrustedCaption;
+        const { review: draftReview, ...rest } = sub;
+        sub = ctx.store.submissions.put({
+          ...rest,
+          ...(posted === sub.untrustedCaption && draftReview ? { review: draftReview } : {}),
+          stage: "posted",
+          postedAt: ext.postedAt ?? now,
+          untrustedCaption: posted,
+          ...(ext.postUrl ? { postUrl: ext.postUrl } : {}),
+        });
+      } else if (ext.views !== undefined && sub.stage === "post_approved" && sub.viewsAtLock === undefined && sub.verification && ext.views > sub.verification.viewsFromPlatform) {
+        sub = ctx.store.submissions.put({ ...sub, verification: { ...sub.verification, viewsFromPlatform: ext.views, fetchedAt: now } });
       }
-      await stepSubmission(ctx, deps, v, campaign, sub);
+      await stepSubmission(ctx, deps, v, campaign, sub, ext.views !== undefined);
     }
   }
 }
 
-async function stepSubmission(ctx: TickContext, deps: StudioDeps, v: Venture, campaign: CreatorCampaign, sub: CreatorSubmission): Promise<void> {
+/** Deterministic copy rules the creator's text must pass (claims, rankings, prices), whatever the reviewer says. */
+function captionProblems(text: string): string[] {
+  return lintCopy({ text, surface: "content" })
+    .filter((f) => f.severity === "block" || f.severity === "needs_human")
+    .map((f) => f.message);
+}
+
+async function reviewWithLint(ctx: TickContext, deps: StudioDeps, sub: CreatorSubmission, campaign: CreatorCampaign): Promise<NonNullable<CreatorSubmission["review"]>> {
+  const review = await deps.agents.reviewSubmission(ctx, { submission: sub, brief: campaign.brief });
+  const problems = captionProblems(sub.untrustedCaption);
+  if (!problems.length) return { approve: review.approve, injectionAttempt: review.injectionAttempt, policyIssues: review.policyIssues, note: review.note };
+  return {
+    approve: false,
+    injectionAttempt: review.injectionAttempt,
+    policyIssues: [...review.policyIssues, ...problems],
+    note: `Please remove from the caption: ${problems.join("; ")}`.slice(0, 280),
+  };
+}
+
+async function stepSubmission(ctx: TickContext, deps: StudioDeps, v: Venture, campaign: CreatorCampaign, sub: CreatorSubmission, viewsReported = false): Promise<void> {
   const now = ctx.ports.clock.iso();
   const base = { ventureId: v.id, proposedBy: "creator_ops" as const, ...(campaign.experimentId ? { experimentId: campaign.experimentId } : {}), ...(campaign.cellId ? { cellId: campaign.cellId } : {}) };
   if (sub.stage === "draft_submitted" && !sub.review) {
-    const review = await deps.agents.reviewSubmission(ctx, { submission: sub, brief: campaign.brief });
-    sub = ctx.store.submissions.put({ ...sub, review: { approve: review.approve, injectionAttempt: review.injectionAttempt, policyIssues: review.policyIssues, note: review.note } });
+    const review = await reviewWithLint(ctx, deps, sub, campaign);
+    sub = ctx.store.submissions.put({ ...sub, review });
     ctx.outbox.propose({ ...base, kind: "creator.review_draft", payload: { submissionId: sub.id, approve: review.approve, note: review.note }, summary: `${review.approve ? "Approve" : "Reject"} draft from ${sub.creatorHandle}`, rationale: review.note, naturalKey: `draft:${sub.id}` });
     return;
   }
@@ -129,39 +172,99 @@ async function stepSubmission(ctx: TickContext, deps: StudioDeps, v: Venture, ca
     const postUrl = sub.postUrl;
     if (!postUrl) return;
     if (!sub.review) {
-      // Posted without a reviewed draft (marketplaces may skip the draft step): review the post itself.
-      const review = await deps.agents.reviewSubmission(ctx, { submission: sub, brief: campaign.brief });
-      sub = ctx.store.submissions.put({ ...sub, review: { approve: review.approve, injectionAttempt: review.injectionAttempt, policyIssues: review.policyIssues, note: review.note } });
+      // Posted without a reviewed draft (marketplaces may skip the draft step), or posted with a
+      // caption other than the approved draft's: review what went live.
+      sub = ctx.store.submissions.put({ ...sub, review: await reviewWithLint(ctx, deps, sub, campaign) });
     }
     const verification = await ctx.ports.creators.verifyPost({ submissionExternalId: sub.externalId, postUrl, platform: sub.platform });
     sub = ctx.store.submissions.put({ ...sub, verification });
-    const ok = Boolean(sub.review?.approve && !sub.review.injectionAttempt && verification.postIsPublic && verification.authorHandleMatches && verification.platformDisclosureLabel);
+    const problems = captionProblems(sub.untrustedCaption);
+    const ok = Boolean(sub.review?.approve && !sub.review.injectionAttempt && !problems.length && verification.postIsPublic && verification.authorHandleMatches && verification.platformDisclosureLabel);
     const why = ok
       ? "post verified on the platform of record"
-      : `post failed verification (${[!verification.postIsPublic && "not public", !verification.authorHandleMatches && "author mismatch", !verification.platformDisclosureLabel && "no paid-partnership label", sub.review?.injectionAttempt && "prompt injection", sub.review && !sub.review.approve && "review rejected"].filter(Boolean).join(", ")})`;
+      : `post failed verification (${[!verification.postIsPublic && "not public", !verification.authorHandleMatches && "author mismatch", !verification.platformDisclosureLabel && "no paid-partnership label", sub.review?.injectionAttempt && "prompt injection", problems.length && `caption: ${problems.join("; ")}`, sub.review && !sub.review.approve && "review rejected"].filter(Boolean).join(", ")})`;
     ctx.outbox.propose({ ...base, kind: "creator.review_post", payload: { submissionId: sub.id, approve: ok, note: why.slice(0, 280) }, summary: `${ok ? "Approve" : "Reject"} post from ${sub.creatorHandle}`, rationale: why, naturalKey: `post:${sub.id}` });
     return;
   }
-  if (sub.stage === "post_approved" && sub.postedAt && !sub.viewsAtLock && now >= addDays(sub.postedAt, ctx.config.creators.viewLockDays)) {
-    if (!sub.postUrl || hasOpen(ctx, "creator.payout", sub.id, v.id)) return;
-    const verification = await ctx.ports.creators.verifyPost({ submissionExternalId: sub.externalId, postUrl: sub.postUrl, platform: sub.platform });
-    const viewsAtLock = verification.viewsFromPlatform;
-    sub = ctx.store.submissions.put({ ...sub, verification, viewsAtLock, lockedAt: now });
-    const amountCents = computePayout(
-      { flatFeeCents: campaign.flatFeeCents, cpmCents: campaign.cpmCents, maxPayoutCents: campaign.maxPayoutPerVideoCents },
-      { viewsAtLock, campaignRemainingCents: Math.max(0, campaign.budgetCents - committedOnCampaign(ctx, campaign)) },
-    );
-    if (amountCents <= 0) return;
-    ctx.outbox.propose({
-      ...base,
-      kind: "creator.payout",
-      payload: { submissionId: sub.id, amountCents, basis: { views: viewsAtLock, viewsAsOf: now, flatFeeCents: campaign.flatFeeCents, cpmCents: campaign.cpmCents, capCents: campaign.maxPayoutPerVideoCents } },
-      summary: `Pay ${sub.creatorHandle} ${(amountCents / 100).toFixed(2)} USD`,
-      rationale: `${viewsAtLock} views locked ${ctx.config.creators.viewLockDays} days after posting`,
-      naturalKey: sub.id,
-      commitment: { kind: "settles_liability", amountCents, maxTotalCents: amountCents, startsAt: now, liabilityRef: sub.id },
-    });
+  if (sub.stage === "post_approved" && sub.postedAt && sub.postUrl) {
+    if (sub.viewsAtLock === undefined) {
+      if (now < addDays(sub.postedAt, ctx.config.creators.viewLockDays)) {
+        // Lab reads price and count views as they stand; refresh them when the marketplace does not report them.
+        const fetchedAt = sub.verification?.fetchedAt;
+        if (!viewsReported && (!fetchedAt || new Date(now).getTime() - new Date(fetchedAt).getTime() >= VIEW_REFRESH_HOURS * 3_600_000)) {
+          const fresh = await ctx.ports.creators.verifyPost({ submissionExternalId: sub.externalId, postUrl: sub.postUrl, platform: sub.platform });
+          ctx.store.submissions.put({ ...sub, verification: { ...fresh, viewsFromPlatform: Math.max(fresh.viewsFromPlatform, sub.verification?.viewsFromPlatform ?? 0) } });
+        }
+        return;
+      }
+      if (payoutActions(ctx, v.id, sub.id).some((a) => OPEN_STATUSES.includes(a.status))) return;
+      // The lock is taken once: later views, failures and rejections never move it.
+      const verification = await ctx.ports.creators.verifyPost({ submissionExternalId: sub.externalId, postUrl: sub.postUrl, platform: sub.platform });
+      sub = ctx.store.submissions.put({ ...sub, verification, viewsAtLock: verification.viewsFromPlatform, lockedAt: now });
+    }
+    proposePayout(ctx, v, campaign, sub, base);
   }
+}
+
+function payoutActions(ctx: TickContext, ventureId: string, submissionId: string): Action[] {
+  return ctx.store.actions
+    .list((a) => a.kind === "creator.payout" && a.ventureId === ventureId && (a.payload as { submissionId: string }).submissionId === submissionId)
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : 1));
+}
+
+/**
+ * Pay a locked submission. A payout the marketplace refused outright is retried daily under a new
+ * idempotency key (the old key would replay the refusal); one whose outcome is unknown waits for a
+ * human check, a board rejection stands, and repeated refusals go to a human.
+ */
+function proposePayout(ctx: TickContext, v: Venture, campaign: CreatorCampaign, sub: CreatorSubmission, base: { ventureId: string; proposedBy: "creator_ops"; experimentId?: string; cellId?: string }): void {
+  const now = ctx.ports.clock.iso();
+  const viewsAtLock = sub.viewsAtLock;
+  if (viewsAtLock === undefined) return;
+  // A payout blocked only because its amount went stale (another payout on the campaign was rejected
+  // or failed since) is withdrawn and proposed again at the recomputed amount.
+  for (const a of payoutActions(ctx, v.id, sub.id).filter((x) => x.status === "blocked")) {
+    const blocks = a.findings.filter((f) => f.severity === "block");
+    if (blocks.length && blocks.every((f) => f.ruleId === "creator.payout_eligibility" && f.message.startsWith("Amount "))) ctx.outbox.cancel(a.id, "amount out of date: re-proposed at the computed payout");
+  }
+  const prior = payoutActions(ctx, v.id, sub.id);
+  if (prior.some((a) => OPEN_STATUSES.includes(a.status) || a.status === "executed" || a.status === "rejected" || (a.status === "dry_run" && ctx.config.dryRun))) return;
+  const failed = prior.filter((a) => a.status === "failed");
+  const held = failed.filter((a) => (ctx.store.ledgerEntry(`payout:unknown:${a.id}`)?.amountCents ?? 0) !== 0);
+  if (held.length) {
+    // The money may have left: a human checks the marketplace before anything is paid again.
+    for (const a of held.filter((x) => !ctx.store.tasks.count((t) => t.kind === "creators.verify_payout" && t.blocksActionIds.includes(x.id)))) {
+      ctx.outbox.openTask(taskDraft("creators.verify_payout", v.id, `${sub.creatorHandle} (${sub.id}) on ${campaign.id}: ${(a.payload as { amountCents: number }).amountCents} cents, action ${a.id} (${a.error ?? "outcome unknown"})`), [a.id]);
+    }
+    return;
+  }
+  const forgiven = new Set(
+    ctx.store.tasks.list((t) => t.kind === "creators.payout_failed" && t.status === "done" && t.outputs?.["decision"] === "retry").flatMap((t) => t.blocksActionIds),
+  );
+  const counted = failed.filter((a) => !forgiven.has(a.id));
+  const last = failed.at(-1);
+  if (counted.length >= MAX_PAYOUT_ATTEMPTS && last) {
+    if (!ctx.store.tasks.count((t) => t.kind === "creators.payout_failed" && t.blocksActionIds.includes(last.id))) {
+      ctx.outbox.openTask(taskDraft("creators.payout_failed", v.id, `${sub.creatorHandle} (${sub.id}) on ${campaign.id}: ${last.error ?? "refused"}`), counted.map((a) => a.id));
+    }
+    return;
+  }
+  if (last && now < addDays(last.createdAt, 1)) return;
+  const amountCents = computePayout(
+    { flatFeeCents: campaign.flatFeeCents, cpmCents: campaign.cpmCents, maxPayoutCents: campaign.maxPayoutPerVideoCents },
+    { viewsAtLock, campaignRemainingCents: Math.max(0, campaign.budgetCents - committedOnCampaign(ctx, campaign)) },
+  );
+  if (amountCents <= 0) return;
+  const viewsAsOf = sub.lockedAt ?? now;
+  ctx.outbox.propose({
+    ...base,
+    kind: "creator.payout",
+    payload: { submissionId: sub.id, amountCents, basis: { views: viewsAtLock, viewsAsOf, flatFeeCents: campaign.flatFeeCents, cpmCents: campaign.cpmCents, capCents: campaign.maxPayoutPerVideoCents } },
+    summary: `Pay ${sub.creatorHandle} ${(amountCents / 100).toFixed(2)} USD`,
+    rationale: `${viewsAtLock} views locked ${ctx.config.creators.viewLockDays} days after posting${prior.length ? ` (attempt ${prior.length + 1})` : ""}`,
+    naturalKey: prior.length ? `${sub.id}:attempt${prior.length + 1}` : sub.id,
+    commitment: { kind: "settles_liability", amountCents, maxTotalCents: amountCents, startsAt: now, liabilityRef: sub.id },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -172,6 +275,7 @@ async function stepSubmission(ctx: TickContext, deps: StudioDeps, v: Venture, ca
 export function publishOwnedContent(ctx: TickContext): void {
   const now = ctx.ports.clock.iso();
   const dayAgo = addDays(now, -1);
+  requeueFailedPublishes(ctx);
   for (const account of ctx.store.accounts.list((a) => a.status === "active")) {
     const cap = ctx.config.distribution.postCaps[account.platform]?.perAccountPerDay ?? 0;
     const recent = ctx.store.actions.list(
@@ -214,9 +318,29 @@ export function publishOwnedContent(ctx: TickContext): void {
   }
 }
 
+/** Attempts a piece gets before it is dropped from the queue. */
+const MAX_PUBLISH_ATTEMPTS = 2;
+
+/** A piece whose publish failed or was withdrawn goes back to the queue once, then out of it. */
+function requeueFailedPublishes(ctx: TickContext): void {
+  for (const piece of ctx.store.content.list((c) => c.status === "scheduled")) {
+    const attempts = ctx.store.actions
+      .list((a) => a.kind === "content.publish" && a.dedupeKey === `content.publish:${piece.ventureId}:${piece.id}`)
+      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : 1));
+    const last = attempts.at(-1);
+    if (!last || !(last.status === "failed" || last.status === "rejected" || last.status === "cancelled")) continue;
+    const failures = attempts.filter((a) => a.status === "failed").length;
+    const retry = last.status === "failed" && failures < MAX_PUBLISH_ATTEMPTS;
+    ctx.store.content.put({ ...piece, status: retry ? "approved" : "rejected" });
+    ctx.log("content.requeued", { contentId: piece.id, status: retry ? "approved" : "rejected", reason: last.error ?? last.status }, piece.ventureId);
+  }
+}
+
 function publishMode(ctx: TickContext, account: OwnedAccount, piece: ContentPiece): "direct" | "inbox_draft" | "trial_reel" {
   if (account.platform === "tiktok") return ctx.config.distribution.tiktokAudited ? ctx.config.distribution.tiktokOwnedMode : "inbox_draft";
-  if (account.platform === "instagram" && piece.experimentId) return "trial_reel";
+  // Trial reels take exactly one video; slides go up as a regular carousel.
+  const singleVideo = piece.media.length === 1 && (piece.media[0]?.mediaType ?? "").startsWith("video/");
+  if (account.platform === "instagram" && piece.experimentId && singleVideo) return "trial_reel";
   return "direct";
 }
 
@@ -404,8 +528,15 @@ export async function runCreativeLoop(ctx: TickContext, deps: StudioDeps, v: Ven
     ctx.log("creative.batch_closed", { batchId: open.id, culled, pBest }, v.id);
     const survivors = Object.fromEntries(Object.entries(pBest).filter(([arm]) => !culled.includes(arm)));
     allocation = allocate(survivors, cfg.exploreShare);
-    for (const c of ctx.store.campaigns.list((x) => x.batchId === open.id && x.status === "open")) {
-      ctx.outbox.propose({ kind: "creator.campaign_close", ventureId: v.id, payload: { campaignId: c.id }, summary: `Close ${c.id}`, rationale: `batch ${open.id} closed`, proposedBy: "creator_ops", naturalKey: c.id });
+    for (const c of ctx.store.campaigns.list((x) => x.batchId === open.id)) {
+      if (c.status === "open" || c.status === "paused") {
+        ctx.outbox.propose({ kind: "creator.campaign_close", ventureId: v.id, payload: { campaignId: c.id }, summary: `Close ${c.id}`, rationale: `batch ${open.id} closed`, proposedBy: "creator_ops", naturalKey: c.id });
+      } else if (c.status === "draft") {
+        // A create still waiting (blocked on cash, awaiting approval) must not launch for a closed batch.
+        for (const a of ctx.store.actions.list((x) => x.kind === "creator.campaign_create" && (x.payload as { campaignId: string }).campaignId === c.id && OPEN_STATUSES.includes(x.status) && x.status !== "executing")) {
+          ctx.outbox.cancel(a.id, `batch ${open.id} closed before ${c.id} launched`);
+        }
+      }
     }
   }
   const spec = v.spec;

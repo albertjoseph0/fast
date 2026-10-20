@@ -7,7 +7,7 @@ import type { StudioConfig } from "../config/schema.ts";
 import type { AppSpec, SensitiveDomain, Venture } from "../core/types.ts";
 import { composeSystemPrompt } from "../playbook/safety.ts";
 import { productIdFor, termsTemplate } from "../playbook/product.ts";
-import { aiRecipients, privacyManifest, RECIPIENTS, type PrivacyManifest } from "./privacy.ts";
+import { AI_RECIPIENTS, privacyManifest, RECIPIENTS, type PrivacyManifest } from "./privacy.ts";
 
 /** Public client keys, resolved from the EAS build environment by app.config.ts. */
 export const APP_ENV = {
@@ -75,6 +75,8 @@ export interface StudioJson {
   env: typeof APP_ENV;
   entitlementId: string;
   products: StudioProduct[];
+  /** Youngest allowed user (spec.compliance.minimumAge); 18 turns on the in-app age gate. */
+  minimumAge: 13 | 16 | 18;
   /** Named on the AI consent step (Apple 5.1.2(i)). */
   aiProviders: { id: string; name: string; role: string }[];
   privacyManifest: PrivacyManifest;
@@ -108,7 +110,8 @@ export function buildStudioJson(input: { venture: Venture; spec: AppSpec; config
       trialDays: e.trialDays,
       terms: termsTemplate(e),
     })),
-    aiProviders: aiRecipients(spec).map((id) => ({ id, name: RECIPIENTS[id].name, role: RECIPIENTS[id].role })),
+    minimumAge: Number(spec.compliance.minimumAge) as StudioJson["minimumAge"],
+    aiProviders: AI_RECIPIENTS.map((id) => ({ id, name: RECIPIENTS[id].name, role: RECIPIENTS[id].role })),
     privacyManifest: privacyManifest(spec),
     testGeos: [...config.lab.testGeos],
   };

@@ -25,6 +25,19 @@ export const RECIPIENTS: Record<Recipient, { name: string; role: string; ai: boo
   studio_backend: { name: "our own servers", role: "relays your request to the AI provider and enforces usage limits", ai: false },
 };
 
+/** Every verdict request goes through the studio backend to Anthropic, whatever the inventory says. */
+export const AI_RECIPIENTS: readonly Recipient[] = ["anthropic", "studio_backend"];
+
+/**
+ * Retention set by each recipient, not by the designer: Anthropic keeps API inputs and
+ * outputs for its standard 30-day period unless the studio holds a zero-data-retention
+ * agreement; the verdict backend logs no request bodies.
+ */
+export const RECIPIENT_RETENTION_DAYS: Record<Recipient, number> = { anthropic: 30, posthog: 0, revenuecat: 0, studio_backend: 0 };
+
+/** Recipients outside the studio; data they receive is never processed ephemerally. */
+const THIRD_PARTIES: ReadonlySet<Recipient> = new Set(["anthropic", "posthog", "revenuecat"]);
+
 /** Plain-language data type labels. */
 export const DATA_LABELS: Record<DataType, string> = {
   photo: "Photos you choose to upload",
@@ -88,23 +101,23 @@ const ACCESSED_APIS: readonly { type: string; reasons: string[] }[] = [
   { type: "NSPrivacyAccessedAPICategoryDiskSpace", reasons: ["E174.1"] },
 ];
 
-/** The spec inventory plus the SDK baseline entries it does not already cover. */
+/**
+ * The spec inventory plus the SDK baseline entries it does not already cover. Retention is
+ * at least what every recipient keeps (RECIPIENT_RETENTION_DAYS), never the LLM's value alone.
+ */
 export function collectedData(spec: AppSpec): DataUse[] {
   const inventory = spec.compliance.dataInventory;
   const covered = new Set(inventory.map((d) => `${d.dataType}|${d.purpose}`));
-  return [...inventory, ...SDK_BASELINE.filter((d) => !covered.has(`${d.dataType}|${d.purpose}`))];
+  return [...inventory, ...SDK_BASELINE.filter((d) => !covered.has(`${d.dataType}|${d.purpose}`))].map((d) => ({
+    ...d,
+    retentionDays: Math.max(0, d.retentionDays, ...d.sentTo.map((r) => RECIPIENT_RETENTION_DAYS[r])),
+  }));
 }
 
-/** Every recipient named by the collected data, in a stable order. */
+/** Every recipient named by the collected data or the fixed AI path, in a stable order. */
 export function recipients(spec: AppSpec): Recipient[] {
-  const named = new Set(collectedData(spec).flatMap((d) => d.sentTo));
+  const named = new Set([...collectedData(spec).flatMap((d) => d.sentTo), ...AI_RECIPIENTS]);
   return (Object.keys(RECIPIENTS) as Recipient[]).filter((r) => named.has(r));
-}
-
-/** Recipients of the AI feature's input, as named on the consent screen (Apple 5.1.2(i)). */
-export function aiRecipients(spec: AppSpec): Recipient[] {
-  const named = new Set(spec.compliance.dataInventory.filter((d) => d.purpose === "core_feature").flatMap((d) => d.sentTo));
-  return (Object.keys(RECIPIENTS) as Recipient[]).filter((r) => named.has(r) && r !== "revenuecat");
 }
 
 export interface ApplePrivacyAnswers {
@@ -221,7 +234,7 @@ export function dataSafetyCsv(spec: AppSpec): string {
     const key = `${t.category}|${t.type}`;
     const row = rows.get(key) ?? { category: t.category, type: t.type, purposes: new Set<string>(), ephemeral: true };
     row.purposes.add(PLAY_PURPOSE[d.purpose]);
-    row.ephemeral &&= d.retentionDays === 0;
+    row.ephemeral &&= d.retentionDays === 0 && !d.sentTo.some((r) => THIRD_PARTIES.has(r));
     rows.set(key, row);
   }
   const lines = [...rows.values()].map((r) =>

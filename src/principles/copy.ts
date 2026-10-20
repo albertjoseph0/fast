@@ -34,7 +34,8 @@ interface CopyRule {
 const RULES: CopyRule[] = [
   {
     ruleId: "copy.unverified_count",
-    pattern: /\b\d[\d,.]*\s*(k|m|million|thousand|users|people|downloads|members|customers)\b/i,
+    pattern:
+      /(\b\d[\d,.]*\+?\s*(k|m|million|thousand|users|people|downloads|members|customers)\b|\b\d{1,3}(,\d{3})+\b|\b\d{4,}\s*\+|\b\d+(\.\d+)?\s?[km]\+|\b(thousands|millions|billions)\b)/i,
     severity: "block",
     message: "Quantified social proof needs an approved claim backed by metrics",
     citation: "FTC Act s.5 substantiation; Apple 2.3.1",
@@ -48,23 +49,34 @@ const RULES: CopyRule[] = [
   },
   {
     ruleId: "copy.unverified_rating",
-    pattern: /(★|⭐|\b[1-5](\.\d)?\s*stars?\b|\brated\s+[1-5](\.\d)?\b)/i,
+    pattern: /(★|⭐|\b[1-5](\.\d)?\s*stars?\b|\brated\s+[1-5](\.\d)?\b|\b[1-5](\.\d)?\s*(\/|out of)\s*5\b)/i,
     severity: "block",
     message: "Ratings may only be quoted from the store with an approved claim",
     citation: "Apple 5.6.3; FTC 16 CFR 465",
   },
   {
     ruleId: "copy.testimonial",
-    pattern: /["“][^"”]{3,}\b(I|I'm|I've|my|me)\b[^"”]*["”]\s*[-–—]\s*[A-Z]?\w+/,
+    // First-person quotes, or any quote attributed to a name or handle ("..." - Jess, 22).
+    pattern: /(["“][^"”]{3,}\b(I|I'm|I've|my|me)\b[^"”]*["”]\s*[-–—]\s*[A-Z]?\w+|["“][^"”]{3,}["”]\s*[-–—]\s*(@\w+|[A-Z][a-z]+(,\s*\d{1,2}\b|\s+[A-Z]\.?(?!\w)|\s*[,.;)]|\s*$)))/,
     severity: "block",
     message: "Quoted testimonials must come from real, verified users (never generated)",
     citation: "FTC 16 CFR 465.2; Endorsement Guides 255.1",
   },
   {
     ruleId: "copy.currency_literal",
-    pattern: /([$€£¥]\s?\d|\b\d+([.,]\d{2})?\s?(usd|eur|gbp|aud|cad|nzd|dollars?|euros?|pounds?)\b)/i,
+    pattern:
+      /([$€£¥]\s?\d|\b\d+([.,]\d{2})?\s?(usd|eur|gbp|aud|cad|nzd|dollars?|euros?|pounds?)\b|\b\d+[.,]\d{2}\s*(\/\s*(week|wk|month|mo|year|yr)|(a|per|each)\s+(week|month|year))\b)/i,
     severity: "block",
     message: "Prices are rendered from the store at runtime; copy must not hard-code currency amounts",
+    citation: "Apple 3.1.2; ROSCA",
+    surfaces: ["onboarding", "paywall", "aso", "screenshot", "share", "push", "content", "brief"],
+  },
+  {
+    ruleId: "copy.trial_length",
+    pattern:
+      /\b((\d+|one|two|three|five|seven|ten|fourteen|thirty)[- ]?(days?|weeks?|months?)[- ](free|trial)\b|free\s+for\s+(\d+|a|one|two|three|five|seven|ten|fourteen|thirty)\s+(days?|weeks?|months?)\b)/i,
+    severity: "block",
+    message: "Trial lengths come from the store product at runtime; copy must not hard-code them",
     citation: "Apple 3.1.2; ROSCA",
     surfaces: ["onboarding", "paywall", "aso", "screenshot", "share", "push", "content", "brief"],
   },

@@ -5,7 +5,7 @@ import { DEFAULT_SEARCH_TERMS, scanMarket } from "../../src/agents/scout.ts";
 import type { AppLookup, ChartApp, TrendPort } from "../../src/core/ports.ts";
 import type { Idea, Signal } from "../../src/core/types.ts";
 import { LlmError } from "../../src/llm/errors.ts";
-import { renderPrompt } from "../../src/llm/prompt.ts";
+import { renderPrompt, UNTRUSTED_RULE } from "../../src/llm/prompt.ts";
 import { FakeLlm, agentContext, astra, critique } from "./fixtures.ts";
 
 function chartApp(name: string, rank: number): ChartApp {
@@ -39,7 +39,7 @@ describe("scanMarket", () => {
     const llm = new FakeLlm({
       SignalDigest: () => ({
         patterns: [
-          { title: "Astrology as group-chat banter", detail: "Big-three readings people screenshot", exampleApps: ["Co-Star"], coreNeed: "love" },
+          { title: "Astrology as group-chat banter", detail: "Big-three readings people screenshot", exampleApps: ["app_1", "Invented App", "app_5"], coreNeed: "love" },
           { title: "co-star", detail: "duplicate of an app title", exampleApps: [], coreNeed: "play" },
         ],
       }),
@@ -62,11 +62,19 @@ describe("scanMarket", () => {
     const pattern = signals.find((s) => s.source === "search_trend") as Signal;
     expect(pattern.title).toBe("Astrology as group-chat banter");
     expect(pattern.tags).toEqual(["pattern", "love"]);
+    expect(pattern.detail).toBe("Big-three readings people screenshot Examples: Co-Star, Nebula.");
+    expect(pattern.metrics).toEqual({ exampleApps: 2 });
     expect(signals.map((s) => s.id)).toEqual(signals.map((_, i) => `sig_${String(i + 1).padStart(6, "0")}`));
 
     const digest = llm.calls("SignalDigest")[0];
     expect(digest?.role).toBe("scout");
-    expect(digest?.input.searches).toEqual([{ term: "astrology", top: [{ name: "Co-Star", ratingCount: 400_000, priceCents: 0 }, { name: "Nebula", ratingCount: 90_000, priceCents: 0 }] }]);
+    // Third-party names reach the model only inside the untrusted block, keyed by ref.
+    expect(digest?.input.searches).toEqual([{ term: "astrology", top: [{ name: "app_1", ratingCount: 400_000, priceCents: 0 }, { name: "app_5", ratingCount: 90_000, priceCents: 0 }] }]);
+    expect(JSON.stringify(digest?.input)).not.toContain("Co-Star");
+    expect(digest?.system).toContain(UNTRUSTED_RULE);
+    expect(digest?.untrusted).toHaveLength(1);
+    expect(digest?.untrusted?.[0]?.label).toBe("app_store");
+    expect(JSON.parse(digest?.untrusted?.[0]?.text ?? "{}")).toMatchObject({ app_1: "Co-Star", app_5: "Nebula" });
   });
 
   it("skips failed trend requests but never swallows LLM budget exhaustion", async () => {
@@ -103,7 +111,14 @@ describe("generateIdeas", () => {
     expect(req?.input.coreNeeds).toEqual(["love", "money", "play", "self_improvement"]);
     expect(req?.input.avoidTitles).toEqual(["Astra"]);
     expect(req?.input.playbookNotes.length).toBeGreaterThan(5);
-    expect(req?.input.signals[0]?.title).toBe("Golf swing fixes");
+    // External signal text travels only in the untrusted block; the input keeps refs, metrics and tags.
+    expect(req?.input.signals[0]).toEqual({ ref: "signal_1", metrics: {}, tags: ["pattern", "play"] });
+    expect(JSON.stringify(req?.input)).not.toContain("Golf swing fixes");
+    expect(req?.system).toContain(UNTRUSTED_RULE);
+    expect(JSON.parse(req?.untrusted?.[0]?.text ?? "[]")).toEqual([
+      { ref: "signal_1", title: "Golf swing fixes", detail: "" },
+      { ref: "signal_2", title: "Co-Star", detail: "" },
+    ]);
     expect(req?.system).toContain("Studio playbook");
   });
 });

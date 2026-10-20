@@ -3,7 +3,7 @@
  * LLM by default, or real Claude to exercise the agents); createLiveStudio wires it to the
  * real platform APIs, dry-run until a human turns that off.
  */
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createAgents, type Agents } from "../agents/index.ts";
@@ -23,6 +23,9 @@ import type { StudioDeps } from "./deps.ts";
 import { differentiationReport } from "./differentiation.ts";
 import { SimBoard, type SimBoardPolicy } from "./simBoard.ts";
 import { Studio } from "./studio.ts";
+
+/** File that marks a data directory as simulated; live commands refuse such a directory. */
+export const SIM_MARKER = "SIMULATION";
 
 /** Placeholder until APPLE_TEAM_ID is set; renders then keep the universal-link placeholder. */
 export const UNSET_TEAM_ID = "UNSET";
@@ -91,6 +94,7 @@ export function createSimStudio(opts: {
   const clock = new SimClock(opts.startDate ?? "2026-01-05T09:00:00.000Z");
   const root = opts.dataDir ?? opts.scratchDir ?? join(REPO_ROOT, ".scratch", `sim-${config.seed}`);
   mkdirSync(root, { recursive: true });
+  if (opts.dataDir) writeFileSync(join(opts.dataDir, SIM_MARKER), "Simulated studio state. Live commands refuse this directory.\n");
   const store = new StudioStore(opts.dataDir ? join(opts.dataDir, "state") : null, clock, config.seed, { durability: "checkpoint" });
   seedStudioAccounts(store, config);
   const rng = new Rng(config.seed);
@@ -119,6 +123,8 @@ export interface LiveStudio {
  */
 export async function createLiveStudio(opts: { config: StudioConfig; dataDir: string; env?: Env; agents?: Agents }): Promise<LiveStudio> {
   const config = opts.config;
+  if (config.mode !== "live") throw new Error(`${opts.dataDir}: config.json mode is "${config.mode}"; the live studio needs mode "live" (run \`factory init\` for a new live data dir)`);
+  if (existsSync(join(opts.dataDir, SIM_MARKER))) throw new Error(`${opts.dataDir} holds a simulation (${SIM_MARKER}); live commands never run on simulated state`);
   const env = opts.env ?? process.env;
   const clock = new SystemClock();
   const store = new StudioStore(join(opts.dataDir, "state"), clock, config.seed);
@@ -129,6 +135,6 @@ export async function createLiveStudio(opts: { config: StudioConfig; dataDir: st
   const media = createMedia({ config, meter: ledger, provider: config.media.provider, env });
   const { createLivePorts } = await import("../integrations/live.ts");
   const ports = await createLivePorts({ config, store, env, clock, llm, media, dataDir: opts.dataDir });
-  const studio = new Studio({ config, store, clock, rng: new Rng(config.seed), ports, deps: makeDeps(config, opts.dataDir, opts.agents), dataDir: opts.dataDir, ledger });
+  const studio = new Studio({ config, store, clock, rng: new Rng(config.seed), ports, deps: makeDeps(config, opts.dataDir, opts.agents), dataDir: opts.dataDir, ledger, dryRun: config.dryRun });
   return { studio, store, config, llm };
 }

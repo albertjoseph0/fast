@@ -371,6 +371,53 @@ describe("AscClient requests", () => {
     expect(submit!.json).toEqual({ data: { type: "reviewSubmissions", id: "new_reviewSubmissions", attributes: { submitted: true } } });
   });
 
+  it("rethrows a refused review item with Apple's detail instead of submitting an empty submission", async () => {
+    const conflict = {
+      errors: [
+        {
+          status: "409",
+          code: "STATE_ERROR.ENTITY_STATE_INVALID",
+          detail: "appStoreVersions 'V1' is not in a valid state.",
+          meta: { associatedErrors: { "/v1/appStoreVersions/V1": [{ code: "ENTITY_ERROR.ATTRIBUTE.REQUIRED", detail: "You must provide a value for the attribute 'copyright'" }] } },
+        },
+      ],
+    };
+    const { asc, f } = client({
+      routes: [
+        { method: "GET", match: "/v1/apps/A1/reviewSubmissions", json: { data: [] } },
+        { method: "POST", match: "/v1/reviewSubmissions", json: created },
+        { method: "POST", match: "/v1/reviewSubmissionItems", status: 409, json: conflict },
+      ],
+    });
+    await expect(asc.submitForReview("A1", "V1")).rejects.toThrow(
+      "App Store Connect refused appStoreVersions V1 for review: STATE_ERROR.ENTITY_STATE_INVALID: appStoreVersions 'V1' is not in a valid state.; ENTITY_ERROR.ATTRIBUTE.REQUIRED: You must provide a value for the attribute 'copyright'",
+    );
+    expect(f.writes().some((w) => w.method === "PATCH")).toBe(false);
+  });
+
+  it("submitForReview is idempotent: a sent submission is returned and items already added are skipped", async () => {
+    const item = (id: string, version: string) => res("reviewSubmissionItems", id, {}, { appStoreVersion: { data: { type: "appStoreVersions", id: version } } });
+    const sent = client({
+      routes: [
+        { method: "GET", match: "/v1/apps/A1/reviewSubmissions", json: { data: [res("reviewSubmissions", "RS-SENT", { state: "WAITING_FOR_REVIEW" })] } },
+        { method: "GET", match: "/v1/reviewSubmissions/RS-SENT/items", json: { data: [item("I1", "V1")] } },
+      ],
+    });
+    expect(await sent.asc.submitForReview("A1", "V1")).toBe("RS-SENT");
+    expect(sent.f.writes()).toEqual([]);
+    expect(sent.f.calls[0]!.url).toContain("filter[state]=READY_FOR_REVIEW,WAITING_FOR_REVIEW,IN_REVIEW");
+
+    const open = client({
+      routes: [
+        { method: "GET", match: "/v1/apps/A1/reviewSubmissions", json: { data: [res("reviewSubmissions", "RS-OPEN", { state: "READY_FOR_REVIEW" })] } },
+        { method: "GET", match: "/v1/reviewSubmissions/RS-OPEN/items", json: { data: [item("I1", "V1")] } },
+        { method: "PATCH", match: "/v1/reviewSubmissions/RS-OPEN", json: (c) => c.json },
+      ],
+    });
+    expect(await open.asc.submitForReview("A1", "V1")).toBe("RS-OPEN");
+    expect(open.f.writes().map((w) => `${w.method} ${w.url.replace(ASC, "")}`)).toEqual(["PATCH /v1/reviewSubmissions/RS-OPEN"]);
+  });
+
   it("attaches the build, writes review notes, and releases with a phased rollout", async () => {
     const { asc, f } = client({
       routes: [

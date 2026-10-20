@@ -15,7 +15,8 @@ import {
   normalizeIdea,
   screenIdea,
 } from "../../src/principles/gates.ts";
-import { astra, config, critique, NOW, screenInput } from "./fixtures.ts";
+import { specDomains } from "../../src/principles/sensitivity.ts";
+import { astra, astraSpec, config, critique, NOW, screenInput } from "./fixtures.ts";
 
 const gate = (gates: GateResult[], id: GateResult["gate"]) => gates.find((g) => g.gate === id);
 
@@ -253,6 +254,14 @@ describe("individual gates", () => {
     expect(gateCompliance(astra({ wedge: { ...astra().wedge, minAge: 13 } }), lowered, [])[0]?.verdict).toBe("pass");
   });
 
+  it("compliance takes the younger of the wedge and the classifier's minimum age", () => {
+    const minors = (age?: number) => gateCompliance(astra(), config, ["astrology_fortune"], age)[0];
+    expect(minors(18)?.verdict).toBe("pass");
+    expect(minors(16)).toMatchObject({ verdict: "needs_human" });
+    expect(minors(16)?.reason).toContain("classifier puts the youngest users at 16");
+    expect(screenIdea(screenInput(astra(), { classifierMinimumAge: 13 })).verdict).toBe("needs_human");
+  });
+
   it("differentiation rejects duplicate titles and warns on thin differentiation", () => {
     expect(gateDifferentiation(astra(), ["Plug AI", " astra "]).verdict).toBe("fail");
     expect(gateDifferentiation(astra({ differentiation: "It is better" }), []).verdict).toBe("warn");
@@ -268,5 +277,28 @@ describe("keyword backstop precision", () => {
     expect(keywordDomains("Snap a vintage tee's tag for dating the print era")).not.toContain("dating_safety");
     expect(keywordDomains("A budgeting coach for your first paycheck")).toContain("finance");
     expect(keywordDomains("Budget-friendly thrift flips for resellers")).not.toContain("finance");
+  });
+});
+
+describe("specDomains", () => {
+  const fitCheck = () =>
+    astra({
+      title: "Fit Check",
+      oneLiner: "Honest verdicts on your look",
+      sensitiveDomains: [],
+      wedge: { ...astra().wedge, minAge: 16, name: "Gen Z fashion TikTok", description: "Teens who post outfit videos", creatorNiche: "fashion" },
+    });
+
+  it("classifies the spec's own prompt, adds biometric for judged photos and minors for an under-18 wedge", () => {
+    const spec = astraSpec();
+    spec.core.inputKind = "photo";
+    spec.core.aiSystemPrompt = "Give an attractiveness score from 1-10 for their face and body.";
+    expect(specDomains(spec, fitCheck(), [])).toEqual(expect.arrayContaining(["appearance_rating", "biometric", "minors"]));
+  });
+
+  it("keeps the idea's domains and adds nothing for an adult text app", () => {
+    const spec = astraSpec();
+    spec.core.aiSystemPrompt = "You write playful, specific natal chart readings.";
+    expect(specDomains(spec, astra(), ["astrology_fortune"])).toEqual(["astrology_fortune"]);
   });
 });

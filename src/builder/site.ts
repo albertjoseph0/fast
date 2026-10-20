@@ -67,10 +67,10 @@ function paragraphs(text: string): string {
     .join("\n");
 }
 
-/** Deep-link path without wildcards or parameters, e.g. "/chart" for "/chart/:id". */
+/** Deep-link path without wildcards, parameters or "."/".." segments, e.g. "/chart" for "/chart/:id". */
 export function deepLinkBase(deepLinkPath: string): string {
   const segments = deepLinkPath.split("/").filter((s) => s && !s.startsWith(":") && !s.includes("*"));
-  const clean = segments.filter((s) => /^[A-Za-z0-9._-]+$/.test(s));
+  const clean = segments.filter((s) => /^(?!\.{1,2}$)[A-Za-z0-9._-]+$/.test(s));
   return clean.length ? `/${clean.join("/")}` : "/";
 }
 

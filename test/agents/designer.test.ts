@@ -138,6 +138,23 @@ describe("designSpec", () => {
     expect(llm.calls("AppSpecRepair")).toHaveLength(1);
   });
 
+  it("sends needs_human copy to the repair call and returns what is left for a human", async () => {
+    const claim = (): AppSpec => ({ ...astraSpec(), paywall: { ...astraSpec().paywall, bullets: [...astraSpec().paywall.bullets, "Guaranteed accurate readings"] } });
+    const llm = new FakeLlm({ AppSpec: claim, AppSpecRepair: () => ({ spec: claim(), changes: [] }) });
+    const out = await designSpec(agentContext({ llm }), { idea: astra() });
+    expect(llm.calls("AppSpecRepair")[0]?.input.findings.map((f) => f.ruleId)).toContain("copy.efficacy_claim");
+    expect(out.repaired).toBe(true);
+    expect(out.findings.find((f) => f.ruleId === "copy.efficacy_claim")?.severity).toBe("needs_human");
+  });
+
+  it("raises the minimum age when the spec itself puts the app in an adults-only domain", async () => {
+    const spec = (): AppSpec => ({ ...astraSpec(), compliance: { ...astraSpec().compliance, minimumAge: "16" }, core: { ...astraSpec().core, aiSystemPrompt: "Pick tonight's sports picks and parlays." } });
+    const teen = astra({ wedge: { ...astra().wedge, minAge: 16 } });
+    const out = await designSpec(agentContext({ llm: new FakeLlm({ AppSpec: spec }) }), { idea: teen });
+    expect(out.spec.compliance.minimumAge).toBe("18");
+    expect(out.findings.filter((f) => f.ruleId === "spec.minimum_age")).toEqual([]);
+  });
+
   it("propagates LLM budget exhaustion unchanged", async () => {
     const err = new LlmError("budget_exceeded", "llm budget spent");
     const llm = new FakeLlm({
@@ -190,6 +207,25 @@ describe("proposeVariant", () => {
       expect(out.proposal.change.subtitle.length).toBeLessThanOrEqual(30);
       expect(out.proposal.change.appName).not.toBe("Astra");
     }
+  });
+
+  it("rejects a remote-config variant that adds needs_human copy and falls back", async () => {
+    const paywall = { ...astraSpec().paywall, headline: "Guaranteed accurate readings", bullets: [...astraSpec().paywall.bullets.slice(0, 2), "Clinically proven to calm your love life"] };
+    const llm = new FakeLlm({ VariantProposal: () => ({ variableUnderTest: "paywall", hypothesis: "Claims lift conversion", change: { kind: "paywall", paywall } }) });
+    const ctx = agentContext({ llm });
+    const out = await proposeVariant(ctx, { ...base, failedStages: ["S4_monetization"], triedVariables: [] });
+    expect(out.proposal.change.kind).toBe("paywall");
+    expect(out.proposal.change.kind === "paywall" && out.proposal.change.paywall.headline).not.toBe(paywall.headline);
+    const findings = lintSpec(applyVariant(astraSpec(), out.proposal), astra(), ctx.config);
+    expect(findings.filter((f) => f.severity === "needs_human" || f.severity === "block")).toEqual([]);
+  });
+
+  it("rejects a value-first paywall variant when the spec gives no free use", async () => {
+    const paywall = { ...astraSpec().paywall, placement: "after_first_value" as const };
+    const spec = { ...astraSpec(), core: { ...astraSpec().core, freeUsesBeforePaywall: 0 } };
+    const llm = new FakeLlm({ VariantProposal: () => ({ variableUnderTest: "paywall", hypothesis: "Value first", change: { kind: "paywall", paywall } }) });
+    const out = await proposeVariant(agentContext({ llm }), { ...base, spec, failedStages: ["S4_monetization"], triedVariables: [] });
+    expect(out.proposal.change.kind === "paywall" && out.proposal.change.paywall.placement).toBe(spec.paywall.placement);
   });
 
   it("falls back when the proposal's hooks are all blocked by copy lint", async () => {

@@ -22,7 +22,7 @@ import { parseArgs } from "node:util";
 import { StudioConfig } from "../config/schema.ts";
 import type { Action } from "../core/types.ts";
 import { runSimulation, type SimulationResult } from "../orchestrator/runner.ts";
-import { createLiveStudio } from "../orchestrator/wiring.ts";
+import { createLiveStudio, SIM_MARKER } from "../orchestrator/wiring.ts";
 
 const usd = (cents: number) => `${cents < 0 ? "-" : ""}$${(Math.abs(cents) / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
@@ -86,6 +86,11 @@ async function main(): Promise<void> {
     const llm = values.llm as "stub" | "gateway" | "anthropic" | undefined;
     const media = values.media as "stub" | "gateway" | undefined;
     const simDir = values.data ? dataDir : resolve(".factory-sim", `seed-${seed}`);
+    // A simulation replaces the directory's state: never let it touch a live studio's.
+    if (values.data) {
+      if (existsSync(join(simDir, "config.json"))) fail(`${simDir} holds a studio config.json; simulations run in their own directory`);
+      if (existsSync(join(simDir, "state")) && !existsSync(join(simDir, SIM_MARKER))) fail(`${simDir}/state is not a simulation's (no ${SIM_MARKER} marker); refusing to replace it`);
+    }
     if (existsSync(join(simDir, "state"))) rmSync(join(simDir, "state"), { recursive: true, force: true });
     mkdirSync(simDir, { recursive: true });
     const result = await runSimulation({

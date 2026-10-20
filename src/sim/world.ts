@@ -569,7 +569,8 @@ export class SimWorld {
           untrustedCaption: s.caption,
           stage: post ? "posted" : "draft_submitted",
           submittedAt: s.submittedAt as string,
-          ...(post ? { postUrl: post.url } : {}),
+          ...(post ? { postUrl: post.url, postedAt: post.postedAt, views: post.cumViews } : {}),
+          creatorAudience: { geo: { ...s.creator.audienceGeo }, under18Share: s.creator.audienceUnder18Share, followers: s.creator.followers, medianViews30d: s.creator.medianViews30d },
         };
       });
   }
@@ -1285,8 +1286,10 @@ export class SimWorld {
     const pool = req.assignment === "geo" ? this.cohortsByGeo.get(`${req.ventureId}|${req.geo}`) : this.cohortsByVariant.get(`${req.ventureId}|${req.cellId}`);
     const conf = this.confounds(req.cellId);
     const out: MetricCounts = { successes: 0, trials: 0, bySource: {} };
+    // Cohorts sit at midday of their install date, so compare at day resolution.
+    const sinceDay = Math.floor(since / DAY_MS) * DAY_MS;
     for (const c of pool ?? []) {
-      if (c.installAt < since || c.installAt > asOf) continue;
+      if (c.installAt < sinceDay || c.installAt > asOf) continue;
       const activated = conf.instrumentation ? Math.round(c.activated * 0.3) : c.activated;
       const p = countPair(c, req.numerator, req.denominator, asOf, req.maturityHours, req.windowHours, activated);
       if (p.trials === 0 && p.successes === 0) continue;

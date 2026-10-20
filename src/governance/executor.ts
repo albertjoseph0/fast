@@ -46,6 +46,53 @@ export type Handler<K extends ActionKind> = (
 const JOB_DEADLINE_DAYS = 7;
 export const INTERRUPTED_ERROR = "interrupted during execution: verify externally before retrying";
 
+/** Lifecycle decisions: their handlers make no external call, so they run in dry-run too. */
+const EFFECT_FREE: readonly ActionKind[] = ["venture.scale", "venture.kill", "venture.sunset", "venture.exit_flag"];
+
+/** A write port answered with a synthetic dry-run response: nothing was sent. */
+class DryRunResponseError extends Error {}
+
+/** A write port threw: the request may have reached the provider. */
+class PortCallError extends Error {}
+
+/** Synthetic dry-run answers: `{ dryRun: true }`, "dry_" ids, or URLs on a dry_run host. */
+function isDryRunResponse(value: unknown, depth = 0): boolean {
+  if (typeof value === "string") return /(^|[/=,])dry_/.test(value);
+  if (!value || typeof value !== "object" || depth > 4) return false;
+  if ((value as { dryRun?: unknown }).dryRun === true) return true;
+  return Object.values(value).some((v) => isDryRunResponse(v, depth + 1));
+}
+
+/**
+ * Write ports whose dry-run answers throw before a handler records them as real, and whose
+ * failures are marked as possibly sent.
+ */
+function guardPorts(write: WritePorts): WritePorts {
+  const wrap = (port: object, name: string): object =>
+    new Proxy(port, {
+      get(target, prop, receiver) {
+        const value: unknown = Reflect.get(target, prop, receiver);
+        if (typeof value !== "function") return value;
+        return async (...args: unknown[]) => {
+          let out: unknown;
+          try {
+            out = await (value as (...a: unknown[]) => Promise<unknown>).apply(target, args);
+          } catch (err) {
+            throw new PortCallError(err instanceof Error ? err.message : String(err), { cause: err });
+          }
+          if (isDryRunResponse(out)) throw new DryRunResponseError(`${name}.${String(prop)} returned a dry-run response`);
+          return out;
+        };
+      },
+    });
+  return new Proxy(write, {
+    get(target, prop, receiver) {
+      const port: unknown = Reflect.get(target, prop, receiver);
+      return port && typeof port === "object" ? wrap(port, String(prop)) : port;
+    },
+  });
+}
+
 // -- entity helpers ---------------------------------------------------------------
 
 function venture(ctx: ExecContext, a: Action): Venture {
@@ -374,7 +421,7 @@ export class Executor {
 
   constructor(ctx: ExecContext & { dryRun: boolean; killSwitchPath: string | null }) {
     const { dryRun, killSwitchPath, ...rest } = ctx;
-    this.ctx = rest;
+    this.ctx = { ...rest, write: guardPorts(rest.write) };
     this.dryRun = dryRun;
     this.killSwitchPath = killSwitchPath;
   }
@@ -393,9 +440,35 @@ export class Executor {
         out.push(action);
         continue;
       }
-      out.push(this.dryRun ? this.recordDryRun(action) : await this.execute(action));
+      out.push(this.dryRun && !EFFECT_FREE.includes(action.kind) ? this.recordDryRun(action) : await this.execute(action));
     }
     return out;
+  }
+
+  /**
+   * Settle a held payout once a human has checked the marketplace. Sent: the hold becomes a booked
+   * payout and the submission is paid. Not sent: the hold is released and the submission is owed again.
+   * A no-op when nothing is held for the action.
+   */
+  resolveUnknownPayout(actionId: string, sent: boolean): boolean {
+    const { store, ledger, clock } = this.ctx;
+    const held = store.ledgerEntry(`payout:unknown:${actionId}`);
+    if (!held || held.amountCents === 0) return false;
+    const a = store.actions.require(actionId) as Action<"creator.payout">;
+    ledger.releaseUnknownPayout(actionId);
+    if (sent) {
+      const sub = store.submissions.require(a.payload.submissionId);
+      const campaign = store.campaigns.require(sub.campaignId);
+      const now = clock.iso();
+      const payout: Payout = { id: store.nextId("payout"), submissionId: sub.id, amountCents: a.payload.amountCents, idempotencyKey: a.idempotencyKey, basis: a.payload.basis, at: held.at };
+      store.payouts.put(payout);
+      ledger.onPayout(payout, a.ventureId ?? campaign.ventureId);
+      store.submissions.put({ ...sub, stage: "paid", payoutCents: a.payload.amountCents });
+      const creator = store.creators.get(sub.creatorId);
+      if (creator) store.creators.put({ ...creator, firstPaidAt: creator.firstPaidAt ?? now, stats: { ...creator.stats, paidCents: creator.stats.paidCents + a.payload.amountCents } });
+    }
+    store.emit("ledger.booked", { actionId, resolvedUnknownPayout: sent ? "sent" : "not_sent" }, a.ventureId);
+    return true;
   }
 
   /** Fail actions a crash left in `executing`: their side effect may or may not have happened. */
@@ -404,6 +477,7 @@ export class Executor {
     const stuck = governance.list({ status: ["executing"] });
     for (const a of stuck) {
       store.governanceActions().put({ ...a, status: "failed", error: INTERRUPTED_ERROR });
+      this.holdIfPayout(a);
       store.emit("action.failed", { actionId: a.id, kind: a.kind, error: INTERRUPTED_ERROR, reconciledAt: clock.iso() }, a.ventureId);
     }
     if (stuck.length) store.commit();
@@ -415,12 +489,23 @@ export class Executor {
   }
 
   private recordDryRun(a: Action): Action {
+    const { store } = this.ctx;
+    const next = this.markDryRun(a);
+    store.commit();
+    return next;
+  }
+
+  private markDryRun(a: Action): Action {
     const { store, clock } = this.ctx;
     const next: Action = { ...a, status: "dry_run", result: { dryRun: true } as unknown as Action["result"], executedAt: clock.iso() };
     store.governanceActions().put(next);
     store.emit("action.executed", { actionId: a.id, kind: a.kind, dryRun: true }, a.ventureId);
-    store.commit();
     return next;
+  }
+
+  /** A payout that may have been sent counts as paid until a human checks the marketplace. */
+  private holdIfPayout(a: Action): void {
+    if (a.kind === "creator.payout") this.ctx.ledger.holdUnknownPayout(a as Action<"creator.payout">);
   }
 
   private async execute(a: Action): Promise<Action> {
@@ -439,9 +524,14 @@ export class Executor {
         store.emit("action.executed", { actionId: a.id, kind: a.kind }, a.ventureId);
       }
     } catch (err) {
-      const error = err instanceof Error ? err.message : String(err);
-      actions.put({ ...actions.require(a.id), status: "failed", error });
-      store.emit("action.failed", { actionId: a.id, kind: a.kind, error }, a.ventureId);
+      if (err instanceof DryRunResponseError) {
+        this.markDryRun(a);
+      } else {
+        const error = err instanceof Error ? err.message : String(err);
+        actions.put({ ...actions.require(a.id), status: "failed", error });
+        if (err instanceof PortCallError) this.holdIfPayout(a);
+        store.emit("action.failed", { actionId: a.id, kind: a.kind, error }, a.ventureId);
+      }
     }
     store.commit();
     return actions.require(a.id);

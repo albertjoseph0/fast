@@ -8,6 +8,8 @@
  */
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { StudioStore } from "../../core/store.ts";
 import type { StudioConfig } from "../../config/schema.ts";
 import type { StorePlatform } from "../../core/types.ts";
@@ -35,6 +37,14 @@ export interface EasBuild {
   appVersion?: string;
   appBuildVersion?: string;
   artifactUrl?: string;
+  error?: string;
+}
+
+export type EasSubmissionStatus = "AWAITING_BUILD" | "IN_QUEUE" | "IN_PROGRESS" | "FINISHED" | "ERRORED" | "CANCELED" | "UNKNOWN";
+
+export interface EasSubmission {
+  id: string;
+  status: EasSubmissionStatus;
   error?: string;
 }
 
@@ -117,6 +127,33 @@ export function parseBuild(raw: unknown): EasBuild {
   };
 }
 
+const SUBMISSION_STATUSES: readonly EasSubmissionStatus[] = ["AWAITING_BUILD", "IN_QUEUE", "IN_PROGRESS", "FINISHED", "ERRORED", "CANCELED"];
+
+/** Normalize the submission object from `eas submit:view --json`. */
+export function parseSubmission(raw: unknown): EasSubmission {
+  const s = (raw ?? {}) as Record<string, unknown>;
+  const id = String(s.id ?? "");
+  if (!id) throw new Error("eas: submission JSON has no id");
+  const status = String(s.status ?? "").toUpperCase().replace(/-/g, "_") as EasSubmissionStatus;
+  const error = (s.error ?? null) as { errorCode?: string; message?: string } | null;
+  const message = [error?.errorCode, error?.message].filter(Boolean).join(": ");
+  return { id, status: SUBMISSION_STATUSES.includes(status) ? status : "UNKNOWN", ...(message ? { error: message } : {}) };
+}
+
+/**
+ * Merge `fields` into eas.json's submit.<profile>.<platform>. With --non-interactive, eas-cli
+ * reads ascAppId and the App Store Connect key (ascApiKeyPath/Id/IssuerId) only from there.
+ */
+export function patchSubmitProfile(projectDir: string, profile: string, platform: StorePlatform, fields: Record<string, string>): void {
+  const path = join(projectDir, "eas.json");
+  if (!existsSync(path)) throw new Error(`eas submit: ${path} does not exist`);
+  const eas = JSON.parse(readFileSync(path, "utf8")) as { submit?: Record<string, Record<string, Record<string, unknown>>> };
+  const submit = eas.submit ?? {};
+  const current = submit[profile] ?? {};
+  eas.submit = { ...submit, [profile]: { ...current, [platform]: { ...current[platform], ...fields } } };
+  writeFileSync(path, `${JSON.stringify(eas, null, 2)}\n`);
+}
+
 /** Submission id from the "…/submissions/<uuid>" link eas submit prints. */
 export function parseSubmissionId(output: string): string | null {
   return /\/submissions\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(output)?.[1] ?? null;
@@ -165,15 +202,34 @@ export class EasCli {
     return parseBuild(parseJsonOutput(out.stdout));
   }
 
-  /** Submit a finished build to App Store Connect / Google Play without waiting. */
-  async submit(req: { platform: StorePlatform; buildId: string; projectDir: string; profile?: string; env?: Record<string, string> }): Promise<{ id: string | null }> {
-    const argv = ["submit", "--platform", req.platform, "--profile", req.profile ?? "production", "--id", req.buildId, "--non-interactive", "--no-wait"];
+  /**
+   * Submit a finished build to App Store Connect / Google Play without waiting. `submitProfile`
+   * fields (ids and file paths only, never key material) are written into eas.json first.
+   */
+  async submit(req: {
+    platform: StorePlatform;
+    buildId: string;
+    projectDir: string;
+    profile?: string;
+    env?: Record<string, string>;
+    submitProfile?: Record<string, string>;
+  }): Promise<{ id: string | null }> {
+    const profile = req.profile ?? "production";
+    const argv = ["submit", "--platform", req.platform, "--profile", profile, "--id", req.buildId, "--non-interactive", "--no-wait"];
     if (this.opts.dryRun) {
       this.plan(argv, req.projectDir);
       return { id: dryId("submit", req.platform, argv, req.projectDir) };
     }
+    if (req.submitProfile) patchSubmitProfile(req.projectDir, profile, req.platform, req.submitProfile);
     const out = await this.run(argv, req.projectDir, req.env);
     return { id: parseSubmissionId(`${out.stdout}\n${out.stderr}`) };
+  }
+
+  /** Current state of a submission (`eas submit --no-wait` only schedules it). Dry-run submissions report FINISHED. */
+  async submissionStatus(req: { id: string; projectDir: string }): Promise<EasSubmission> {
+    if (req.id.startsWith("dry_")) return { id: req.id, status: "FINISHED" };
+    const out = await this.run(["submit:view", req.id, "--json"], req.projectDir);
+    return parseSubmission(parseJsonOutput(out.stdout));
   }
 
   private plan(argv: string[], cwd: string): void {

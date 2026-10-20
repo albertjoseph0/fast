@@ -128,6 +128,35 @@ describe("Play edits", () => {
     });
   });
 
+  it("keeps a hostile listing language inside its own path segment", async () => {
+    const png = join(dir, "s2.png");
+    writeFileSync(png, Buffer.alloc(10, 1));
+    const f = fakeFetch([TOKEN_ROUTE, { match: "/listings/", json: {} }]);
+    const paths: string[] = [];
+    const play = new PlayClient({
+      config: defaultConfig(),
+      env: { PLAY_SERVICE_ACCOUNT_JSON: saPath },
+      dryRun: false,
+      secretRefs: { serviceAccountJsonPath: "PLAY_SERVICE_ACCOUNT_JSON" },
+      fetch: ((input: string | URL | Request, init?: RequestInit) => {
+        paths.push(new URL(String(input)).pathname);
+        return f.fetch(input, init);
+      }) as typeof fetch,
+      clock: new SimClock("2026-10-18T12:00:00Z"),
+      sleep: async () => undefined,
+    });
+    const language = "en-US/../../../subscriptions/X?";
+    await play.updateListing(PKG, "E1", { language, title: "t", shortDescription: "s", fullDescription: "f" });
+    await play.deleteAllImages(PKG, "E1", language, "phoneScreenshots");
+    await play.uploadImage(PKG, "E1", language, "phoneScreenshots", png);
+    const segment = encodeURIComponent(language);
+    expect(paths.filter((p) => !p.startsWith("/token"))).toEqual([
+      `/androidpublisher/v3/applications/${PKG}/edits/E1/listings/${segment}`,
+      `/androidpublisher/v3/applications/${PKG}/edits/E1/listings/${segment}/phoneScreenshots`,
+      `/upload/androidpublisher/v3/applications/${PKG}/edits/E1/listings/${segment}/phoneScreenshots`,
+    ]);
+  });
+
   it("uploads a bundle as media", async () => {
     const aab = join(dir, "app.aab");
     writeFileSync(aab, Buffer.alloc(1_024, 2));

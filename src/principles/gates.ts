@@ -18,6 +18,8 @@ export interface ScreenInput {
   exposures: AudienceExposure[];
   critiques: Critique[];
   classifierDomains: SensitiveDomain[];
+  /** The classifier's minimum user age; the younger of it and the wedge's minAge decides the minors gate. */
+  classifierMinimumAge?: number;
   existingTitles: string[];
 }
 
@@ -208,16 +210,21 @@ export function gateP11(idea: Idea): GateResult {
     : result("P11_core_needs", "warn", 0.7, "self_improvement without love, money or play");
 }
 
-/** Minors, human-review domains and classifier disagreement each need a human. */
-export function gateCompliance(idea: Idea, config: StudioConfig, classifierDomains: SensitiveDomain[]): GateResult[] {
+/**
+ * Minors, human-review domains and classifier disagreement each need a human. The youngest
+ * user is the lower of the wedge's minAge and the classifier's minimum age.
+ */
+export function gateCompliance(idea: Idea, config: StudioConfig, classifierDomains: SensitiveDomain[], classifierMinimumAge?: number): GateResult[] {
   const domains = effectiveDomains(idea, classifierDomains);
   const { autonomousMinAge, humanReviewDomains } = config.autonomy;
-  const minAge = idea.wedge.minAge;
-  const rating = minimumAgeFor(idea, domains);
+  const classifierAge = classifierMinimumAge !== undefined && Number.isFinite(classifierMinimumAge) ? classifierMinimumAge : Infinity;
+  const minAge = Math.min(idea.wedge.minAge, classifierAge);
+  const rating = minimumAgeFor({ ...idea, wedge: { ...idea.wedge, minAge } }, domains);
+  const source = classifierAge < idea.wedge.minAge ? `classifier puts the youngest users at ${minAge} (wedge says ${idea.wedge.minAge})` : `wedge starts at age ${minAge}`;
   const minors =
     minAge < autonomousMinAge
-      ? result("compliance.minors", "needs_human", 0, `wedge starts at age ${minAge} (< ${autonomousMinAge}); store rating ${rating}+`)
-      : result("compliance.minors", "pass", 1, `wedge starts at age ${minAge}; store rating ${rating}+`);
+      ? result("compliance.minors", "needs_human", 0, `${source} (< ${autonomousMinAge}); store rating ${rating}+`)
+      : result("compliance.minors", "pass", 1, `${source}; store rating ${rating}+`);
   const review = domains.filter((d) => humanReviewDomains.includes(d));
   const sensitive =
     review.length > 0
@@ -259,7 +266,7 @@ export function screenIdea(input: ScreenInput): Screening {
     gateP9(idea),
     gateP10(idea),
     gateP11(idea),
-    ...gateCompliance(idea, input.config, input.classifierDomains),
+    ...gateCompliance(idea, input.config, input.classifierDomains, input.classifierMinimumAge),
     gateDifferentiation(idea, input.existingTitles),
   ];
   const gateScore = 100 * gates.reduce((s, g) => s + (GATE_WEIGHTS[g.gate] ?? 0) * clamp01(g.score), 0);

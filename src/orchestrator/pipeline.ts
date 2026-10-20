@@ -7,29 +7,72 @@
  * outbox. Dedupe keys make re-proposals no-ops, and the pipeline waits while any of
  * the venture's store actions is still open, so steps never race each other.
  */
-import { existsSync, readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { TickContext } from "../core/context.ts";
-import type { Action, HumanTask, Idea, SubmissionChangeArea, Venture } from "../core/types.ts";
+import type { Action, BakedBinding, HumanTask, HumanTaskDraft, Idea, SubmissionChangeArea, Venture } from "../core/types.ts";
 import { OPEN_STATUSES } from "../governance/outbox.ts";
 import { testGeosFor } from "../lab/audiences.ts";
 import { storeProductDefs } from "../playbook/product.ts";
 import { taskDraft } from "../playbook/setup.ts";
-import { effectiveDomains } from "../principles/sensitivity.ts";
+import { lintSpec } from "../principles/product.ts";
+import { effectiveDomains, specDomains } from "../principles/sensitivity.ts";
 import { latestJob, patch, transition } from "./lifecycle.ts";
 import type { StudioDeps } from "./deps.ts";
 
 const PLATFORM = "ios" as const;
+/** Upload attempts that fail before reaching the store before a human looks. */
+const MAX_UPLOAD_FAILURES = 3;
 
 function openActions(ctx: TickContext, v: Venture, prefix: string): Action[] {
   return ctx.store.actions.list((a) => a.ventureId === v.id && a.kind.startsWith(prefix) && OPEN_STATUSES.includes(a.status));
 }
 
+/** Executed, or recorded as a dry run while dry-run is still on (after go-live those steps run for real). */
 function done(ctx: TickContext, v: Venture, kind: Action["kind"], naturalSuffix?: string): boolean {
   return ctx.store.actions.list(
-    (a) => a.ventureId === v.id && a.kind === kind && (a.status === "executed" || a.status === "dry_run") && (naturalSuffix === undefined || a.dedupeKey.endsWith(naturalSuffix)),
+    (a) =>
+      a.ventureId === v.id &&
+      a.kind === kind &&
+      (a.status === "executed" || (a.status === "dry_run" && ctx.config.dryRun)) &&
+      (naturalSuffix === undefined || a.dedupeKey.endsWith(naturalSuffix)),
   ).length > 0;
 }
+
+/** Open a venture task once (an open or completed one counts). */
+function ensureTask(ctx: TickContext, v: Venture, kind: HumanTask["kind"], extra?: string): boolean {
+  if (taskDone(ctx, kind, v.id)) return true;
+  if (!ctx.store.tasks.count((t) => t.kind === kind && t.ventureId === v.id && t.status === "open")) ctx.outbox.openTask(taskDraft(kind, v.id, extra));
+  return false;
+}
+
+const BAKED: readonly BakedBinding[] = ["webBaseUrl", "deepLinkDomain", "easProjectId", "ascAppId", "backendUrl"];
+
+/** The bindings a render bakes into the app: when one changes before the binary is built, re-render. */
+function bakedBindings(v: Venture): Partial<Record<BakedBinding, string>> {
+  const out: Partial<Record<BakedBinding, string>> = {};
+  for (const key of BAKED) {
+    const value = v.bindings[key];
+    if (typeof value === "string" && value) out[key] = value;
+  }
+  return out;
+}
+
+/** The build job of the current spec version that is still usable (not superseded after a failed upload). */
+function buildJobFor(ctx: TickContext, v: Venture) {
+  return ctx.store.jobs
+    .list((j) => {
+      if (j.ventureId !== v.id || j.op !== "store.build" || j.result?.["superseded"] === true) return false;
+      const payload = ctx.store.actions.get(j.actionId)?.payload as { specVersion?: number } | undefined;
+      return payload?.specVersion === v.specVersion;
+    })
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : 1))
+    .at(-1);
+}
+
+/** Builds of the current spec version that failed or were superseded; past the cap a human looks. */
+const MAX_BUILD_ATTEMPTS = 3;
 
 function taskDone(ctx: TickContext, kind: HumanTask["kind"], ventureId?: string): boolean {
   return ctx.store.tasks.count((t) => t.kind === kind && t.status === "done" && (ventureId === undefined || t.ventureId === ventureId)) > 0;
@@ -43,9 +86,61 @@ export function ideaFor(ctx: TickContext, v: Venture): Idea {
   return ctx.store.ideas.require(v.ideaId).idea;
 }
 
+/** Sensitive domains of the venture as built: the screening's, plus what the current spec itself says. */
 function domainsFor(ctx: TickContext, v: Venture) {
-  const screening = ctx.store.screenings.get(v.screeningId);
-  return screening?.sensitiveDomains ?? effectiveDomains(ideaFor(ctx, v), []);
+  const idea = ideaFor(ctx, v);
+  const screened = ctx.store.screenings.get(v.screeningId)?.sensitiveDomains ?? [];
+  return v.spec ? specDomains(v.spec, idea, screened) : effectiveDomains(idea, screened);
+}
+
+/** A per-build human task: done only once a task naming this exact marker was completed. */
+function ensureTaskFor(ctx: TickContext, v: Venture, kind: HumanTask["kind"], marker: string, extra: string): boolean {
+  if (ctx.store.tasks.count((t) => t.kind === kind && t.ventureId === v.id && t.status === "done" && t.instructions.includes(marker)) > 0) return true;
+  if (!ctx.store.tasks.count((t) => t.kind === kind && t.ventureId === v.id && t.status === "open")) ctx.outbox.openTask(taskDraft(kind, v.id, `${extra} (${marker})`));
+  return false;
+}
+
+/**
+ * Copy the linter cannot clear on its own (efficacy, health or money claims) goes to a person before
+ * the spec ships: each distinct set of findings is reviewed once. Returns what is still pending.
+ */
+function specReviewPending(ctx: TickContext, v: Venture, domains: ReturnType<typeof domainsFor>): string | null {
+  const spec = v.spec;
+  if (!spec) return null;
+  const findings = lintSpec(spec, ideaFor(ctx, v), ctx.config, domains).filter((f) => f.severity === "needs_human");
+  if (!findings.length) return null;
+  const lines = findings.map((f) => `${f.ruleId}: ${f.message}`).sort();
+  const marker = `spec review ${createHash("sha256").update(lines.join("\n")).digest("hex").slice(0, 12)}`;
+  if (!ensureTaskFor(ctx, v, "legal.review", marker, `Copy in ${spec.appName} v${v.specVersion} needs a human before it ships: ${lines.join("; ")}`)) return "copy review";
+  const decided = ctx.store.tasks.list((t) => t.kind === "legal.review" && t.ventureId === v.id && t.status === "done" && t.instructions.includes(marker)).at(-1);
+  return decided?.outputs?.["decision"] === "approved" ? null : "copy changes requested";
+}
+
+/**
+ * The first submission carries the subscriptions for review, so they must be ready to submit: the
+ * latest subscription job succeeded (a job that needs a human is waiting on missing store metadata).
+ */
+function subscriptionsPending(ctx: TickContext, v: Venture): string | null {
+  if (done(ctx, v, "store.submit_review")) return null;
+  const job = latestJob(ctx.store, v.id, "store.upsert_subscriptions");
+  if (!job || job.status === "succeeded") return null;
+  if (job.status === "failed") {
+    // Retry once (the upsert is idempotent); after that a human fixes the store side first.
+    const failures = ctx.store.jobs.count((j) => j.ventureId === v.id && j.op === "store.upsert_subscriptions" && j.status === "failed");
+    if (failures < 2 || ensureTaskFor(ctx, v, "store.manual_step", `subscriptions ${job.id}`, `Creating the subscriptions for ${v.name} failed ${failures} times: ${job.error ?? "no error reported"}`)) {
+      patch(ctx.store, ctx.ports.clock, v, { bindings: { ...v.bindings, products: [] } });
+      return "re-creating subscriptions";
+    }
+    return "subscriptions (store.manual_step)";
+  }
+  return job.status === "needs_human" ? "subscription metadata (store.manual_step)" : "subscriptions to be ready";
+}
+
+/** The tenant file's content hash: the backend must serve this exact system prompt and config. */
+function tenantMarker(v: Venture, projectDir: string): string {
+  const path = join(projectDir, "server", "tenants", `${v.slug}.json`);
+  const hash = existsSync(path) ? createHash("sha256").update(readFileSync(path)).digest("hex").slice(0, 12) : `v${v.specVersion}`;
+  return `tenant ${hash}`;
 }
 
 function listFiles(dir: string): string[] {
@@ -83,9 +178,11 @@ async function ensureBuild(ctx: TickContext, deps: StudioDeps, v: Venture): Prom
     });
   }
   if (!v.bindings.backendUrl) return v; // the render bakes in the backend URL; advanceBuilding waits for it
-  // Re-render for a new spec version, and once after the site is published so the app links to it.
-  const staleUrls = v.build !== undefined && v.bindings.webBaseUrl !== undefined && v.build.webBaseUrl !== v.bindings.webBaseUrl && !v.build.easBuildId;
-  if (!v.build || v.build.specVersion !== v.specVersion || staleUrls) {
+  // Re-render for a new spec version, and whenever a baked binding (site, deep-link domain, EAS project,
+  // app record) changes before the binary is built, so the app links to the real ones.
+  const baked = bakedBindings(v);
+  const stale = v.build !== undefined && !v.build.easBuildId && JSON.stringify(v.build.baked ?? {}) !== JSON.stringify(baked);
+  if (!v.build || v.build.specVersion !== v.specVersion || stale) {
     const publisherTeam = ctx.store.publishers.get(v.bindings.publisherAccountIds.ios ?? "")?.externalTeamId;
     const teamId = publisherTeam && publisherTeam !== "UNSET" ? publisherTeam : undefined;
     const record = deps.renderApp({
@@ -105,7 +202,7 @@ async function ensureBuild(ctx: TickContext, deps: StudioDeps, v: Venture): Prom
       return null;
     }
     const { files: _files, ...rendered } = record;
-    const build = { ...rendered, ...(v.bindings.webBaseUrl ? { webBaseUrl: v.bindings.webBaseUrl } : {}) };
+    const build = { ...rendered, baked };
     // A new spec version is a new binary: forget the previously uploaded build so the new one is uploaded.
     const stores = v.build ? v.stores.map(({ storeBuildId: _old, ...rest }) => rest) : v.stores;
     v = patch(ctx.store, clock, v, { build, stores });
@@ -129,6 +226,21 @@ export async function advanceBuilding(ctx: TickContext, deps: StudioDeps, ventur
   const rec = storeRecord(v);
   const propose = ctx.outbox.propose.bind(ctx.outbox);
   const base = { ventureId: v.id, proposedBy: "orchestrator" as const };
+  const inventory = spec.compliance.dataInventory.map((d) => `${d.dataType} → ${d.purpose} (${d.sentTo.join(", ")})`).join("; ");
+  const domains = domainsFor(ctx, v);
+  const tenantFile = join(build.projectDir, "server", "tenants", `${v.slug}.json`);
+  const tenant = tenantMarker(v, build.projectDir);
+  const tenantTask = () => ensureTaskFor(ctx, v, "backend.add_tenant", tenant, `Tenant file: ${tenantFile}; backend ${v.bindings.backendUrl ?? "(not deployed)"}.`);
+  // Human steps open as soon as their inputs exist, so people work while the API steps run.
+  if (v.bindings.webBaseUrl && !build.easBuildId) {
+    ensureTask(ctx, v, "integrations.bind_projects", `${spec.appName} (${v.slug})`);
+    ensureTask(ctx, v, "web.deploy_site", `Serve ${v.bindings.webBaseUrl} at the root of the venture's own domain; the app's universal links use that domain.`);
+  }
+  tenantTask();
+  if (rec?.appId || v.bindings.ascAppId) {
+    ensureTask(ctx, v, "apple.privacy_labels", `Data inventory for ${spec.appName}: ${inventory}. Privacy policy: ${v.bindings.privacyUrl ?? "pending"}.`);
+    ensureTask(ctx, v, "apple.app_info", `${spec.appName}: minimum age ${spec.compliance.minimumAge}+; sensitive domains ${domains.join(", ") || "none"}; category ${spec.category}; copyright ${new Date(ctx.ports.clock.iso()).getUTCFullYear()} ${ctx.config.company.legalName}.`);
+  }
 
   // Public legal pages, support page and deep-link files come first: listings need their URLs.
   if (!v.bindings.webBaseUrl) {
@@ -165,16 +277,41 @@ export async function advanceBuilding(ctx: TickContext, deps: StudioDeps, ventur
     });
     return "creating subscriptions";
   }
-  const buildJob = latestJob(ctx.store, v.id, "store.build");
   if (!build.easBuildId) {
+    // Everything baked into the binary must exist first; the tasks run in parallel.
+    const missing = [
+      ensureTask(ctx, v, "integrations.bind_projects", `${spec.appName} (${v.slug})`) && v.bindings.easProjectId ? null : "EAS/PostHog/RevenueCat projects",
+      ensureTask(ctx, v, "web.deploy_site", `Serve ${v.bindings.webBaseUrl} at the root of the venture's own domain; the app's universal links use that domain.`) && v.bindings.deepLinkDomain ? null : "deep-link domain",
+    ].filter(Boolean);
+    if (missing.length) return `waiting for ${missing.join(" and ")}`;
+    const buildJob = buildJobFor(ctx, v);
     if (!buildJob || buildJob.status === "failed") {
-      propose({ ...base, kind: "store.start_build", payload: { platform: PLATFORM, projectDir: build.projectDir, specVersion: v.specVersion }, naturalKey: `${PLATFORM}:v${v.specVersion}:${buildJob?.id ?? "first"}`, summary: `Build ${spec.appName} v${build.version}`, rationale: "Compile the rendered project" });
+      const attempts = ctx.store.jobs.count((j) => j.ventureId === v.id && j.op === "store.build" && (j.status === "failed" || j.result?.["superseded"] === true) && (ctx.store.actions.get(j.actionId)?.payload as { specVersion?: number } | undefined)?.specVersion === v.specVersion);
+      if (attempts >= MAX_BUILD_ATTEMPTS) {
+        ctx.outbox.openTask(taskDraft("store.manual_step", v.id, `${attempts} builds of ${spec.appName} v${build.version} failed or were rejected at processing; check the EAS build logs and App Store Connect, fix the cause, then confirm to retry.`));
+        return `build failed ${attempts} times; waiting for a human`;
+      }
+      propose({ ...base, kind: "store.start_build", payload: { platform: PLATFORM, projectDir: build.projectDir, specVersion: v.specVersion }, naturalKey: `${PLATFORM}:v${v.specVersion}:attempt${attempts + 1}`, summary: `Build ${spec.appName} v${build.version}`, rationale: "Compile the rendered project" });
       return "starting build";
     }
     return "build running";
   }
   if (!rec?.storeBuildId) {
     if (rec?.status !== "build_processing") {
+      // An upload that keeps failing before it starts (credentials, eas-cli) goes to a human after a few tries.
+      const marker = `upload ${build.easBuildId}`;
+      const lastFix = ctx.store.tasks
+        .list((t) => t.kind === "store.manual_step" && t.ventureId === v.id && t.status === "done" && t.instructions.includes(marker))
+        .map((t) => t.completedAt ?? "")
+        .sort()
+        .at(-1);
+      const failures = ctx.store.actions.list((a) => a.ventureId === v.id && a.kind === "store.submit_build" && a.status === "failed" && a.dedupeKey.endsWith(`${PLATFORM}:${build.easBuildId}`) && (!lastFix || a.createdAt > lastFix));
+      if (failures.length >= MAX_UPLOAD_FAILURES) {
+        if (!ctx.store.tasks.count((t) => t.kind === "store.manual_step" && t.ventureId === v.id && t.status === "open")) {
+          ctx.outbox.openTask(taskDraft("store.manual_step", v.id, `Uploading ${spec.appName} build ${build.easBuildId} failed ${failures.length} times (${marker}): ${failures.at(-1)?.error ?? "no error reported"}`));
+        }
+        return `upload failed ${failures.length} times; waiting for a human`;
+      }
       propose({ ...base, kind: "store.submit_build", payload: { platform: PLATFORM, easBuildId: build.easBuildId }, naturalKey: `${PLATFORM}:${build.easBuildId}`, summary: `Upload build ${build.easBuildId}`, rationale: "Upload to App Store Connect for processing" });
       return "uploading build";
     }
@@ -222,13 +359,15 @@ export async function advanceBuilding(ctx: TickContext, deps: StudioDeps, ventur
     propose({ ...base, kind: "monetization.configure", payload: { productIds: v.bindings.products.map((p) => p.productId), entitlementId: ctx.config.monetization.entitlementId }, naturalKey: "initial", summary: `Configure paywall products for ${spec.appName}`, rationale: "Entitlements and offerings for the price ladder" });
     return "configuring monetization";
   }
-  if (!taskDone(ctx, "apple.privacy_labels", v.id)) {
-    if (!ctx.store.tasks.count((t) => t.kind === "apple.privacy_labels" && t.ventureId === v.id && t.status === "open")) {
-      const inventory = spec.compliance.dataInventory.map((d) => `${d.dataType} → ${d.purpose} (${d.sentTo.join(", ")})`).join("; ");
-      ctx.outbox.openTask(taskDraft("apple.privacy_labels", v.id, `Data inventory for ${spec.appName}: ${inventory}. Privacy policy: ${v.bindings.privacyUrl ?? "pending"}.`));
-    }
-    return "waiting for App Privacy labels";
-  }
+  // Console-only steps before the first submission (opened above as soon as possible).
+  const waiting = [
+    ensureTask(ctx, v, "apple.privacy_labels", `Data inventory for ${spec.appName}: ${inventory}. Privacy policy: ${v.bindings.privacyUrl ?? "pending"}.`) ? null : "App Privacy labels",
+    ensureTask(ctx, v, "apple.app_info", `${spec.appName}: minimum age ${spec.compliance.minimumAge}+; sensitive domains ${domains.join(", ") || "none"}; category ${spec.category}; copyright ${new Date(ctx.ports.clock.iso()).getUTCFullYear()} ${ctx.config.company.legalName}.`) ? null : "App Store information",
+    tenantTask() ? null : "verdict backend tenant",
+    specReviewPending(ctx, v, domains),
+    subscriptionsPending(ctx, v),
+  ].filter(Boolean);
+  if (waiting.length) return `waiting for ${waiting.join(", ")}`;
   const changedAreas: SubmissionChangeArea[] = v.specVersion === 1 ? ["new_app"] : changedAreasFor(v);
   propose({
     ...base,
@@ -286,17 +425,40 @@ export function advanceInReview(ctx: TickContext, v: Venture): string {
     }
     const decided = ctx.store.tasks.list((t) => t.ventureId === v.id && t.kind === "legal.review" && t.status === "done" && (t.completedAt ?? "") >= rec.updatedAt);
     if (decided.length) return `rejected (${reasons}); human decision recorded`;
-    if (!v.blockedOn.length) {
-      const task = ctx.outbox.openTask({
-        kind: "legal.review",
-        ventureId: v.id,
-        title: `App Review rejected ${v.name}`,
-        instructions: `App Review rejected the submission: ${reasons}.\n\nRead the Resolution Center message, decide whether to fix and resubmit or abandon, then mark this task done with decision "resubmit" or "abandon".`,
-        inputs: [{ key: "decision", label: "resubmit or abandon", pattern: "^(resubmit|abandon)$" }],
-      });
-      patch(ctx.store, ctx.ports.clock, v, { blockedOn: [task.id] });
-    }
+    // The live API exposes no guideline numbers, so the human records them; 4.3, 5.6 and 2.5.19 still kill.
+    ctx.outbox.openTask(rejectionTask(v, `App Review rejected the submission: ${reasons}.`));
     return `rejected (${reasons}); waiting for a human`;
+  }
+  // A submission that never reached Apple (declined by the board, or a failed call) must not strand the venture.
+  if (rec.status === "ready_to_submit" || rec.status === "draft") {
+    const submissions = ctx.store.actions.list((a) => a.ventureId === v.id && a.kind === "store.submit_review" && a.dedupeKey.endsWith(`${PLATFORM}:${rec.storeBuildId ?? ""}`));
+    if (submissions.some((a) => OPEN_STATUSES.includes(a.status) || a.status === "executed" || (a.status === "dry_run" && ctx.config.dryRun))) return `in review (${rec.status})`;
+    const last = submissions.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)).at(-1);
+    if (last?.status === "rejected") {
+      const decided = ctx.store.tasks.list((t) => t.ventureId === v.id && t.kind === "legal.review" && t.status === "done" && (t.completedAt ?? "") >= (last.decidedAt ?? last.createdAt));
+      if (decided.length) return "submission declined; human decision recorded";
+      const note = last.findings.find((f) => f.ruleId === "board.rejected")?.message;
+      ctx.outbox.openTask(rejectionTask(v, `The board declined the App Review submission${note ? ` (${note})` : ""}.`));
+      return "submission declined by the board; waiting for a human";
+    }
+    transition(ctx.store, ctx.ports.clock, v, "building", `submission ${last?.status ?? "missing"}; retrying from the pipeline`);
+    return "submission did not go through; back to building";
   }
   return `in review (${rec.status})`;
 }
+
+function rejectionTask(v: Venture, what: string): HumanTaskDraft {
+  return {
+    kind: "legal.review",
+    ventureId: v.id,
+    title: `Decide on ${v.name}'s rejected submission`,
+    instructions: `${what}\n\nRead the Resolution Center message, then record the guideline numbers it cites (or "none") and decide whether to fix and resubmit or abandon. Rejections under 4.3, 5.6 or 2.5.19 end the venture whatever the decision: fighting them risks the developer account.`,
+    inputs: [
+      { key: "decision", label: "resubmit or abandon", pattern: "^(resubmit|abandon)$" },
+      { key: "guidelines", label: "Guidelines cited, comma separated (e.g. 2.1, 3.1.2) or none", pattern: GUIDELINES_PATTERN },
+    ],
+  };
+}
+
+/** Guideline ids such as 2.1, 3.1.2 or 4.3(a), comma separated, or "none". */
+export const GUIDELINES_PATTERN = "^(none|\\d+(\\.\\d+)*(\\([a-z]\\))?(\\s*,\\s*\\d+(\\.\\d+)*(\\([a-z]\\))?)*)$";

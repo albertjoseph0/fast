@@ -12,15 +12,15 @@ import type { StudioStore } from "../core/store.ts";
 import type { AllocationPlan, StudioEventType, Venture } from "../core/types.ts";
 import { Executor } from "../governance/executor.ts";
 import { BudgetExceededError, LedgerSync } from "../governance/ledger.ts";
-import { Governance } from "../governance/outbox.ts";
+import { Governance, OPEN_STATUSES } from "../governance/outbox.ts";
 import { LlmError } from "../llm/errors.ts";
 import { applyLifecycleDecisions, planAllocation, reviewMatureVentures } from "./allocator.ts";
 import type { StudioDeps } from "./deps.ts";
 import { promoteScreened, runDiscovery } from "./discovery.ts";
 import { publishOwnedContent, runAttentionProbe, runCreativeLoop, syncContentStats, syncCreatorSubmissions } from "./growth.ts";
 import { pollDueJobs } from "./jobs.ts";
-import { ensureExperiment, proposeKill, runExperiments, settleVariants } from "./labPhase.ts";
-import { isActive, LIVE_STAGES, patch, timeboxExpired } from "./lifecycle.ts";
+import { ensureExperiment, proposeKill, retryPrepareVariant, runExperiments, settleVariants, testExposureCents, VARIANT_TO_PREPARE } from "./labPhase.ts";
+import { blockingTasks, isActive, isLiveOnStore, ladderComplete, patch, timeboxExpired } from "./lifecycle.ts";
 import { advanceBuilding, advanceInReview } from "./pipeline.ts";
 import { applyTaskOutcomes, openBootstrapTasks } from "./tasks.ts";
 import { boardMemo, renderReport, type TickSummary, ventureLines, writeReport } from "./report.ts";
@@ -28,6 +28,10 @@ import { boardMemo, renderReport, type TickSummary, ventureLines, writeReport } 
 const DAY_MS = 86_400_000;
 const METRIC_RESYNC_DAYS = 7;
 const COHORT_WINDOW_DAYS = 120;
+const MAX_BACKFILL_DAYS = 60;
+const SCALE_DECLINE_COOLDOWN_DAYS = 7;
+/** Policy rules that hold spend for lack of studio cash rather than for anything about the venture. */
+const CASH_RULES: readonly string[] = ["reserve", "daily_cap"];
 
 /** The LLM adapter wraps the meter's BudgetExceededError in an LlmError; media lets it through. */
 function isBudgetError(err: unknown): boolean {
@@ -47,6 +51,11 @@ export interface StudioOptions {
   ledger?: LedgerSync;
   /** Write the LLM board memo every N ticks (0 disables). */
   memoEveryTicks?: number;
+  /**
+   * Record approved writes instead of sending them. The composition root passes the same flag it gave
+   * the ports, so the executor and the HTTP layer never disagree; defaults to live mode with config.dryRun.
+   */
+  dryRun?: boolean;
   onPhase?: (name: string, detail: string) => void;
 }
 
@@ -80,8 +89,8 @@ export class Studio {
     this.onPhase = o.onPhase;
     const killSwitchPath = join(o.dataDir, o.config.autonomy.killSwitchFile);
     this.ledger = o.ledger ?? new LedgerSync({ store: o.store, config: o.config, clock: o.clock });
-    this.governance = new Governance({ store: o.store, config: o.config, clock: o.clock, ledger: this.ledger, killSwitchPath });
-    const dryRun = o.config.mode === "live" && o.config.dryRun;
+    const dryRun = o.dryRun ?? (o.config.mode === "live" && o.config.dryRun);
+    this.governance = new Governance({ store: o.store, config: o.config, clock: o.clock, ledger: this.ledger, killSwitchPath, dryRun });
     this.executor = new Executor({ store: o.store, config: o.config, clock: o.clock, write: o.ports.write, ledger: this.ledger, governance: this.governance, dryRun, killSwitchPath });
   }
 
@@ -155,11 +164,20 @@ export class Studio {
     await run("tasks", () => {
       const opened = openBootstrapTasks(ctx);
       const applied = applyTaskOutcomes(ctx);
+      // Held payouts a human checked at the marketplace: booked as paid, or released to be paid again.
+      for (const t of this.store.tasks.list((x) => x.kind === "creators.verify_payout" && x.status === "done")) {
+        for (const actionId of t.blocksActionIds) {
+          if (this.executor.resolveUnknownPayout(actionId, t.outputs?.["decision"] === "sent")) applied.push(`${actionId} payout ${t.outputs?.["decision"]} (${t.id})`);
+        }
+      }
       return [...opened.map((id) => `opened ${id}`), ...applied].join(", ") || "no task outcomes";
     });
     await run("lifecycle", () => applyLifecycleDecisions(ctx).join(", ") || "no decisions");
     await run("lab", async () => {
-      const outcomes = await runExperiments(ctx, this.deps);
+      const outcomes = await runExperiments(ctx, this.deps, (experimentId, err) => {
+        if (isBudgetError(err)) llmBudgetHit = true;
+        errors.push(`${experimentId}: ${err instanceof Error ? err.message : String(err)}`);
+      });
       return outcomes.map((o) => `${o.experimentId} ${o.decision}`).join(", ") || "no decisions";
     });
     await run("creators", async () => {
@@ -235,17 +253,31 @@ export class Studio {
     };
   }
 
-  /** Time blocked on human tasks does not count against a venture's time box. */
+  /**
+   * Time blocked on human tasks, or on studio cash (its experiment's creator campaigns held by the
+   * reserve or the daily cap while the studio funds other ventures), does not count against a
+   * venture's time box.
+   */
   private accountBlockedTime(lastTickDate: string | null, today: string): string {
     if (!lastTickDate) return "first tick";
     const elapsed = Math.max(0, new Date(`${today}T00:00:00.000Z`).getTime() - new Date(`${lastTickDate}T00:00:00.000Z`).getTime());
-    let n = 0;
-    for (const v of this.store.ventures.list((x) => isActive(x) && x.blockedOn.length > 0)) {
+    const waitingOnCash = new Set(
+      this.store.actions
+        .list((a) => a.kind === "creator.campaign_create" && a.status === "blocked" && Boolean(a.experimentId) && a.findings.some((f) => f.severity === "block" && CASH_RULES.includes(f.ruleId)))
+        .map((a) => a.ventureId),
+    );
+    let humans = 0;
+    let cash = 0;
+    for (const v of this.store.ventures.list((x) => isActive(x) && (x.blockedOn.length > 0 || waitingOnCash.has(x.id)))) {
       const open = v.blockedOn.filter((id) => this.store.tasks.get(id)?.status === "open");
-      patch(this.store, this.clock, v, { blockedOn: open, blockedMs: v.blockedMs + (open.length ? elapsed : 0) });
-      if (open.length) n++;
+      // Optional tasks (a brand account nobody connects) must not freeze the time box.
+      const blocking = blockingTasks(this.store, v).length > 0;
+      const starved = waitingOnCash.has(v.id);
+      patch(this.store, this.clock, v, { blockedOn: open, blockedMs: v.blockedMs + (blocking || starved ? elapsed : 0) });
+      if (blocking) humans++;
+      else if (starved) cash++;
     }
-    return `${n} ventures blocked on humans`;
+    return `${humans} ventures blocked on humans, ${cash} waiting on studio cash`;
   }
 
   /** Pull analytics, cohorts and ad stats; book revenue, refunds, inference and ad spend. */
@@ -253,25 +285,46 @@ export class Studio {
     const today = ctx.today;
     const until = shiftDate(today, -1);
     let rows = 0;
-    for (const v of this.store.ventures.list((x) => LIVE_STAGES.includes(x.stage) || (x.stage === "killed" && x.stores.some((s) => s.status === "live")))) {
-      const since = shiftDate(today, -METRIC_RESYNC_DAYS);
-      const daily = await ctx.ports.metrics.daily({ bindings: v.bindings, ventureId: v.id, since, until });
-      this.store.upsertMetrics(v.id, daily);
-      this.ledger.syncRevenue(v.id, daily);
-      for (const d of daily) {
-        if (d.cellId !== null || d.geo !== null) continue;
-        const sessions = d.counts.session ?? 0;
-        if (sessions > 0) this.ledger.bookInference(v.id, d.date, Math.round(sessions * this.config.economics.inferenceCentsPerSession));
+    const failed: string[] = [];
+    // Every app on sale earns and costs money whatever its stage (a variant in build or review included).
+    for (const v of this.store.ventures.list((x) => isLiveOnStore(x))) {
+      try {
+        rows += await this.syncVenture(ctx, v, today, until);
+      } catch (err) {
+        failed.push(`${v.id}: ${err instanceof Error ? err.message : String(err)}`);
       }
-      const cohorts = await ctx.ports.metrics.cohorts({ bindings: v.bindings, ventureId: v.id, cohortSince: shiftDate(today, -COHORT_WINDOW_DAYS), cohortUntil: until, maxAgeDays: COHORT_WINDOW_DAYS });
-      this.store.upsertCohorts(v.id, cohorts);
-      rows += daily.length + cohorts.length;
     }
     for (const c of this.store.adCampaigns.list((x) => Boolean(x.externalId) && x.status !== "pending")) {
-      const stats = await ctx.ports.ads.stats({ network: c.network, campaignExternalId: c.externalId as string, since: c.startAt.slice(0, 10), until: today });
-      this.ledger.syncAds(c, stats);
+      try {
+        const stats = await ctx.ports.ads.stats({ network: c.network, campaignExternalId: c.externalId as string, since: c.startAt.slice(0, 10), until: today });
+        this.ledger.syncAds(c, stats);
+      } catch (err) {
+        failed.push(`${c.id}: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
+    if (failed.length) throw new Error(`${rows} metric rows; sync failed for ${failed.join("; ")}`);
     return `${rows} metric rows`;
+  }
+
+  /** Resync from the last synced day (bounded) so days missed while a sync failed are backfilled. */
+  private async syncVenture(ctx: TickContext, v: Venture, today: string, until: string): Promise<number> {
+    const last = this.store.metrics(v.id, (m) => m.cellId === null && m.geo === null && m.complete).map((m) => m.date).sort().at(-1);
+    // Always restate the last week (late events, refunds); reach further back only to fill a gap.
+    const recent = shiftDate(today, -METRIC_RESYNC_DAYS);
+    const floor = shiftDate(today, -MAX_BACKFILL_DAYS);
+    const fromLast = last ? shiftDate(last, 1) : floor;
+    const since = [recent, fromLast < floor ? floor : fromLast].sort()[0] as string;
+    const daily = await ctx.ports.metrics.daily({ bindings: v.bindings, ventureId: v.id, since, until });
+    this.store.upsertMetrics(v.id, daily);
+    this.ledger.syncRevenue(v.id, daily);
+    for (const d of daily) {
+      if (d.cellId !== null || d.geo !== null) continue;
+      const sessions = d.counts.session ?? 0;
+      if (sessions > 0) this.ledger.bookInference(v.id, d.date, Math.round(sessions * this.config.economics.inferenceCentsPerSession));
+    }
+    const cohorts = await ctx.ports.metrics.cohorts({ bindings: v.bindings, ventureId: v.id, cohortSince: shiftDate(today, -COHORT_WINDOW_DAYS), cohortUntil: until, maxAgeDays: COHORT_WINDOW_DAYS });
+    this.store.upsertCohorts(v.id, cohorts);
+    return daily.length + cohorts.length;
   }
 
   private async advanceVentures(
@@ -280,21 +333,29 @@ export class Studio {
     each: (ventures: Venture[], fn: (v: Venture) => Promise<string> | string) => Promise<string>,
   ): Promise<string> {
     const now = this.clock.iso();
+    // A probe only matters while its venture is being built; leftovers are aborted and free their slot.
+    for (const e of this.store.experiments.list((x) => x.status === "running" && x.stages[0] === "S0_attention")) {
+      if (this.store.ventures.get(e.ventureId)?.stage !== "building") this.store.experiments.put({ ...e, status: "aborted", decidedAt: now });
+    }
     const probesInFlight = () => this.store.experiments.count((e) => e.status === "running" && e.stages[0] === "S0_attention");
     return each(
       this.store.ventures.list((v) => isActive(v) && v.stage !== "screened").sort((a, b) => (a.id < b.id ? -1 : 1)),
       async (v) => {
         // Bier's disband rules: the time box (blocked time excluded) and test spend before S4 passes.
         if (timeboxExpired(v, now, this.config)) {
-          proposeKill(ctx, v, `not validated within ${this.config.portfolio.maxDaysToValidate} days of testing`);
+          proposeKill(ctx, v, `not validated within ${this.config.portfolio.maxDaysToValidate} days of testing`, "timebox");
           return "time box expired";
         }
         if (!v.ladder.validated.includes("S4_monetization") && ["live_test", "iterating", "building", "in_review"].includes(v.stage)) {
-          const spent = -this.store.net({ ventureId: v.id, categories: ["creators", "ads"] });
-          if (spent > this.config.budgets.maxTestSpendPerVentureCents) {
-            proposeKill(ctx, v, `test spend ${(spent / 100).toFixed(0)} USD exceeded the cap before monetization validated`);
+          const exposure = testExposureCents(ctx, v);
+          if (exposure > this.config.budgets.maxTestSpendPerVentureCents) {
+            proposeKill(ctx, v, `test spend and commitments of ${(exposure / 100).toFixed(0)} USD exceeded the cap before monetization validated`, "spend_cap");
             return "test spend cap reached";
           }
+        }
+        if (v.pendingVariant?.variableUnderTest === VARIANT_TO_PREPARE) {
+          if (budgetHit()) return "variant waits for LLM budget";
+          return retryPrepareVariant(ctx, this.deps, v);
         }
         switch (v.stage) {
           case "building": {
@@ -310,20 +371,34 @@ export class Studio {
             return advanceInReview(ctx, v);
           case "live_test":
           case "iterating": {
+            if (ladderComplete(v)) return this.awaitScale(ctx, v, now);
             const settled = settleVariants(ctx, v);
             const current = this.store.ventures.require(v.id);
             if (current.stage === "building") return settled;
             if (budgetHit()) return `${settled}; LLM budget reached`;
             return `${settled}; ${await ensureExperiment(ctx, this.deps, current)}`;
           }
-          case "scaling":
-          case "harvest":
-          case "sunsetting":
-            return v.stage;
           default:
             return v.stage;
         }
       },
     );
+  }
+
+  /**
+   * A validated venture waits for its scale decision. If the board declined it, the venture stops
+   * testing after a cool-down (harvest, sunset or kill) instead of holding a portfolio slot forever.
+   */
+  private awaitScale(ctx: TickContext, v: Venture, now: string): string {
+    const scale = this.store.actions.list((a) => a.ventureId === v.id && a.kind === "venture.scale").sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+    if (scale.some((a) => OPEN_STATUSES.includes(a.status) || a.status === "executed")) return "validated; waiting for the scale decision";
+    const declined = scale.at(-1);
+    if (declined && (declined.status === "rejected" || declined.status === "cancelled" || declined.status === "failed")) {
+      const at = declined.decidedAt ?? declined.createdAt;
+      if ((new Date(now).getTime() - new Date(at).getTime()) / DAY_MS < SCALE_DECLINE_COOLDOWN_DAYS) return "validated; scale declined, cooling down";
+      proposeKill(ctx, v, `validated, but the scale proposal was ${declined.status}`, "scale_declined");
+      return "validated but not scaled; stopping tests";
+    }
+    return "validated; scale not proposed";
   }
 }

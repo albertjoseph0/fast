@@ -201,6 +201,24 @@ function migrate(parsed: Partial<StudioState>, createdAt: string, seed: number):
 
 export class LockHeldError extends Error {}
 
+/** True unless the lock names a process on this machine that no longer exists. */
+function lockHolderAlive(path: string): boolean {
+  let pid: unknown;
+  try {
+    pid = (JSON.parse(readFileSync(path, "utf8")) as { pid?: unknown }).pid;
+  } catch {
+    return true; // unreadable: assume a writer is mid-way
+  }
+  if (typeof pid !== "number" || !Number.isInteger(pid) || pid <= 0) return true;
+  if (pid === process.pid) return true;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code !== "ESRCH";
+  }
+}
+
 export class StudioStore {
   private state: StudioState;
   private pendingEvents: StudioEvent[] = [];
@@ -518,6 +536,8 @@ export class StudioStore {
 
   private acquireLock(dir: string): void {
     const path = join(dir, "LOCK");
+    // A lock left by a process that is gone (a crashed tick) is taken over; a live holder still wins.
+    if (existsSync(path) && !lockHolderAlive(path)) rmSync(path, { force: true });
     try {
       const fd = openSync(path, "wx");
       writeSync(fd, JSON.stringify({ pid: process.pid, at: this.clock.iso() }));

@@ -127,6 +127,7 @@ export async function screen(
     exposures: opts.exposures,
     critiques,
     classifierDomains,
+    classifierMinimumAge: Number(classifier.minimumAge),
     existingTitles: opts.existingTitles,
   });
 }

@@ -9,7 +9,7 @@ import type { AppSpec, DeliveryMode, Idea, OnboardingStep, PolicyFinding, Valida
 import { DEFAULT_ONBOARDING_SKELETON, DEFAULT_PUSH_SCHEDULE, defaultPaywall } from "../playbook/product.ts";
 import { lintCopy } from "../principles/copy.ts";
 import { autoFix, lintSpec } from "../principles/product.ts";
-import { effectiveDomains } from "../principles/sensitivity.ts";
+import { minimumAgeFor, specDomains } from "../principles/sensitivity.ts";
 import { SCHEMA, type VariantChangeKind, type VariantProposal } from "./schemas.ts";
 import { hasBlock, normKey, rolePrompt, screenedDomains, truncate } from "./shared.ts";
 
@@ -65,15 +65,30 @@ function triedKind(tried: string[], kind: VariantChangeKind): boolean {
   return tried.some((t) => t === kind || t.startsWith(`${kind}.`) || t.startsWith(`${kind}:`));
 }
 
-/** Spec for an idea: one design call, autoFix, lint, and one repair call if anything still blocks. */
+/** Findings a spec may not ship with unseen: blocks, and needs_human copy a person must review. */
+function needsAction(f: PolicyFinding): boolean {
+  return f.severity === "block" || f.severity === "needs_human";
+}
+
+/**
+ * Spec for an idea: one design call, autoFix, lint, and one repair call if anything still
+ * blocks or needs a human. The returned findings may still hold needs_human items, which the
+ * caller routes to a human before the spec ships.
+ */
 export async function designSpec(
   ctx: AgentContext,
   opts: { idea: Idea; ventureId?: string },
 ): Promise<{ spec: AppSpec; findings: PolicyFinding[]; repaired: boolean }> {
   const { idea, ventureId } = opts;
   const config = ctx.config;
-  const domains = effectiveDomains(idea, screenedDomains(ctx, ventureId));
+  const screened = screenedDomains(ctx, ventureId);
   const venture = ventureId ? { ventureId } : {};
+  const finish = (raw: AppSpec) => {
+    const fixed = autoFix(raw, config).spec;
+    const domains = specDomains(fixed, idea, screened);
+    const spec = autoFix(fixed, config, { minimumAge: minimumAgeFor(idea, domains) }).spec;
+    return { spec, findings: lintSpec(spec, idea, config, domains) };
+  };
 
   const draft = await ctx.ports.llm.object({
     role: "designer",
@@ -94,28 +109,26 @@ export async function designSpec(
     ...venture,
     purpose: "app_spec",
   });
-  let spec = autoFix(draft, config).spec;
-  let findings = lintSpec(spec, idea, config, domains);
-  if (!hasBlock(findings)) return { spec, findings, repaired: false };
+  const first = finish(draft);
+  if (!first.findings.some(needsAction)) return { ...first, repaired: false };
 
   const repair = await ctx.ports.llm.object({
     role: "designer",
     schemaName: SCHEMA.specRepair,
     system: SYSTEM,
     instructions: "Fix every finding in this spec. Change only what the findings require and list each change.",
-    input: { spec, findings: findings.filter((f) => f.severity === "block").map((f) => ({ ruleId: f.ruleId, message: f.message })) },
+    input: { spec: first.spec, findings: first.findings.filter(needsAction).map((f) => ({ ruleId: f.ruleId, message: f.message })) },
     ...venture,
     purpose: "app_spec_repair",
   });
-  spec = autoFix(repair.spec, config).spec;
-  findings = lintSpec(spec, idea, config, domains);
-  return { spec, findings, repaired: true };
+  return { ...finish(repair.spec), repaired: true };
 }
 
 /**
  * One-variable change after a failed variant. A proposal of a kind that is not allowed for
- * the failed stages, already tried, empty, or that introduces a new blocking lint finding
- * is replaced by a deterministic minimal change of the first allowed untried kind.
+ * the failed stages, already tried, empty, or that introduces a new blocking or needs_human
+ * lint finding (remote config ships it with no human in the loop) is replaced by a
+ * deterministic minimal change of the first allowed untried kind.
  */
 export async function proposeVariant(
   ctx: AgentContext,
@@ -145,13 +158,11 @@ export async function proposeVariant(
     purpose: "variant_proposal",
   });
 
-  const domains = effectiveDomains(idea, screenedDomains(ctx, opts.venture.id));
-  const baseBlocks = blockIds(lintSpec(spec, idea, ctx.config, domains));
+  const screened = screenedDomains(ctx, opts.venture.id);
+  const base = actionKeys(lintSpec(spec, idea, ctx.config, specDomains(spec, idea, screened)));
+  const addsNothing = (next: AppSpec) => [...actionKeys(lintSpec(next, idea, ctx.config, specDomains(next, idea, screened)))].every((k) => base.has(k));
   const proposal = sanitize(llm);
-  const acceptable =
-    proposal !== null &&
-    candidates.includes(proposal.change.kind) &&
-    [...blockIds(lintSpec(applyVariant(spec, proposal), idea, ctx.config, domains))].every((id) => baseBlocks.has(id));
+  const acceptable = proposal !== null && candidates.includes(proposal.change.kind) && addsNothing(applyVariant(spec, proposal));
   const chosen = acceptable ? proposal : fallbackProposal(candidates[0] ?? "hooks", idea, spec, opts.failedStages);
   return { proposal: chosen, deliveryMode: deliveryModeFor(chosen.change.kind) };
 }
@@ -263,8 +274,9 @@ export function fallbackProposal(kind: VariantChangeKind, idea: Idea, spec: AppS
   }
 }
 
-function blockIds(findings: PolicyFinding[]): Set<string> {
-  return new Set(findings.filter((f) => f.severity === "block").map((f) => f.ruleId));
+/** Rule and message (which names the path and matched text) of every block or needs_human finding. */
+function actionKeys(findings: PolicyFinding[]): Set<string> {
+  return new Set(findings.filter(needsAction).map((f) => `${f.ruleId}|${f.message}`));
 }
 
 function dedupeNames(names: string[]): string[] {

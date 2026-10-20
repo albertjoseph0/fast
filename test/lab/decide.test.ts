@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../../src/core/rng.ts";
-import type { CellObservation, CellVerdict, ExperimentPlan, MetricKey } from "../../src/core/types.ts";
-import { decideExperiment, diagnose, evaluateCell } from "../../src/lab/decide.ts";
+import type { CellObservation, CellVerdict, ExperimentPlan, MetricCounts, MetricKey } from "../../src/core/types.ts";
+import { decideExperiment, diagnose, evaluateCell, experimentEconomics } from "../../src/lab/decide.ts";
 import { designAttentionProbe, designExperiment, isFrozenIntact, planHash } from "../../src/lab/experiments.ts";
+import { mixedNetPriceCents } from "../../src/lab/ltv.ts";
 import { astraIdea, config, counts, observation, venture } from "./fixtures.ts";
 
 const NOW = "2026-01-05T09:00:00.000Z";
@@ -85,6 +86,45 @@ describe("registration", () => {
     expect(r2.ok).toBe(false);
   });
 
+  it("covers the creator posting window plus the slowest metric's maturity for every creator plan", () => {
+    const window = config.lab.creatorPostingWindowHours;
+    expect(plan(["S2_sharing"]).readHours).toBe(window + 24);
+    expect(plan(["S3_cross_cell"]).readHours).toBe(window + 168);
+    expect(plan(["S4_monetization"]).readHours).toBe(window + 24);
+    const owned = designExperiment({
+      experimentId: "e", cellIds: ["a", "b", "c"], venture: venture(), idea: astraIdea(), stages: ["S2_sharing"], channel: "owned_social",
+      hypothesis: "h", variableUnderTest: "baseline", variant: { baseline: "v1" }, deliveryMode: "native_build", config, now: NOW, exposures: [],
+    });
+    expect(owned.ok && owned.plan.readHours).toBe(config.lab.readHours.S2_sharing);
+  });
+
+  it("registers the attention probe's real kill rates", () => {
+    const probe = designAttentionProbe({ experimentId: "exp_probe", cellId: "cell_probe", venture: venture(), idea: astraIdea(), accountId: "acct_1", config, now: NOW });
+    probe.cells[0]!.firstExposureAt = NOW;
+    // Daily looks with one more matured post each time, through the real read and decision.
+    const killRate = (p: number, trials: number) => {
+      const rng = new Rng(9);
+      let killed = 0;
+      for (let t = 0; t < trials; t++) {
+        let hits = 0;
+        for (let n = 1; n <= config.lab.attentionProbe.posts; n++) {
+          hits += rng.chance(p) ? 1 : 0;
+          const obs = observation("cell_probe", { attentionHitRate: { successes: hits, trials: n, bySource: {} } });
+          const now = new Date(Date.parse(NOW) + n * 6 * 3_600_000).toISOString();
+          const v = evaluateCell({ plan: probe, cell: probe.cells[0]!, obs, config, now, clockStart: NOW });
+          const o = decideExperiment({ plan: probe, verdicts: [v], observations: new Map([["cell_probe", obs]]), ladder: venture().ladder, config, now, previousOutcomes: [], rng });
+          if (o.decision === "kill") killed++;
+          if (o.decision !== "continue") break;
+        }
+      }
+      return killed / trials;
+    };
+    const oc = probe.operatingCharacteristics;
+    expect(oc.powerAtTarget).toBeLessThan(1);
+    expect(1 - oc.powerAtTarget).toBeCloseTo(killRate(config.thresholds.attentionHitRate.target, 4_000), 1);
+    expect(1 - oc.falsePassAtFloor).toBeCloseTo(killRate(config.thresholds.attentionHitRate.floor, 4_000), 1);
+  });
+
   it("skips storefronts in cooldown for the same wedge", () => {
     const exposures = ["AU", "CA"].map((geo) => ({ key: `Gen Z astrology fans on TikTok|creator_ugc|app|${geo}`, wedge: "Gen Z astrology fans on TikTok", ventureId: "ven_other", experimentId: "x", at: NOW }));
     const r = designExperiment({
@@ -162,6 +202,47 @@ describe("cell reads", () => {
     expect(v.validity.find((x) => x.id === "min_sample")?.passed).toBe(true);
   });
 
+  it("reads a uniformly converting viral cell on its rate, not on the viral post's size", () => {
+    const p = plan(["S1_distribution"]);
+    const viral = (rate: number, topRate = rate): MetricCounts => {
+      const m: MetricCounts = { successes: 0, trials: 0, bySource: {} };
+      const add = (id: string, views: number, r: number) => {
+        const k = Math.round(views * r);
+        m.bySource[id] = { successes: k, trials: views };
+        m.successes += k;
+        m.trials += views;
+      };
+      add("viral", 400_000, topRate);
+      for (let i = 0; i < 17; i++) add(`p${i}`, 3_000, rate);
+      return m;
+    };
+    const read = (m: MetricCounts) => evaluateCell({ plan: p, cell: p.cells[0]!, obs: observation(p.cells[0]!.id, { installsPer1kViews: m }), config, now: LATER, clockStart: NOW });
+    // At target: was a valid fail with P(p >= floor) = 0.43 under the 0.01 clustering floor.
+    expect(read(viral(0.003)).decision).toBe("pass");
+    // At 1.5x target: dropping the viral post used to sharpen the read and flip the call (invalid).
+    const v = read(viral(0.0045));
+    expect(v.validity.find((x) => x.id === "source_concentration")?.passed).toBe(true);
+    expect(v.decision).toBe("pass");
+    // An outlying viral post cannot carry a failing rest, and it invalidates a read it tips over the bar.
+    expect(read(viral(0.0004, 0.006)).decision).not.toBe("pass");
+    const tipped = read(viral(0.002, 0.006));
+    expect(tipped.validity.find((x) => x.id === "source_concentration")?.passed).toBe(false);
+    expect(tipped.decision).toBe("invalid");
+  });
+
+  it("waits for the creator posting window before an early read", () => {
+    const p = plan(["S1_activation"]);
+    const cell = p.cells[0]!;
+    const obs = obsAt(p, cell.id, { activationRate: 0.6 });
+    const at = (hours: number) => new Date(Date.parse(NOW) + hours * 3_600_000).toISOString();
+    expect(evaluateCell({ plan: p, cell, obs, config, now: at(48), clockStart: NOW }).decision).toBe("pending");
+    expect(evaluateCell({ plan: p, cell, obs, config, now: at(config.lab.creatorPostingWindowHours), clockStart: NOW }).decision).toBe("pass");
+    // Futility still stops early, and cells without a posting window read as soon as the sample is in.
+    const dismal = obsAt(p, cell.id, { activationRate: 0.1 });
+    expect(evaluateCell({ plan: p, cell, obs: dismal, config, now: at(48), clockStart: NOW }).decision).toBe("futile");
+    expect(evaluateCell({ plan: p, cell: { ...cell, channel: "owned_social" }, obs, config, now: at(48), clockStart: NOW }).decision).toBe("pass");
+  });
+
   it("does not treat installs outrunning counted views as broken instrumentation", () => {
     const p = plan();
     const id = p.cells[0]!.id;
@@ -178,6 +259,21 @@ describe("experiment decisions", () => {
     const out = decide(p, obs);
     expect(out.decision).toBe("pass");
     expect(out.unitEconomics?.roasD60P20).toBeGreaterThan(config.lab.s4MinRoasD60P20);
+  });
+
+  it("nets each storefront's own VAT when pooling S4 economics", () => {
+    const p = plan();
+    const installs = [100, 300, 600];
+    const obs = new Map(p.cells.map((c, i) => [c.id, observation(c.id, { trialStartRate: counts(Math.round(installs[i]! * 0.2), installs[i]!, 18), trialKeep24h: counts(30, 50, 18) }, { spendCents: 10_000 })]));
+    const econ = (cellIds: string[]) => experimentEconomics({ plan: p, observations: obs, cellIds, pricing: PRICING, config, rng: new Rng(3) });
+    const ids = p.cells.map((c) => c.id);
+    // Pooled reads cannot depend on which storefront is listed first.
+    expect(econ(ids)).toEqual(econ([...ids].reverse()));
+    const mix = Object.fromEntries(p.cells.map((c, i) => [c.geo, installs[i]!]));
+    const blended = mixedNetPriceCents(PRICING.entry.usdCents, mix, "ios", config);
+    const total = installs.reduce((a, b) => a + b, 0);
+    const expected = p.cells.reduce((s, c, i) => s + (PRICING.entry.usdCents / (1 + (config.economics.vatInclusiveRateByGeo[c.geo] ?? 0))) * 0.85 * (installs[i]! / total), 0);
+    expect(blended).toBeCloseTo(expected, 6);
   });
 
   it("fails the variant when conversion passes but unit economics do not", () => {
@@ -278,5 +374,35 @@ describe("operating characteristics", () => {
     const atFloor = passRate(config.thresholds.activationRate.floor, 150);
     expect(atTarget).toBeGreaterThan(0.65);
     expect(atFloor).toBeLessThan(0.05);
+  });
+
+  // S1 per-view reads with realistic virality: 18 creator posts per cell, lognormal in-geo views
+  // (median 3,750) and lognormal per-post conversion around the true rate.
+  function perViewPassRate(trueRate: number, trials: number, seed: number): number {
+    const p = plan(["S1_distribution"]);
+    const rng = new Rng(seed);
+    let passes = 0;
+    for (let t = 0; t < trials; t++) {
+      const obs = new Map(
+        p.cells.map((c) => {
+          const m: MetricCounts = { successes: 0, trials: 0, bySource: {} };
+          for (let i = 0; i < 18; i++) {
+            const views = Math.round(3_750 * rng.lognormal(1, 1.2));
+            const installs = rng.poisson((views * trueRate * rng.lognormal(1, 0.5)) / Math.exp(0.125));
+            m.bySource[`post_${i}`] = { successes: installs, trials: views };
+            m.successes += installs;
+            m.trials += views;
+          }
+          return [c.id, observation(c.id, { installsPer1kViews: m })];
+        }),
+      );
+      if (decide(p, obs).decision === "pass") passes++;
+    }
+    return passes / trials;
+  }
+
+  it("passes viral per-view cells at target and rarely at the floor", () => {
+    expect(perViewPassRate(config.thresholds.installsPer1kViews.target, 300, 42)).toBeGreaterThanOrEqual(0.7);
+    expect(perViewPassRate(config.thresholds.installsPer1kViews.floor, 300, 43)).toBeLessThanOrEqual(0.05);
   });
 });

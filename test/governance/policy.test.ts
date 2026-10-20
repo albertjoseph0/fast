@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ProposeInput } from "../../src/core/context.ts";
-import type { Action, ActionKind, ActionPayloads, ContentPiece, PolicyFinding } from "../../src/core/types.ts";
+import type { Action, ActionKind, ActionPayloads, ContentPiece, CreativeBatch, ExperimentPlan, PolicyFinding } from "../../src/core/types.ts";
+import { INTERRUPTED_ERROR as INTERRUPTED } from "../../src/governance/executor.ts";
 import { POLICY_VERSION, RULES, evaluateAction, statusFor } from "../../src/governance/policy.ts";
 import {
   IDEA,
@@ -22,6 +23,7 @@ import {
   submission,
   type World,
 } from "./fixtures.ts";
+import { astraSpec } from "../principles/fixtures.ts";
 
 function propose<K extends ActionKind>(w: World, i: ProposeInput<K>): Action<K> {
   return w.gov.propose(i);
@@ -158,6 +160,15 @@ describe("global rules", () => {
     expect(w.ledger.freeCash(START) - w.ledger.reserve(START)).toBe(0);
     const pay = propose(w, payoutInput());
     expect(severities(pay, "reserve")).toEqual([]);
+  });
+
+  it("reserve never holds back a payout of money already owed, even when free cash is below the reserve", () => {
+    const w = makeWorld({ config: { budgets: { startingCashCents: 100_000, reserveFloorCents: 750_000 } } });
+    w.store.campaigns.put(campaign());
+    w.store.submissions.put(submission());
+    w.store.creators.put(creator({ firstPaidAt: START }));
+    expect(w.ledger.freeCash(START) - w.ledger.reserve(START)).toBeLessThan(0);
+    expect(severities(propose(w, payoutInput()), "reserve")).toEqual([]);
   });
 
   it("daily cap blocks daily and same-day one-time commitments over the cap", () => {
@@ -333,7 +344,7 @@ describe("content.publish rules", () => {
     const post = (at: string, status: Action["status"] = "executed") =>
       history(w, "content.publish", { ...publishInput(p, acct, START).payload, contentId: "cnt_other" }, { executedAt: at, status });
     post("2026-03-01T10:00:00.000Z");
-    post("2026-03-02T04:00:00.000Z", "dry_run");
+    post("2026-03-02T04:00:00.000Z");
     const probe = propose(w, publishInput(p, acct, START, key()));
     expect(probe.findings).toEqual([]);
     // An approved post counts against the cap until it is cancelled.
@@ -341,6 +352,8 @@ describe("content.publish rules", () => {
     w.gov.cancel(probe.id, "test");
     post("2026-03-02T08:00:00.000Z");
     post("2026-03-02T07:00:00.000Z", "failed");
+    // A dry run sent nothing: it counts neither toward the cap nor the spacing.
+    post("2026-03-02T08:45:00.000Z", "dry_run");
     expect(hits(propose(w, publishInput(p, acct, START, key())), "content.post_caps").map((f) => f.message)).toEqual([
       expect.stringMatching(/3 posts in 24h already reach the cap of 3/),
       expect.stringMatching(/60 minutes ago; minimum is 120/),
@@ -552,8 +565,10 @@ describe("monetization rules", () => {
 
   it("allows approved products inside the grid and trial set", () => {
     const w = makeWorld();
+    w.store.ventures.put(makeVenture({ spec: astraSpec() }));
     expect(w.gov.propose(paywall(["week_699_t3", "year_3999_t0"])).findings).toEqual([]);
-    expect(w.gov.propose(input("remote_config.set", { key: "onboarding", variants: [{ id: "a", rolloutPct: 100, payload: { productIds: ["nope"] } }] })).findings).toEqual([]);
+    const onboarding = astraSpec().onboarding;
+    expect(w.gov.propose(input("remote_config.set", { key: "onboarding", variants: [{ id: "a", rolloutPct: 100, payload: onboarding }] })).findings).toEqual([]);
   });
 
   it("blocks unbound or unapproved products", () => {
@@ -657,5 +672,152 @@ describe("evaluateAction", () => {
     const w = makeWorld();
     const a = w.gov.propose(input("venture.exit_flag", { holdNpvCents: 1, saleEstimateCents: 2, rationale: "" }));
     expect(evaluateAction(a, w.gov.policyContext())).toEqual([]);
+  });
+});
+
+describe("review regressions", () => {
+  const paidCreator = () => creator({ firstPaidAt: "2026-01-01T00:00:00.000Z" });
+  function payoutWorld(cre = paidCreator()) {
+    const w = makeWorld();
+    w.store.campaigns.put(campaign());
+    w.store.submissions.put(submission());
+    w.store.creators.put(cre);
+    return w;
+  }
+  const payoutFor = (submissionId: string, amount: number) => {
+    const i = payoutInput(amount);
+    return { ...i, payload: { ...i.payload, submissionId } };
+  };
+
+  it("#3 an approval covers only the needs_human rules it was given for", () => {
+    const covering = { blockedByTaskIds: [], payloadHash: "h1", approvals: [{ approver: "owner", payloadHash: "h1", at: START, channel: "cli", coveredRuleIds: ["x"] }] } as unknown as Action;
+    const nh = (ruleId: string): PolicyFinding => ({ ruleId, severity: "needs_human", message: "" });
+    expect(statusFor(covering, [nh("x")])).toBe("approved");
+    expect(statusFor(covering, [nh("x"), nh("z")])).toBe("awaiting_approval");
+  });
+
+  it("#3 a 30-day cap finding that appears after the first-payout approval needs a new approval", () => {
+    const w = payoutWorld(creator());
+    const a = propose(w, payoutInput());
+    expect(a.findings.filter((f) => f.severity === "needs_human").map((f) => f.ruleId)).toEqual(["creator.first_payout"]);
+    expect(w.gov.approve(a.id, "owner").status).toBe("approved");
+    // Another payout to the same creator executes first and fills the cap.
+    w.store.submissions.put(submission({ id: "sub_000002", stage: "paid" }));
+    w.store.payouts.put({ id: "pay_1", submissionId: "sub_000002", amountCents: 45_000, idempotencyKey: "k", basis: { views: 0, viewsAsOf: START, flatFeeCents: 0, cpmCents: 0, capCents: 0 }, at: START });
+    const rechecked = w.gov.recheck(a.id);
+    expect(severities(rechecked, "creator.payout_30d_cap")).toEqual(["needs_human"]);
+    expect(rechecked.status).toBe("awaiting_approval");
+    expect(w.gov.approve(a.id, "owner").status).toBe("approved");
+  });
+
+  it("#8 creator payouts and campaign creations count against the daily spend cap", () => {
+    const w = payoutWorld();
+    expect(w.ledger.dailySpendCap()).toBe(150_000);
+    w.store.book({ sourceKey: "payout:earlier", category: "creators", amountCents: -145_000, memo: "", at: START });
+    const payout = propose(w, payoutInput());
+    expect(severities(payout, "daily_cap")).toEqual(["needs_human"]);
+    expect(payout.status).toBe("awaiting_approval");
+
+    const c = makeWorld();
+    c.store.campaigns.put(campaign());
+    const create = () => c.gov.propose(input("creator.campaign_create", { campaignId: "ccmp_000001" }, { naturalKey: key(), costCents: 100_000 }));
+    expect(severities(create(), "daily_cap")).toEqual([]);
+    history(c, "creator.campaign_create", { campaignId: "ccmp_000009" }, { costCents: 100_000, executedAt: START });
+    history(c, "creator.campaign_create", { campaignId: "ccmp_000008" }, { costCents: 100_000, executedAt: "2026-03-01T09:00:00.000Z" });
+    expect(severities(create(), "daily_cap")).toEqual(["needs_human"]);
+  });
+
+  it("#9 a payout sized after another open payout on the campaign is not blocked", () => {
+    const w = payoutWorld();
+    w.store.campaigns.put(campaign({ budgetCents: 10_000 }));
+    w.store.submissions.put(submission({ id: "sub_000002", externalId: "ss_sub_2" }));
+    const first = propose(w, payoutFor("sub_000001", 7_500));
+    const second = propose(w, payoutFor("sub_000002", 2_500));
+    expect(severities(second, "creator.payout_eligibility")).toEqual([]);
+    expect(severities(w.gov.recheck(first.id), "creator.payout_eligibility")).toEqual([]);
+  });
+
+  it("#2 a payout of unknown outcome counts as paid and blocks paying the submission again", () => {
+    const w = payoutWorld();
+    w.store.campaigns.put(campaign({ budgetCents: 10_000 }));
+    w.store.submissions.put(submission({ id: "sub_000002", externalId: "ss_sub_2" }));
+    const failed = history(w, "creator.payout", payoutFor("sub_000002", 7_500).payload, { status: "failed", error: "socket hang up" });
+    w.ledger.holdUnknownPayout(failed as Action<"creator.payout">);
+    // Only 2,500 of the budget is left for sub_000001.
+    expect(severities(propose(w, payoutFor("sub_000001", 7_500)), "creator.payout_eligibility")).toEqual(["block"]);
+    expect(severities(propose(w, payoutFor("sub_000001", 2_500)), "creator.payout_eligibility")).toEqual([]);
+    const again = propose(w, payoutFor("sub_000002", 2_500));
+    expect(hits(again, "creator.payout_eligibility").map((f) => f.message)).toContainEqual(expect.stringMatching(/may have been sent/));
+  });
+
+  it("#2 a payout of unknown outcome counts toward the creator's 30-day cap", () => {
+    const w = payoutWorld();
+    w.store.submissions.put(submission({ id: "sub_000002", externalId: "ss_sub_2" }));
+    const failed = history(w, "creator.payout", payoutFor("sub_000002", 45_000).payload, { status: "failed", error: INTERRUPTED });
+    w.ledger.holdUnknownPayout(failed as Action<"creator.payout">);
+    expect(severities(propose(w, payoutInput()), "creator.payout_30d_cap")).toEqual(["needs_human"]);
+  });
+
+  it("#4 blocks opening a campaign whose experiment is decided or whose batch is closed", () => {
+    const w = makeWorld();
+    const plan = (status: ExperimentPlan["status"]) => w.store.experiments.put({ id: "exp_000001", ventureId: "ven_000001", status } as ExperimentPlan);
+    w.store.campaigns.put(campaign({ experimentId: "exp_000001" }));
+    const create = () => w.gov.propose(input("creator.campaign_create", { campaignId: "ccmp_000001" }, { naturalKey: key(), costCents: 10_000 }));
+    plan("running");
+    expect(severities(create(), "creator.campaign_live")).toEqual([]);
+    plan("decided");
+    const stale = create();
+    expect(severities(stale, "creator.campaign_live")).toEqual(["block"]);
+    expect(stale.status).toBe("blocked");
+
+    const batch = (status: CreativeBatch["status"]) =>
+      w.store.batches.put({ id: "bat_000001", ventureId: "ven_000001", family: "creator", startedAt: START, closesAt: START, arms: [], allocation: {}, results: {}, culled: [], status });
+    w.store.campaigns.put(campaign({ batchId: "bat_000001" }));
+    batch("open");
+    expect(severities(create(), "creator.campaign_live")).toEqual([]);
+    batch("closed");
+    expect(severities(create(), "creator.campaign_live")).toEqual(["block"]);
+  });
+
+  it("#35 lints remote-config variants against the spec and surfaces claims for a human", () => {
+    const w = makeWorld();
+    w.store.ventures.put(makeVenture({ spec: astraSpec() }));
+    const set = (key_: "paywall" | "onboarding" | "share", payload: unknown) =>
+      w.gov.propose(input("remote_config.set", { key: key_, variants: [{ id: "v2", rolloutPct: 100, payload }] }, { naturalKey: key() }));
+    const claims = set("paywall", { headline: "Guaranteed accurate readings", bullets: ["Clinically proven to calm your love life", "Daily transits"] });
+    expect(severities(claims, "remote_config.spec_lint")).toEqual(["needs_human", "needs_human"]);
+    expect(claims.status).toBe("awaiting_approval");
+    expect(severities(set("paywall", { showCloseAfterSeconds: 30 }), "remote_config.spec_lint")).toEqual(["block"]);
+    expect(severities(set("share", { watermark: "" }), "remote_config.spec_lint")).toEqual(["block"]);
+    expect(severities(set("onboarding", { steps: [] }), "remote_config.spec_lint")).toEqual(["block"]);
+    expect(set("share", { caption: "Read mine" }).findings).toEqual([]);
+    // Without a spec the variant cannot be checked, so a human looks at it.
+    w.store.ventures.put(makeVenture());
+    expect(severities(set("share", {}), "remote_config.spec_lint")).toEqual(["needs_human"]);
+  });
+
+  it("#39 posts and payouts for an 18+ app need a known, mostly adult creator audience", () => {
+    const review = (w: World, approve = true) => w.gov.propose(input("creator.review_post", { submissionId: "sub_000001", approve, note: "" }, { naturalKey: key() }));
+    const unknown = payoutWorld(creator({ firstPaidAt: START, audienceUnder18Share: null }));
+    expect(severities(review(unknown), "creator.audience_minors")).toEqual(["needs_human"]);
+    expect(severities(propose(unknown, payoutInput()), "creator.audience_minors")).toEqual(["needs_human"]);
+    expect(severities(review(unknown, false), "creator.audience_minors")).toEqual([]);
+    const young = payoutWorld(creator({ firstPaidAt: START, audienceUnder18Share: 0.6 }));
+    expect(severities(review(young), "creator.audience_minors")).toEqual(["block"]);
+    expect(severities(propose(young, payoutInput()), "creator.audience_minors")).toEqual(["block"]);
+    expect(severities(review(payoutWorld()), "creator.audience_minors")).toEqual([]);
+    // A 13+ app without adult-only domains is not held.
+    const teen = payoutWorld(creator({ firstPaidAt: START, audienceUnder18Share: null }));
+    teen.store.ideas.put({ id: "idea_000001", idea: { ...IDEA, wedge: { ...IDEA.wedge, minAge: 13 } }, sourceSignalIds: [], createdAt: START });
+    expect(severities(review(teen), "creator.audience_minors")).toEqual([]);
+    teen.store.screenings.put(screening(["dating_safety"], "2026-03-02T10:00:00.000Z"));
+    expect(severities(review(teen), "creator.audience_minors")).toEqual(["needs_human"]);
+  });
+
+  it("#10/#29 a dry-run submission does not count as the first submission once dry-run is off", () => {
+    const w = makeWorld();
+    history(w, "store.submit_review", { platform: "ios", storeBuildId: "b1", notesForReviewer: "" }, { status: "dry_run" });
+    const a = w.gov.propose(input("store.submit_review", { platform: "ios", storeBuildId: "b2", notesForReviewer: "" }));
+    expect(hits(a, "store.first_submission").map((f) => f.message)).toContainEqual(expect.stringMatching(/First store submission/));
   });
 });

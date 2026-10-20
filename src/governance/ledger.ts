@@ -25,6 +25,20 @@ import { computePayout } from "./payouts.ts";
 const DAY_MS = 86_400_000;
 const FIXED_BURN: LedgerCategory[] = ["ai", "media", "infra", "tools"];
 const DISTRIBUTION: LedgerCategory[] = ["creators", "ads"];
+/** Source-key prefix of a payout whose call may have paid: booked as spent until a human resolves it. */
+const UNKNOWN_PAYOUT = "payout:unknown:";
+/** Submission stages a closed campaign still carries to a payout. */
+const IN_FLIGHT: readonly CreatorSubmission["stage"][] = ["draft_submitted", "draft_approved", "posted"];
+/** Payout statuses that keep a submission's liability alive. */
+const PAYOUT_LIVE: readonly Action["status"][] = ["proposed", "blocked", "awaiting_approval", "awaiting_human_task", "approved", "executing", "executed"];
+
+/** A creator.payout whose outcome is unknown, booked as spent. */
+export interface UnknownPayout {
+  actionId: string;
+  submissionId: string;
+  amountCents: Cents;
+  at: Iso;
+}
 
 export class BudgetExceededError extends Error {
   constructor(
@@ -172,6 +186,48 @@ export class LedgerSync implements CostMeter {
     });
   }
 
+  /**
+   * Book a payout whose call failed or was interrupted after it may have reached the marketplace.
+   * The money may have left, so it counts as paid against cash, the campaign and the creator until
+   * a human checks the marketplace and releases it.
+   */
+  holdUnknownPayout(a: Action<"creator.payout">): LedgerEntry {
+    const sub = this.store.submissions.get(a.payload.submissionId);
+    const campaign = sub ? this.store.campaigns.get(sub.campaignId) : undefined;
+    const ventureId = a.ventureId ?? campaign?.ventureId;
+    return this.book({
+      sourceKey: `${UNKNOWN_PAYOUT}${a.id}`,
+      category: "creators",
+      amountCents: -Math.abs(a.payload.amountCents),
+      actionId: a.id,
+      ...(ventureId ? { ventureId } : {}),
+      ...(campaign?.experimentId ? { experimentId: campaign.experimentId } : {}),
+      ...(campaign?.cellId ? { cellId: campaign.cellId } : {}),
+      memo: `creator payout for ${a.payload.submissionId} outcome unknown (${a.id}): verify with the marketplace`,
+    });
+  }
+
+  /** Release a held payout the marketplace shows was never sent: the submission is owed again. */
+  releaseUnknownPayout(actionId: string): LedgerEntry {
+    const held = this.store.ledgerEntry(`${UNKNOWN_PAYOUT}${actionId}`);
+    if (!held) throw new Error(`no unknown payout is held for ${actionId}`);
+    const { id: _id, ...entry } = held;
+    return this.book({ ...entry, amountCents: 0, memo: `${held.memo}; released: not sent` });
+  }
+
+  /** Held payouts that still count as paid. */
+  unknownPayouts(): UnknownPayout[] {
+    return this.cached("unknownPayouts", () =>
+      this.store
+        .ledger((e) => e.sourceKey.startsWith(UNKNOWN_PAYOUT) && e.amountCents !== 0)
+        .flatMap((e) => {
+          const a = e.actionId ? this.store.actions.get(e.actionId) : undefined;
+          const submissionId = (a?.payload as { submissionId?: unknown } | undefined)?.submissionId;
+          return typeof submissionId === "string" && a ? [{ actionId: a.id, submissionId, amountCents: -e.amountCents, at: e.at }] : [];
+        }),
+    );
+  }
+
   /** Book one venture-day of AI inference served by the verdict backend. */
   bookInference(ventureId: string, date: string, cents: Cents): LedgerEntry {
     return this.book({
@@ -224,14 +280,17 @@ export class LedgerSync implements CostMeter {
     return this.accruals().get(submissionId) ?? 0;
   }
 
-  /** Expected refunds on recent gross revenue. */
+  /** Expected refunds on recent gross revenue, less the refunds on it already booked (they left cash). */
   refundReserve(asOf: Iso = this.clock.iso()): Cents {
     return this.cached(`refunds|${asOf}`, () => {
     const since = shiftIso(asOf, -this.config.economics.refundLagDays);
-    const gross = this.store
-      .ledger((e) => e.category === "revenue" && e.at >= since && e.at <= asOf)
-      .reduce((s, e) => s + (e.grossCents ?? e.amountCents), 0);
-    return Math.ceil(this.config.economics.refundHaircutPrior * Math.max(0, gross));
+    let gross = 0;
+    let refunded = 0;
+    for (const e of this.store.ledger((x) => (x.category === "revenue" || x.category === "refunds") && x.at >= since && x.at <= asOf)) {
+      if (e.category === "revenue") gross += e.grossCents ?? e.amountCents;
+      else refunded += -(e.grossCents ?? e.amountCents);
+    }
+    return Math.max(0, Math.ceil(this.config.economics.refundHaircutPrior * Math.max(0, gross)) - Math.max(0, refunded));
     });
   }
 
@@ -307,9 +366,10 @@ export class LedgerSync implements CostMeter {
 
   private remainingCommitment(a: Action, asOf: Iso): Cents {
     const c = a.commitment;
-    if (!c || this.targetClosed(a)) return 0;
+    if (!c) return 0;
     const spent = this.spentAgainst(a);
     const capLeft = c.maxTotalCents > 0 ? Math.max(0, c.maxTotalCents - spent) : Number.POSITIVE_INFINITY;
+    if (this.targetClosed(a)) return this.inFlightOnClosedCampaign(a, capLeft);
     if (c.kind === "daily") {
       if (!c.endsAt) return Number.isFinite(capLeft) ? capLeft : 0;
       const from = Math.max(new Date(asOf).getTime(), new Date(c.startsAt).getTime());
@@ -330,6 +390,15 @@ export class LedgerSync implements CostMeter {
     return false;
   }
 
+  /** A closed creator campaign still owes its in-flight submissions up to the per-video cap each. */
+  private inFlightOnClosedCampaign(a: Action, capLeft: Cents): Cents {
+    const campaignId = (a.payload as { campaignId?: unknown }).campaignId;
+    const campaign = typeof campaignId === "string" ? this.store.campaigns.get(campaignId) : undefined;
+    if (!campaign) return 0;
+    const inFlight = (this.submissionsByCampaign().get(campaign.id) ?? []).filter((s) => IN_FLIGHT.includes(s.stage)).length;
+    return Math.min(capLeft, inFlight * campaign.maxPayoutPerVideoCents);
+  }
+
   private spentAgainst(a: Action): Cents {
     const p = a.payload as { adCampaignId?: unknown; campaignId?: unknown };
     if (typeof p.adCampaignId === "string") {
@@ -339,29 +408,53 @@ export class LedgerSync implements CostMeter {
     }
     if (typeof p.campaignId === "string") {
       // Accrued liabilities are counted separately, so they also use up the campaign's commitment.
-      const campaignId = p.campaignId;
-      const subIds = new Set(this.store.submissions.list((s) => s.campaignId === campaignId).map((s) => s.id));
-      let accrued = 0;
-      for (const [subId, amount] of this.accruals()) if (subIds.has(subId)) accrued += amount;
-      return this.paidOnCampaign(campaignId) + accrued;
+      return this.paidOnCampaign(p.campaignId) + (this.accruedByCampaign().get(p.campaignId) ?? 0);
     }
     return -(this.ledgerSums().byAction.get(a.id) ?? 0);
   }
 
-  /** Creator payouts already booked against a creator campaign (positive cents). */
+  /** Creator payouts booked against a creator campaign, held unknown payouts included (positive cents). */
   paidOnCampaign(campaignId: string): Cents {
     return this.paidByCampaign().get(campaignId) ?? 0;
+  }
+
+  /** Submissions grouped by campaign (one scan per store revision). */
+  private submissionsByCampaign(): Map<string, CreatorSubmission[]> {
+    return this.cached("submissionsByCampaign", () => {
+      const out = new Map<string, CreatorSubmission[]>();
+      for (const s of this.store.submissions.list()) {
+        const list = out.get(s.campaignId);
+        if (list) list.push(s);
+        else out.set(s.campaignId, [s]);
+      }
+      return out;
+    });
+  }
+
+  private accruedByCampaign(): Map<string, Cents> {
+    return this.cached("accruedByCampaign", () => {
+      const out = new Map<string, Cents>();
+      for (const [submissionId, amount] of this.accruals()) {
+        const campaignId = this.store.submissions.get(submissionId)?.campaignId;
+        if (campaignId) out.set(campaignId, (out.get(campaignId) ?? 0) + amount);
+      }
+      return out;
+    });
   }
 
   private paidByCampaign(): Map<string, Cents> {
     return this.cached("paidByCampaign", () => {
       const campaignOf = new Map(this.store.submissions.list().map((s) => [s.id, s.campaignId]));
       const out = new Map<string, Cents>();
+      const add = (submissionId: string, cents: Cents) => {
+        const campaignId = campaignOf.get(submissionId);
+        if (campaignId) out.set(campaignId, (out.get(campaignId) ?? 0) + cents);
+      };
       for (const p of this.store.payouts.list()) {
-        const campaignId = campaignOf.get(p.submissionId);
         const entry = this.store.ledgerEntry(`payout:${p.id}`);
-        if (campaignId && entry) out.set(campaignId, (out.get(campaignId) ?? 0) - entry.amountCents);
+        if (entry) add(p.submissionId, -entry.amountCents);
       }
+      for (const u of this.unknownPayouts()) add(u.submissionId, u.amountCents);
       return out;
     });
   }
@@ -384,8 +477,19 @@ export class LedgerSync implements CostMeter {
     return this.cached("accruals", () => {
     const out = new Map<string, Cents>();
     const remaining = new Map<string, Cents>();
+    // A held unknown payout is already booked as spent; a payout the board rejected is not owed.
+    const held = new Set(this.unknownPayouts().map((u) => u.submissionId));
+    const payoutStatuses = new Map<string, Action["status"][]>();
+    for (const a of this.store.actions.list((x) => x.kind === "creator.payout")) {
+      const id = (a.payload as { submissionId: string }).submissionId;
+      payoutStatuses.set(id, [...(payoutStatuses.get(id) ?? []), a.status]);
+    }
+    const declined = (id: string) => {
+      const statuses = payoutStatuses.get(id) ?? [];
+      return statuses.includes("rejected") && !statuses.some((st) => PAYOUT_LIVE.includes(st));
+    };
     const subs = this.store.submissions
-      .list((s) => s.stage === "post_approved")
+      .list((s) => s.stage === "post_approved" && !held.has(s.id) && !declined(s.id))
       .sort((x, y) => (x.id < y.id ? -1 : 1));
     for (const s of subs) {
       const campaign = this.store.campaigns.get(s.campaignId);

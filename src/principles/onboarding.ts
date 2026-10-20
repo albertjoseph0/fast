@@ -3,11 +3,24 @@
  * activation, but data is collected only after AI-data consent (Apple 5.1.2(i)) and the
  * user sees value before an after-onboarding paywall (never paywall before the aha).
  */
-import type { AppSpec, OnboardingStepKind, PolicyFinding } from "../core/types.ts";
+import type { AppSpec, OnboardingStep, OnboardingStepKind, PolicyFinding } from "../core/types.ts";
 import { lintCopyAll } from "./copy.ts";
 
 /** Steps that collect personal data the AI receives; consent must come first. */
 export const DATA_INPUT_STEPS: readonly OnboardingStepKind[] = ["text_input", "date_input", "time_input", "place_input"];
+/**
+ * A step collects data the AI receives when it is a data-input step or saves its answer to
+ * the profile (storeAs): the app sends the whole profile with every verdict request.
+ */
+export function collectsData(step: OnboardingStep): boolean {
+  return DATA_INPUT_STEPS.includes(step.kind) || Boolean(step.storeAs?.trim());
+}
+
+/** True when any onboarding answer or the core input reaches the AI. */
+export function sendsDataToAi(spec: AppSpec): boolean {
+  return spec.core.inputKind !== "none" || spec.onboarding.some(collectsData);
+}
+
 /** Steps that show the user a taste of the verdict. */
 export const VALUE_STEPS: readonly OnboardingStepKind[] = ["value_preview", "result_teaser"];
 const CHOICE_STEPS: readonly OnboardingStepKind[] = ["goal_picker", "single_choice", "multi_choice", "attribution_survey"];
@@ -29,8 +42,8 @@ export function lintOnboarding(spec: AppSpec): PolicyFinding[] {
   else if (n < min || n > max) add("length", "warn", `${n} onboarding steps (target ${min}..${max})`, "Bier P8");
 
   const consentIdx = steps.flatMap((s, i) => (s.kind === "ai_data_consent" ? [i] : []));
-  const firstData = steps.findIndex((s) => DATA_INPUT_STEPS.includes(s.kind));
-  const needsConsent = firstData >= 0 || spec.core.inputKind !== "none";
+  const firstData = steps.findIndex(collectsData);
+  const needsConsent = sendsDataToAi(spec);
   if (consentIdx.length > 1) add("ai_data_consent", "block", `${consentIdx.length} ai_data_consent steps (exactly one allowed)`, APPLE_CONSENT);
   const firstConsent = consentIdx[0];
   if (firstConsent === undefined) {

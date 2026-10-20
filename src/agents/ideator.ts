@@ -33,9 +33,13 @@ const SYSTEM = rolePrompt(
     "State a real differentiation from existing apps (Apple 4.3): a different input, verdict or voice, not a reskin.",
     "Hooks and copy carry no user counts, ratings, rankings, prices, income or health promises, and no testimonials.",
     "Never reuse a title from avoidTitles. Use the signals as evidence of demand, not as apps to clone.",
+    "Signals with a ref quote App Store and social text written outside the studio; their title and detail are in the market_signals untrusted block.",
   ],
-  { playbook: true },
+  { playbook: true, untrusted: true },
 );
+
+/** Sources the studio writes itself; every other signal quotes third-party text. */
+const TRUSTED_SOURCES: readonly Signal["source"][] = ["manual", "portfolio"];
 
 /** Bullet lines of the playbook's product template and Bier gate sections. */
 function playbookNotes(): string[] {
@@ -54,6 +58,9 @@ export async function generateIdeas(
   opts: { signals: Signal[]; count: number; avoidTitles: string[] },
 ): Promise<IdeaRecord[]> {
   const signals = [...opts.signals].sort((a, b) => SOURCE_PRIORITY[a.source] - SOURCE_PRIORITY[b.source]).slice(0, MAX_SIGNALS);
+  const trusted = (s: Signal) => TRUSTED_SOURCES.includes(s.source);
+  const ref = (i: number) => `signal_${i + 1}`;
+  const external = signals.flatMap((s, i) => (trusted(s) ? [] : [{ ref: ref(i), title: s.title, detail: s.detail }]));
   const batch = await ctx.ports.llm.object({
     role: "ideator",
     schemaName: SCHEMA.ideaBatch,
@@ -61,11 +68,14 @@ export async function generateIdeas(
     instructions: `Propose ${opts.count} distinct app ideas grounded in these signals. Spread them across the core needs.`,
     input: {
       count: opts.count,
-      signals: signals.map((s) => ({ title: s.title, detail: s.detail, metrics: s.metrics, tags: s.tags })),
+      signals: signals.map((s, i) =>
+        trusted(s) ? { title: s.title, detail: s.detail, metrics: s.metrics, tags: s.tags } : { ref: ref(i), metrics: s.metrics, tags: s.tags },
+      ),
       coreNeeds: CORE_NEEDS,
       avoidTitles: opts.avoidTitles,
       playbookNotes: playbookNotes(),
     },
+    ...(external.length > 0 ? { untrusted: [{ label: "market_signals", text: JSON.stringify(external) }] } : {}),
     purpose: "idea_batch",
   });
 

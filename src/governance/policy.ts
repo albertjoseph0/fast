@@ -10,6 +10,8 @@ import type {
   ActionKind,
   ActionPayloads,
   ActionStatus,
+  AppSpec,
+  Approval,
   Claim,
   ContentPiece,
   Iso,
@@ -18,12 +20,14 @@ import type {
   Venture,
 } from "../core/types.ts";
 import { lintCopy, lintCopyAll } from "../principles/copy.ts";
+import { lintSpec } from "../principles/product.ts";
+import { minimumAgeFor } from "../principles/sensitivity.ts";
 import { deriveDisclosure, labelsFor } from "./disclosure.ts";
 import { canonicalJson } from "./hash.ts";
 import type { LedgerSync } from "./ledger.ts";
 import { computePayout } from "./payouts.ts";
 
-export const POLICY_VERSION = "policy-2026-10-17.1";
+export const POLICY_VERSION = "policy-2026-10-19.1";
 
 export interface PolicyContext {
   config: StudioConfig;
@@ -66,8 +70,14 @@ const MONEY_KINDS: readonly ActionKind[] = [
 const SIGNIFICANT_CHANGES: readonly SubmissionChangeArea[] = ["new_app", "core", "monetization", "age_rating", "data_flows"];
 
 const VENTURE_PREFIXES = ["store.", "monetization.", "remote_config.", "web.", "ads.", "venture."];
-const POSTED: readonly ActionStatus[] = ["approved", "executing", "executed", "dry_run"];
-const DONE: readonly ActionStatus[] = ["executed", "dry_run"];
+// A dry_run sent nothing, so it never counts as posted or done once dry-run is turned off.
+const POSTED: readonly ActionStatus[] = ["approved", "executing", "executed"];
+const DONE: readonly ActionStatus[] = ["executed"];
+/** Payout actions that hold part of a campaign's budget (the outbox's open statuses; importing them would be circular). */
+const PAYOUT_OPEN: readonly ActionStatus[] = ["proposed", "blocked", "awaiting_approval", "awaiting_human_task", "approved", "executing"];
+
+/** An approval that records the needs_human rules the approver saw. Approvals without the list predate it and cover all. */
+export type CoveringApproval = Approval;
 
 function rule<K extends ActionKind = ActionKind>(
   id: string,
@@ -197,7 +207,39 @@ function contentCopy(piece: ContentPiece): { text: string; path: string }[] {
     { text: d.script, path: "draft.script" },
     { text: d.callToAction, path: "draft.callToAction" },
     ...d.slides.map((s, i) => ({ text: s.text, path: `draft.slides[${i}].text` })),
+    ...(d.hashtags ?? []).map((h, i) => ({ text: h, path: `draft.hashtags[${i}]` })),
   ].filter((i) => i.text.trim().length > 0);
+}
+
+/** Open payouts for other submissions on a campaign: the orchestrator sizes each payout after them. */
+function otherOpenPayoutsOnCampaign(ctx: PolicyContext, a: Action<"creator.payout">, campaignId: string): number {
+  const subIds = new Set(ctx.store.submissions.list((s) => s.campaignId === campaignId && s.id !== a.payload.submissionId).map((s) => s.id));
+  return ctx.store.actions
+    .list((x) => x.kind === "creator.payout" && x.id !== a.id && PAYOUT_OPEN.includes(x.status) && subIds.has((x.payload as ActionPayloads["creator.payout"]).submissionId))
+    .reduce((s, x) => s + (x.payload as ActionPayloads["creator.payout"]).amountCents, 0);
+}
+
+/** An 18+ app: adult-only screening domains or wedge, or an 18+ store rating in the spec. */
+function adultOnly(ctx: PolicyContext, v: Venture): boolean {
+  if (v.spec?.compliance.minimumAge === "18") return true;
+  const idea = ctx.store.ideas.get(v.ideaId)?.idea;
+  return idea !== undefined && minimumAgeFor(idea, ctx.store.latestScreening(v.ideaId)?.sensitiveDomains ?? []) === 18;
+}
+
+type VariantSurface = "paywall" | "onboarding" | "share";
+
+/** Spec-lint findings that belong to the surface a remote-config key replaces. */
+const SURFACE_FINDING: Record<VariantSurface, (f: PolicyFinding) => boolean> = {
+  paywall: (f) => f.ruleId.startsWith("spec.paywall_") || f.message.includes(" at paywall."),
+  onboarding: (f) => f.ruleId.startsWith("onboarding."),
+  share: (f) => f.ruleId.startsWith("spec.share_") || f.message.includes(" at share."),
+};
+
+/** The spec with one remote-config variant applied: onboarding is replaced, paywall and share are merged. */
+function specWithVariant(spec: AppSpec, key: VariantSurface, payload: unknown): AppSpec | string {
+  if (key === "onboarding") return Array.isArray(payload) ? { ...spec, onboarding: payload } : "onboarding variant must be a list of steps";
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return `${key} variant must be an object`;
+  return { ...spec, [key]: { ...spec[key], ...payload } };
 }
 
 // -- rules ----------------------------------------------------------------------
@@ -228,13 +270,16 @@ export const RULES: PolicyRule[] = [
     (a) => MONEY_KINDS.includes(a.kind) || a.commitment !== undefined,
     (a, ctx, flag) => {
       if (a.costCents <= 0) return [];
-      // A payout settles a liability free cash already deducted, so it does not reduce free cash again.
+      // A payout settles a liability free cash already deducted: only what it pays beyond that accrual
+      // reduces free cash, so money already owed is never held back by the reserve.
       const settled = a.kind === "creator.payout" ? ctx.ledger.accruedFor((a.payload as ActionPayloads["creator.payout"]).submissionId) : 0;
-      const freeCash = ctx.ledger.freeCash(ctx.now) + settled;
+      const net = a.costCents - settled;
+      if (net <= 0) return [];
+      const freeCash = ctx.ledger.freeCash(ctx.now);
       const reserve = ctx.ledger.reserve(ctx.now);
       const headroom = freeCash - reserve;
-      return a.costCents > headroom
-        ? [flag("block", `Cost ${a.costCents} exceeds free cash ${freeCash} minus reserve ${reserve} (headroom ${headroom} cents)`)]
+      return net > headroom
+        ? [flag("block", `Cost ${a.costCents}${settled ? ` (${net} beyond the accrued liability)` : ""} exceeds free cash ${freeCash} minus reserve ${reserve} (headroom ${headroom} cents)`)]
         : [];
     },
   ),
@@ -242,12 +287,27 @@ export const RULES: PolicyRule[] = [
   rule(
     "daily_cap",
     "budgets.dailySpendCapCents / dailySpendCapShareOfFreeCash: daily distribution spend cap",
-    (a) => a.commitment?.kind === "daily" || a.commitment?.kind === "one_time",
+    (a) => a.kind === "creator.payout" || a.kind === "creator.campaign_create" || a.commitment?.kind === "daily" || a.commitment?.kind === "one_time",
     (a, ctx, flag) => {
+      const cap = ctx.ledger.dailySpendCap(ctx.now);
+      // Payouts settle money already owed and campaigns commit a lifetime budget, so neither is blocked
+      // until a cheaper day that may never come: over the cap, a human decides.
+      if (a.kind === "creator.payout") {
+        const spent = ctx.ledger.spentToday(ctx.today);
+        const amount = (a.payload as ActionPayloads["creator.payout"]).amountCents;
+        return spent + amount > cap ? [flag("needs_human", `Spent today ${spent} + payout ${amount} exceeds the daily spend cap of ${cap} cents`)] : [];
+      }
+      if (a.kind === "creator.campaign_create") {
+        const committed = ctx.store.actions
+          .list((x) => x.kind === "creator.campaign_create" && x.id !== a.id && (x.status === "executing" || (x.status === "executed" && x.executedAt?.slice(0, 10) === ctx.today)))
+          .reduce((s, x) => s + x.costCents, 0);
+        return committed + a.costCents > cap
+          ? [flag("needs_human", `Creator campaigns committed today ${committed} + ${a.costCents} exceed the daily spend cap of ${cap} cents`)]
+          : [];
+      }
       const c = a.commitment;
       if (!c || (c.kind === "one_time" && c.startsAt.slice(0, 10) !== ctx.today)) return [];
       const spent = ctx.ledger.spentToday(ctx.today);
-      const cap = ctx.ledger.dailySpendCap(ctx.now);
       return spent + c.amountCents > cap
         ? [flag("block", `Spent today ${spent} + ${c.amountCents} exceeds the daily spend cap of ${cap} cents`)]
         : [];
@@ -426,7 +486,7 @@ export const RULES: PolicyRule[] = [
     if (sub.viewsAtLock === undefined) out.push(flag("block", "Views at lock are not recorded"));
     else {
       const terms = { flatFeeCents: campaign.flatFeeCents, cpmCents: campaign.cpmCents, maxPayoutCents: campaign.maxPayoutPerVideoCents };
-      const remaining = Math.max(0, campaign.budgetCents - ctx.ledger.paidOnCampaign(campaign.id));
+      const remaining = Math.max(0, campaign.budgetCents - ctx.ledger.paidOnCampaign(campaign.id) - otherOpenPayoutsOnCampaign(ctx, a, campaign.id));
       const expected = computePayout(terms, { viewsAtLock: sub.viewsAtLock, campaignRemainingCents: remaining });
       if (a.payload.amountCents !== expected) out.push(flag("block", `Amount ${a.payload.amountCents} differs from the computed payout ${expected} cents`));
       const b = a.payload.basis;
@@ -435,6 +495,9 @@ export const RULES: PolicyRule[] = [
       }
     }
     if (ctx.store.payouts.list((p) => p.submissionId === sub.id).length) out.push(flag("block", "Submission was already paid"));
+    for (const u of ctx.ledger.unknownPayouts().filter((x) => x.submissionId === sub.id)) {
+      out.push(flag("block", `Payout ${u.actionId} for this submission may have been sent: verify it with the marketplace before paying again`));
+    }
     return out;
   }),
 
@@ -452,11 +515,44 @@ export const RULES: PolicyRule[] = [
     if (!sub) return [];
     const since = ms(ctx.now) - 30 * DAY_MS;
     const creatorSubs = new Set(ctx.store.submissions.list((s) => s.creatorId === sub.creatorId).map((s) => s.id));
-    const paid = ctx.store.payouts.list((p) => creatorSubs.has(p.submissionId) && ms(p.at) >= since).reduce((s, p) => s + p.amountCents, 0);
+    const booked = ctx.store.payouts.list((p) => creatorSubs.has(p.submissionId) && ms(p.at) >= since).reduce((s, p) => s + p.amountCents, 0);
+    const unknown = ctx.ledger.unknownPayouts().filter((u) => creatorSubs.has(u.submissionId) && ms(u.at) >= since).reduce((s, u) => s + u.amountCents, 0);
+    const paid = booked + unknown;
     const cap = ctx.config.creators.maxPayoutPerCreatorPer30dCents;
     return paid + a.payload.amountCents > cap
       ? [flag("needs_human", `Creator paid ${paid} in 30 days; +${a.payload.amountCents} exceeds ${cap} cents`)]
       : [];
+  }),
+
+  rule(
+    "creator.audience_minors",
+    "creators.maxAudienceUnder18Share; FTC Endorsement Guides 255, TikTok branded content policy: 18+ apps are not promoted to minors",
+    ["creator.review_post", "creator.payout"],
+    (a, ctx, flag) => {
+      if (a.kind === "creator.review_post" && !(a.payload as ActionPayloads["creator.review_post"]).approve) return [];
+      const v = ventureOf(a, ctx);
+      const sub = ctx.store.submissions.get(a.payload.submissionId);
+      if (!v || !sub || !adultOnly(ctx, v)) return [];
+      const share = ctx.store.creators.get(sub.creatorId)?.audienceUnder18Share ?? null;
+      const max = ctx.config.creators.maxAudienceUnder18Share;
+      if (share === null) return [flag("needs_human", `Under-18 audience share of ${sub.creatorHandle} is unknown and the app is 18+`)];
+      return share > max ? [flag("block", `${Math.round(share * 100)}% of ${sub.creatorHandle}'s audience is under 18 (max ${Math.round(max * 100)}%) and the app is 18+`)] : [];
+    },
+  ),
+
+  rule("creator.campaign_live", "ARCHITECTURE s.6-7: a creator campaign staffs a running experiment or an open creative batch", ["creator.campaign_create"], (a, ctx, flag) => {
+    const campaign = ctx.store.campaigns.get(a.payload.campaignId);
+    if (!campaign) return [];
+    const out: PolicyFinding[] = [];
+    if (campaign.experimentId) {
+      const status = ctx.store.experiments.get(campaign.experimentId)?.status;
+      if (status !== "registered" && status !== "running") out.push(flag("block", `Experiment ${campaign.experimentId} is ${status ?? "missing"}: its campaign must not open`));
+    }
+    if (campaign.batchId) {
+      const status = ctx.store.batches.get(campaign.batchId)?.status;
+      if (status !== "open") out.push(flag("block", `Creative batch ${campaign.batchId} is ${status ?? "missing"}: its campaign must not open`));
+    }
+    return out;
   }),
 
   rule("creator.campaign_geo", "P4 no nationwide tests: creator campaigns target cell geos only", ["creator.campaign_create"], (a, ctx, flag) => {
@@ -603,6 +699,34 @@ export const RULES: PolicyRule[] = [
     a.payload.key === "core" ? [flag("block", "Core changes ship as a reviewed build, not remote config")] : [],
   ),
 
+  rule(
+    "remote_config.spec_lint",
+    "principles/product.ts lintSpec: a remote-config variant meets the same paywall, onboarding, share and copy rules as a build",
+    (a) => a.kind === "remote_config.set" && (a.payload as ActionPayloads["remote_config.set"]).key !== "core",
+    (a, ctx, flag) => {
+      const v = ventureOf(a, ctx);
+      if (!v) return [];
+      const idea = ctx.store.ideas.get(v.ideaId)?.idea;
+      if (!v.spec || !idea) return [flag("needs_human", "Venture has no spec to lint the variant against")];
+      const p = a.payload as ActionPayloads["remote_config.set"];
+      const key = p.key as VariantSurface;
+      const domains = ctx.store.latestScreening(v.ideaId)?.sensitiveDomains;
+      return p.variants.flatMap((variant) => {
+        const spec = specWithVariant(v.spec as AppSpec, key, variant.payload);
+        if (typeof spec === "string") return [flag("block", `Variant ${variant.id}: ${spec}`)];
+        let findings: PolicyFinding[];
+        try {
+          findings = lintSpec(spec, idea, ctx.config, domains);
+        } catch (err) {
+          return [flag("block", `Variant ${variant.id} cannot be linted: ${err instanceof Error ? err.message : String(err)}`)];
+        }
+        return findings
+          .filter((f) => (f.severity === "block" || f.severity === "needs_human") && SURFACE_FINDING[key](f))
+          .map((f) => flag(f.severity, `Variant ${variant.id}: ${f.ruleId}: ${f.message}`));
+      });
+    },
+  ),
+
   rule("venture.kill_with_subscribers", "ARCHITECTURE s.8: apps with paying users are sunset, never killed", ["venture.kill"], (a, ctx, flag) => {
     const subs = latestSubscribers(ctx, a.ventureId);
     return subs > 0 ? [flag("block", `Venture has ${subs} active subscribers: use venture.sunset`)] : [];
@@ -644,11 +768,20 @@ export function evaluateAction(a: Action, ctx: PolicyContext): PolicyFinding[] {
   return RULES.filter((r) => r.applies(a)).flatMap((r) => r.check(a, ctx));
 }
 
-/** Status implied by findings, open human tasks and payload-bound approvals. */
+/**
+ * Status implied by findings, open human tasks and approvals. An approval clears the needs_human
+ * rules it was given for, on the payload it was given for; a rule that fires later needs a new one.
+ */
 export function statusFor(a: Action, findings: PolicyFinding[]): ActionStatus {
   if (findings.some((f) => f.severity === "block")) return "blocked";
   if (a.blockedByTaskIds.length > 0) return "awaiting_human_task";
-  const approved = a.approvals.some((ap) => ap.payloadHash === a.payloadHash);
-  if (findings.some((f) => f.severity === "needs_human") && !approved) return "awaiting_approval";
-  return "approved";
+  const needed = new Set(findings.filter((f) => f.severity === "needs_human").map((f) => f.ruleId));
+  if (needed.size === 0) return "approved";
+  const covered = new Set<string>();
+  for (const ap of a.approvals as CoveringApproval[]) {
+    if (ap.payloadHash !== a.payloadHash) continue;
+    if (!ap.coveredRuleIds) return "approved";
+    for (const id of ap.coveredRuleIds) covered.add(id);
+  }
+  return [...needed].every((id) => covered.has(id)) ? "approved" : "awaiting_approval";
 }

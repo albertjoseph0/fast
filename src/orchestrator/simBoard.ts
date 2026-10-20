@@ -99,11 +99,27 @@ export class SimBoard {
           if (/approved/.test(p)) out[input.key] = "approved";
           else if (/resubmit/.test(p)) out[input.key] = priorDecisions === 0 ? "resubmit" : "abandon";
           else if (/rerun/.test(p)) out[input.key] = priorDecisions === 0 ? "rerun" : "kill";
+          else if (/retry/.test(p)) out[input.key] = priorDecisions === 0 ? "retry" : "void";
+          else if (/not_sent/.test(p)) out[input.key] = "not_sent";
           else out[input.key] = "approve";
           break;
         case "reviewer":
           out[input.key] = "sim board";
           break;
+        case "guidelines":
+          out[input.key] = /Guideline (\d+(?:\.\d+)*(?:\([a-z]\))?)/.exec(t.instructions)?.[1] ?? "2.1";
+          break;
+        case "posthogProjectId":
+          out[input.key] = String(10_000 + Math.floor(r.next() * 89_999));
+          break;
+        case "revenueCatProjectId":
+          out[input.key] = `projsim${slug.replace(/[^a-z0-9]/gi, "")}`;
+          break;
+        case "easProjectId": {
+          const hex = Array.from({ length: 32 }, () => Math.floor(r.next() * 16).toString(16)).join("");
+          out[input.key] = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+          break;
+        }
         case "backendUrl":
           out[input.key] = "https://verdict.sim.example";
           break;

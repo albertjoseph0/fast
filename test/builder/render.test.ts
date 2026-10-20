@@ -58,6 +58,7 @@ describe("renderApp", () => {
     expect(studio.products).toHaveLength(config.monetization.ladder.length);
     expect(studio.products.find((p) => p.ladderId === "week_699_t3")?.productId).toBe(productIdFor("com.faststudio.astra", "week_699_t3"));
     expect(studio.aiProviders.map((p) => p.id)).toEqual(["anthropic", "studio_backend"]);
+    expect(studio.minimumAge).toBe(18);
     expect(studio.privacyManifest.NSPrivacyTracking).toBe(false);
   });
 
@@ -190,6 +191,56 @@ describe("renderApp re-render and template copy", () => {
     const eas = JSON.parse(read(join(r.projectDir, "eas.json"))) as { submit: { production: { ios: { ascAppId?: string } } }; build: Record<string, { autoIncrement?: boolean }> };
     expect(eas.submit.production.ios.ascAppId).toBe("6400000000");
     expect(eas.build.production?.autoIncrement).toBe(true);
+  });
+});
+
+describe("renderApp privacy facts the designer cannot set", () => {
+  const ephemeralSpec = (): AppSpec => ({
+    ...astraSpec(),
+    compliance: {
+      ...astraSpec().compliance,
+      dataInventory: [{ dataType: "photo", purpose: "core_feature", sentTo: ["studio_backend", "anthropic"], retentionDays: 0, linkedToUser: false, usedForTracking: false }],
+    },
+  });
+
+  it("uses Anthropic's retention and never answers processed_ephemerally for data sent to Anthropic", () => {
+    const r = render(ephemeralSpec());
+    const privacy = read(join(r.root, "legal", "privacy.md"));
+    expect(privacy).not.toContain("not stored after your request is processed");
+    expect(privacy).toMatch(/Photos you choose to upload: .*kept for up to 30 days/);
+    const photos = read(join(r.root, "store", "data-safety.csv")).split("\n").find((l) => l.startsWith("Photos and videos"));
+    expect(photos?.split(",")[4]).toBe("no");
+  });
+
+  it("names Anthropic on the consent screen and in the policy even when the inventory omits it", () => {
+    const spec: AppSpec = {
+      ...astraSpec(),
+      core: { ...astraSpec().core, inputKind: "none" },
+      compliance: { ...astraSpec().compliance, dataInventory: [{ dataType: "usage", purpose: "analytics", sentTo: ["posthog"], retentionDays: 90, linkedToUser: false, usedForTracking: false }] },
+    };
+    const r = render(spec);
+    const studio = JSON.parse(read(join(r.projectDir, "studio.json"))) as StudioJson;
+    expect(studio.aiProviders.map((p) => p.name)).toEqual(["Anthropic, PBC", "our own servers"]);
+    const privacy = read(join(r.root, "legal", "privacy.md"));
+    expect(privacy).not.toContain("does not receive personal information");
+    expect(privacy).toContain("Anthropic, PBC: AI model provider");
+    expect(failed(r)).toContain("spec_lint");
+  });
+});
+
+describe("renderApp path containment", () => {
+  it("never writes outside the venture root for a traversing locale or deep link", () => {
+    const outRoot = tempDir();
+    const spec: AppSpec = { ...astraSpec(), locale: "en-US/../../../../escaped", share: { ...astraSpec().share, deepLinkPath: "/../../../web/ven_000002" } };
+    const r = render(spec, { outRoot });
+    expect(readdirSync(outRoot)).toEqual(["astra"]);
+    expect(r.files.every((f) => f.startsWith(r.root))).toBe(true);
+    expect(existsSync(join(r.root, "store", "metadata", config.company.defaultLocale, "name.txt"))).toBe(true);
+    expect(existsSync(join(r.root, "site", "web", "ven_000002", "index.html"))).toBe(true);
+    const lint = r.checks.find((c) => c.name === "spec_lint");
+    expect(lint?.passed).toBe(false);
+    expect(lint?.detail).toContain("spec.locale");
+    expect(lint?.detail).toContain("spec.share_deep_link");
   });
 });
 

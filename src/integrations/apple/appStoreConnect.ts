@@ -78,6 +78,18 @@ const TRIAL: Record<number, string> = { 3: "THREE_DAYS", 7: "ONE_WEEK", 14: "TWO
 /** App Store version states in which metadata and the build can still be edited. */
 export const EDITABLE_VERSION_STATES = ["PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED", "INVALID_BINARY", "READY_FOR_REVIEW"];
 
+/** Subscription states that need no new review: approved, already submitted, or off sale. */
+const SUBSCRIPTION_SETTLED_STATES = new Set(["APPROVED", "WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_BINARY_APPROVAL", "DEVELOPER_REMOVED_FROM_SALE", "REMOVED_FROM_SALE"]);
+/** subscriptionVersion / subscriptionGroupVersion states that can still join a review submission. */
+const ITEM_VERSION_EDITABLE_STATES = new Set(["PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW", "REJECTED", "DEVELOPER_REJECTED"]);
+
+/** A reviewSubmissionItems relationship: the app version or a subscription (group) version. */
+export interface ReviewItem {
+  relationship: "appStoreVersion" | "subscriptionVersion" | "subscriptionGroupVersion";
+  type: "appStoreVersions" | "subscriptionVersions" | "subscriptionGroupVersions";
+  id: string;
+}
+
 const rel = (type: string, id: string) => ({ data: { type, id } });
 
 function shortHash(input: string): string {
@@ -94,6 +106,22 @@ function asResource(value: unknown): AscResource | null {
 function relId(resource: AscResource, name: string): string | undefined {
   const data = resource.relationships?.[name]?.data;
   return data && !Array.isArray(data) ? data.id : undefined;
+}
+
+/** Apple's error detail and associated errors (e.g. the missing attribute) from a JSON:API error body. */
+export function ascErrorDetail(err: HttpError): string {
+  try {
+    const body = JSON.parse(err.body) as { errors?: { code?: string; detail?: string; meta?: { associatedErrors?: Record<string, { code?: string; detail?: string }[]> } }[] };
+    const parts = (body.errors ?? []).flatMap((e) => [
+      [e.code, e.detail].filter(Boolean).join(": "),
+      ...Object.values(e.meta?.associatedErrors ?? {}).flatMap((list) => list.map((a) => [a.code, a.detail].filter(Boolean).join(": "))),
+    ]);
+    const detail = parts.filter(Boolean).join("; ");
+    if (detail) return detail;
+  } catch {
+    // Not JSON: fall back to the raw body.
+  }
+  return err.body.slice(0, 500) || `HTTP ${err.status}`;
 }
 
 function priceCents(customerPrice: unknown): number {
@@ -246,6 +274,31 @@ export class AscClient {
 
   async updateVersion(versionId: string, attributes: { versionString?: string; releaseType?: "MANUAL" | "AFTER_APPROVAL" | "SCHEDULED"; copyright?: string }): Promise<AscResource> {
     return this.update("/v1/appStoreVersions", { type: "appStoreVersions", id: versionId, attributes });
+  }
+
+  /** Declare the app's content rights unless a human already answered the question. */
+  async ensureContentRights(appId: string, declaration: "DOES_NOT_USE_THIRD_PARTY_CONTENT" | "USES_THIRD_PARTY_CONTENT"): Promise<boolean> {
+    const app = await this.getApp(appId);
+    if (app?.attributes.contentRightsDeclaration) return false;
+    await this.update("/v1/apps", { type: "apps", id: appId, attributes: { contentRightsDeclaration: declaration } });
+    return true;
+  }
+
+  /** Price the app Free (base territory USA) unless it already has a price schedule. */
+  async ensureFreeAppPrice(appId: string): Promise<boolean> {
+    if (await this.one(`/v1/apps/${appId}/appPriceSchedule`)) return false;
+    const points = await this.list(`/v1/apps/${appId}/appPricePoints`, { "filter[territory]": "USA", limit: 200 });
+    const free = points.find((p) => priceCents(p.attributes.customerPrice) === 0);
+    if (!free && !this.opts.dryRun) throw new Error(`App Store Connect app ${appId} has no free price point in USA`);
+    const price = { type: "appPrices", id: "${price-free}", attributes: { startDate: null }, relationships: { appPricePoint: rel("appPricePoints", free?.id ?? "dry_appPricePoints_USA_0") } };
+    await this.create("/v1/appPriceSchedules", {
+      data: {
+        type: "appPriceSchedules",
+        relationships: { app: rel("apps", appId), baseTerritory: rel("territories", "USA"), manualPrices: { data: [{ type: price.type, id: price.id }] } },
+      },
+      included: [price],
+    });
+    return true;
   }
 
   async upsertVersionLocalization(
@@ -426,13 +479,30 @@ export class AscClient {
     return this.one(`/v1/subscriptions/${id}`);
   }
 
-  /** Whether any price is scheduled; re-pricing a live subscription would move subscribers. */
-  async subscriptionHasPrices(id: string): Promise<boolean> {
-    return (await this.list(`/v1/subscriptions/${id}/prices`, { limit: 1 }, 1)).length > 0;
+  /** Alpha-3 territories that already have a scheduled price; re-pricing them would move subscribers. */
+  async subscriptionPricedTerritories(id: string): Promise<Set<string>> {
+    const prices = await this.list(`/v1/subscriptions/${id}/prices`, { include: "territory", limit: 200 });
+    return new Set(prices.map((p) => relId(p, "territory")).filter((t): t is string => t !== undefined));
   }
 
-  async subscriptionHasAvailability(id: string): Promise<boolean> {
-    return (await this.list(`/v1/subscriptions/${id}/planAvailabilities`, { limit: 1 }, 1)).length > 0;
+  /** The subscription's upfront plan availability, if one was created. */
+  async subscriptionPlanAvailability(id: string): Promise<AscResource | null> {
+    const plans = await this.list(`/v1/subscriptions/${id}/planAvailabilities`, { limit: 10 });
+    return plans.find((p) => p.attributes.planType === "UPFRONT") ?? plans[0] ?? null;
+  }
+
+  /** Alpha-3 territories of a plan availability. */
+  async planTerritories(planAvailabilityId: string): Promise<string[]> {
+    return (await this.list(`/v1/subscriptionPlanAvailabilities/${planAvailabilityId}/availableTerritories`, { limit: 200 })).map((t) => t.id);
+  }
+
+  /** Replace a plan availability's territories (alpha-3); an empty list takes the plan off sale. */
+  async setPlanTerritories(planAvailabilityId: string, territories: string[]): Promise<void> {
+    await this.http.request({
+      method: "PATCH",
+      url: `${this.base}/v1/subscriptionPlanAvailabilities/${planAvailabilityId}/relationships/availableTerritories`,
+      json: { data: [...new Set(territories)].map((id) => ({ type: "territories", id })) },
+    });
   }
 
   /** The price point in `territory` (alpha-3) whose customer price is exactly `cents`. */
@@ -443,14 +513,17 @@ export class AscClient {
 
   /**
    * Price the subscription at `usdCents` in the US and at Apple's equalized price in each
-   * other territory (alpha-2 codes).
+   * other territory (alpha-2 codes), skipping territories in `alreadyPriced` (alpha-3).
+   * Returns the number of prices written.
    */
-  async setSubscriptionPrices(subscriptionId: string, usdCents: number, territories: string[]): Promise<number> {
+  async setSubscriptionPrices(subscriptionId: string, usdCents: number, territories: string[], alreadyPriced: ReadonlySet<string> = new Set()): Promise<number> {
+    const wanted = [...new Set(["USA", ...territories.map(toAscTerritory)])].filter((t) => !alreadyPriced.has(t));
+    if (wanted.length === 0) return 0;
     const usPoint = await this.findPricePoint(subscriptionId, "USA", usdCents);
     if (!usPoint && !this.opts.dryRun) throw new Error(`No App Store price point at ${(usdCents / 100).toFixed(2)} USD for subscription ${subscriptionId}`);
     const usPointId = usPoint?.id ?? `dry_subscriptionPricePoints_USA_${usdCents}`;
-    const others = [...new Set(territories.map(toAscTerritory))].filter((t) => t !== "USA");
-    const byTerritory = new Map<string, string>([["USA", usPointId]]);
+    const others = wanted.filter((t) => t !== "USA");
+    const byTerritory = new Map<string, string>(wanted.includes("USA") ? [["USA", usPointId]] : []);
     if (others.length > 0) {
       const equalized = await this.list(`/v1/subscriptionPricePoints/${usPointId}/equalizations`, {
         "filter[territory]": others.join(","),
@@ -481,6 +554,50 @@ export class AscClient {
       });
     }
     return byTerritory.size;
+  }
+
+  /**
+   * Make the subscription available in at least `territories` (alpha-2): create its plan
+   * availability, or extend the existing one with the missing territories. Returns how many
+   * territories were added.
+   */
+  async ensureSubscriptionAvailability(subscriptionId: string, territories: string[]): Promise<number> {
+    const wanted = [...new Set(territories.map(toAscTerritory))];
+    const plan = await this.subscriptionPlanAvailability(subscriptionId);
+    if (!plan) {
+      await this.setSubscriptionAvailability(subscriptionId, territories);
+      return wanted.length;
+    }
+    const current = await this.planTerritories(plan.id);
+    const missing = wanted.filter((t) => !current.includes(t));
+    if (missing.length > 0) await this.setPlanTerritories(plan.id, [...current, ...missing]);
+    return missing.length;
+  }
+
+  /** Every subscription of the app, optionally only those with one of `productIds`. */
+  async appSubscriptions(appId: string, productIds?: readonly string[]): Promise<{ group: AscResource; subscription: AscResource }[]> {
+    const out: { group: AscResource; subscription: AscResource }[] = [];
+    for (const group of await this.list(`/v1/apps/${appId}/subscriptionGroups`, { limit: 200 })) {
+      for (const subscription of await this.list(`/v1/subscriptionGroups/${group.id}/subscriptions`, { limit: 200 })) {
+        if (!productIds || productIds.includes(String(subscription.attributes.productId))) out.push({ group, subscription });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Take every subscription of the app off sale (no plan territories). Subscriptions that stay
+   * on sale keep auto-renewing even after the app itself is removed from sale.
+   */
+  async removeSubscriptionsFromSale(appId: string): Promise<number> {
+    let removed = 0;
+    for (const { subscription } of await this.appSubscriptions(appId)) {
+      const plan = await this.subscriptionPlanAvailability(subscription.id);
+      if (!plan || (await this.planTerritories(plan.id)).length === 0) continue;
+      await this.setPlanTerritories(plan.id, []);
+      removed++;
+    }
+    return removed;
   }
 
   async setSubscriptionAvailability(subscriptionId: string, territories: string[]): Promise<AscResource> {
@@ -537,25 +654,73 @@ export class AscClient {
     return this.one(`/v1/builds/${buildId}`);
   }
 
-  /** reviewSubmissions: reuse an unsent submission or create one, add the version, submit. */
-  async submitForReview(appId: string, versionId: string): Promise<string> {
-    const open = (await this.list(`/v1/apps/${appId}/reviewSubmissions`, { "filter[platform]": "IOS", "filter[state]": "READY_FOR_REVIEW", limit: 5 }))[0];
+  /**
+   * reviewSubmissions: reuse an unsent submission or create one, add the version and the
+   * subscriptions (with their group) that still need review, then submit. Apple only accepts
+   * an app's first subscriptions together with a new app version. A version already in a
+   * sent submission (a retry after an unacknowledged submit) returns that submission.
+   */
+  async submitForReview(appId: string, versionId: string, opts: { productIds?: readonly string[] } = {}): Promise<string> {
+    const submissions = await this.list(`/v1/apps/${appId}/reviewSubmissions`, { "filter[platform]": "IOS", "filter[state]": "READY_FOR_REVIEW,WAITING_FOR_REVIEW,IN_REVIEW", limit: 20 });
+    for (const sent of submissions.filter((s) => s.attributes.state !== "READY_FOR_REVIEW")) {
+      if ((await this.submissionItemIds(sent.id)).has(versionId)) return sent.id;
+    }
+    const open = submissions.find((s) => s.attributes.state === "READY_FOR_REVIEW");
     const submission =
       open ??
       (await this.create("/v1/reviewSubmissions", { data: { type: "reviewSubmissions", attributes: { platform: "IOS" }, relationships: { app: rel("apps", appId) } } }));
-    try {
-      await this.create("/v1/reviewSubmissionItems", {
-        data: {
-          type: "reviewSubmissionItems",
-          relationships: { reviewSubmission: rel("reviewSubmissions", submission.id), appStoreVersion: rel("appStoreVersions", versionId) },
-        },
-      });
-    } catch (err) {
-      // 409: the version is already an item of this submission.
-      if (!(err instanceof HttpError && err.status === 409)) throw err;
+    const present = open ? await this.submissionItemIds(open.id) : new Set<string>();
+    const items: ReviewItem[] = [{ relationship: "appStoreVersion", type: "appStoreVersions", id: versionId }, ...(await this.subscriptionReviewItems(appId, opts.productIds))];
+    for (const item of items) {
+      if (present.has(item.id)) continue;
+      try {
+        await this.create("/v1/reviewSubmissionItems", {
+          data: { type: "reviewSubmissionItems", relationships: { reviewSubmission: rel("reviewSubmissions", submission.id), [item.relationship]: rel(item.type, item.id) } },
+        });
+      } catch (err) {
+        if (err instanceof HttpError && err.status === 409) throw new Error(`App Store Connect refused ${item.type} ${item.id} for review: ${ascErrorDetail(err)}`);
+        throw err;
+      }
     }
     await this.update("/v1/reviewSubmissions", { type: "reviewSubmissions", id: submission.id, attributes: { submitted: true } });
     return submission.id;
+  }
+
+  /** Ids of the versions (app, subscription, group) already in a review submission. */
+  private async submissionItemIds(submissionId: string): Promise<Set<string>> {
+    const items = await this.list(`/v1/reviewSubmissions/${submissionId}/items`, { include: "appStoreVersion,subscriptionVersion,subscriptionGroupVersion", limit: 200 });
+    return new Set(items.flatMap((i) => [relId(i, "appStoreVersion"), relId(i, "subscriptionVersion"), relId(i, "subscriptionGroupVersion")]).filter((id): id is string => id !== undefined));
+  }
+
+  /** Review items for the app's subscriptions that still need review, each with its group. */
+  async subscriptionReviewItems(appId: string, productIds?: readonly string[]): Promise<ReviewItem[]> {
+    const pending = (await this.appSubscriptions(appId, productIds)).filter(({ subscription }) => !SUBSCRIPTION_SETTLED_STATES.has(String(subscription.attributes.state)));
+    const incomplete = pending.filter(({ subscription }) => subscription.attributes.state === "MISSING_METADATA").map(({ subscription }) => String(subscription.attributes.productId));
+    if (incomplete.length > 0) {
+      throw new Error(
+        `Subscriptions ${incomplete.join(", ")} are missing metadata (usually the App Review screenshot); complete them before submitting: https://appstoreconnect.apple.com/apps/${appId}/distribution/subscriptions`,
+      );
+    }
+    const items: ReviewItem[] = [];
+    const groups = new Map(pending.map(({ group }) => [group.id, group]));
+    for (const group of groups.values()) {
+      const version = await this.reviewableVersion(`/v1/subscriptionGroups/${group.id}/versions`, "/v1/subscriptionGroupVersions", "subscriptionGroupVersions", { subscriptionGroup: rel("subscriptionGroups", group.id) });
+      if (version) items.push({ relationship: "subscriptionGroupVersion", type: "subscriptionGroupVersions", id: version.id });
+    }
+    for (const { subscription } of pending) {
+      const version = await this.reviewableVersion(`/v1/subscriptions/${subscription.id}/versions`, "/v1/subscriptionVersions", "subscriptionVersions", { subscription: rel("subscriptions", subscription.id) });
+      if (version) items.push({ relationship: "subscriptionVersion", type: "subscriptionVersions", id: version.id });
+    }
+    return items;
+  }
+
+  /** The editable version to submit, a new one when none exists, or null when one is already submitted or approved. */
+  private async reviewableVersion(listPath: string, createPath: string, type: string, relationships: Record<string, unknown>): Promise<AscResource | null> {
+    const versions = await this.list(listPath, { limit: 20 });
+    const editable = versions.find((v) => ITEM_VERSION_EDITABLE_STATES.has(String(v.attributes.state)));
+    if (editable) return editable;
+    if (versions.some((v) => ["WAITING_FOR_REVIEW", "IN_REVIEW", "ACCEPTED", "APPROVED"].includes(String(v.attributes.state)))) return null;
+    return this.create(createPath, { data: { type, relationships } });
   }
 
   async getReviewSubmission(id: string): Promise<AscResource | null> {

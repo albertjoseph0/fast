@@ -57,13 +57,14 @@ describe("draftContent", () => {
     expect(llm.calls("ContentBatch")[0]?.input.product.shareArtifact).toBe(astraSpec().share.artifact);
   });
 
-  it("drops drafts whose hook, caption or slides fail the copy lint, and caps at count", async () => {
+  it("drops drafts whose hook, caption, slides or hashtags fail the copy lint, and caps at count", async () => {
     const llm = new FakeLlm({
       ContentBatch: () => ({
         drafts: [
           draft({ angle: "hook", hook: "Join 2 million users reading their charts" }),
           draft({ angle: "caption", caption: "Only $4.99 a week" }),
           draft({ angle: "slide", slides: [{ text: "Rated 5 stars", imagePrompt: "x", isAppReveal: true }] }),
+          draft({ angle: "hashtag", hashtags: ["astrology", "1 million users"] }),
           draft({ angle: "ok1" }),
           draft({ angle: "ok2" }),
           draft({ angle: "ok3" }),

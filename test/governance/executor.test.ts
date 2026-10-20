@@ -361,3 +361,83 @@ describe("domain updates", () => {
     expect(totalCalls(write)).toBe(0);
   });
 });
+
+describe("review regressions", () => {
+  const basis = { views: 40_000, viewsAsOf: START, flatFeeCents: 1_500, cpmCents: 150, capCents: 15_000 };
+  function payoutWorld(): { w: World; a: Action } {
+    const w = makeWorld();
+    w.store.creators.put(creator({ firstPaidAt: START }));
+    w.store.campaigns.put(campaign({ externalId: "ss_cmp_1" }));
+    w.store.submissions.put(submission());
+    const a = w.gov.propose(input("creator.payout", { submissionId: "sub_000001", amountCents: 7_500, basis }, { naturalKey: "sub_000001", costCents: 7_500 }));
+    expect(a.status).toBe("approved");
+    return { w, a };
+  }
+
+  it("#10 a dry-run response from a write port is recorded as dry_run, never as executed", async () => {
+    const w = makeWorld();
+    const write = fakeWrite();
+    (write.creators.createCampaign as Mock).mockResolvedValue({ externalId: "dry_ss_abc123" });
+    (write.web.putAsset as Mock).mockResolvedValue({ publicUrl: "https://dry_run.blob.invalid/a.png", sha256: "sha_a" });
+    (write.store.registerBundleId as Mock).mockResolvedValue({ dryRun: true });
+    w.store.campaigns.put(campaign({ status: "draft" }));
+    w.store.content.put(piece());
+    w.gov.propose(input("creator.campaign_create", { campaignId: "ccmp_000001" }));
+    w.gov.propose(input("web.put_asset", { localPath: "/tmp/a.png", contentType: "image/png" }));
+    w.gov.propose(input("store.register_bundle", { platform: "ios", bundleId: "com.faststudio.astra", capabilities: [] }));
+    const out = await executor(w, write).runApproved();
+    expect(out.map((a) => [a.kind, a.status])).toEqual([
+      ["creator.campaign_create", "dry_run"],
+      ["web.put_asset", "dry_run"],
+      ["store.register_bundle", "dry_run"],
+    ]);
+    expect(w.store.campaigns.require("ccmp_000001")).toMatchObject({ status: "draft" });
+    expect(w.store.campaigns.require("ccmp_000001").externalId).toBeUndefined();
+    expect(w.store.content.require("cnt_000001").media[0]?.publicUrl).toBeUndefined();
+    // No lifetime commitment is held for a campaign that was never opened.
+    expect(w.ledger.outstandingCommitments()).toBe(0);
+  });
+
+  it("#2 a payout whose port call fails is held as possibly paid", async () => {
+    const { w, a } = payoutWorld();
+    const write = fakeWrite();
+    (write.creators.payout as Mock).mockRejectedValue(new Error("socket hang up"));
+    const [done] = await executor(w, write).runApproved();
+    expect(done).toMatchObject({ id: a.id, status: "failed", error: "socket hang up" });
+    expect(w.ledger.unknownPayouts()).toEqual([{ actionId: a.id, submissionId: "sub_000001", amountCents: 7_500, at: START }]);
+    expect(w.ledger.paidOnCampaign("ccmp_000001")).toBe(7_500);
+  });
+
+  it("#2 a payout interrupted mid-call is held as possibly paid on reconcile", () => {
+    const { w, a } = payoutWorld();
+    w.store.governanceActions().put({ ...w.store.actions.require(a.id), status: "executing" });
+    executor(w, fakeWrite()).reconcile();
+    expect(w.store.actions.require(a.id).error).toBe(INTERRUPTED_ERROR);
+    expect(w.ledger.unknownPayouts().map((u) => u.actionId)).toEqual([a.id]);
+  });
+
+  it("#2 a payout that fails before its port call is not held", async () => {
+    const { w, a } = payoutWorld();
+    vi.spyOn(w.store.campaigns, "require").mockImplementation(() => {
+      throw new Error("campaign missing");
+    });
+    const write = fakeWrite();
+    const [done] = await executor(w, write).runApproved();
+    expect(done).toMatchObject({ id: a.id, status: "failed", error: "campaign missing" });
+    expect(write.creators.payout).not.toHaveBeenCalled();
+    expect(w.ledger.unknownPayouts()).toEqual([]);
+  });
+
+  it("#29 lifecycle decisions execute in dry-run: they have no external effect", async () => {
+    const w = makeWorld({ config: { autonomy: { alwaysApprove: [] } } });
+    const write = fakeWrite();
+    w.gov.propose(input("venture.kill", { reason: "time box" }));
+    w.gov.propose(release());
+    const out = await executor(w, write, { dryRun: true }).runApproved();
+    expect(out.map((a) => [a.kind, a.status])).toEqual([
+      ["venture.kill", "executed"],
+      ["store.release", "dry_run"],
+    ]);
+    expect(totalCalls(write)).toBe(0);
+  });
+});

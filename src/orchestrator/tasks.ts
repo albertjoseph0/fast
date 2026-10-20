@@ -74,14 +74,21 @@ function applyReviewDecision(ctx: TickContext, t: HumanTask): string | null {
   const done = t.completedAt ?? "";
   // Each decision applies once: skip when the venture changed stage after the task completed.
   if (v.history.some((h) => h.at > done)) return null;
+  // Fighting a spam, conduct or bait-and-switch rejection risks the developer account, whatever was decided.
+  const guidelines = t.outputs?.["guidelines"] ?? "";
+  if (/(^|[^\d.])(4\.3|5\.6|2\.5\.19)/.test(guidelines)) {
+    proposeKill(ctx, v, `App Review cited ${guidelines}`, "app_review");
+    return `${v.id} kill proposed (guideline ${guidelines})`;
+  }
   switch (decision) {
     case "abandon":
     case "kill":
-      proposeKill(ctx, v, `human decision on ${t.id}: ${decision}`);
+      proposeKill(ctx, v, `human decision on ${t.id}: ${decision}`, "human");
       return `${v.id} kill proposed`;
     case "changes_requested":
-      if (v.stage === "screened") {
-        proposeKill(ctx, v, `human review ${t.id} requested changes before build`);
+      // Before launch (the idea at screening, or the spec's copy before submission) a rejected review ends it.
+      if (v.stage === "screened" || v.stage === "building") {
+        proposeKill(ctx, v, `human review ${t.id} requested changes before ${v.stage === "screened" ? "build" : "launch"}`, "human");
         return `${v.id} kill proposed`;
       }
       return null;
@@ -110,6 +117,16 @@ export function applyTaskOutcomes(ctx: TickContext): string[] {
     for (const job of ctx.store.jobs.list((j) => j.ventureId === t.ventureId && j.status === "needs_human" && j.createdAt <= (t.completedAt ?? ""))) {
       ctx.store.jobs.put({ ...job, status: "running", nextPollAt: ctx.ports.clock.iso() });
       out.push(`${job.id} re-armed after ${t.id}`);
+    }
+  }
+  // A payout a human voided releases its liability; "retry" is picked up by the creator sync.
+  for (const t of ctx.store.tasks.list((x) => x.status === "done" && x.kind === "creators.payout_failed" && x.outputs?.["decision"] === "void")) {
+    for (const actionId of t.blocksActionIds) {
+      const submissionId = (ctx.store.actions.get(actionId)?.payload as { submissionId?: string } | undefined)?.submissionId;
+      const sub = submissionId ? ctx.store.submissions.get(submissionId) : undefined;
+      if (sub?.stage !== "post_approved") continue;
+      ctx.store.submissions.put({ ...sub, stage: "rejected" });
+      out.push(`${sub.id} payout voided by ${t.id}`);
     }
   }
   const shared = studioBindings(ctx);

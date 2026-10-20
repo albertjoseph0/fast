@@ -185,21 +185,6 @@ export function ventureEconomics(ctx: TickContext, v: Venture): VentureUnitEcono
 // Daily allocation
 // ---------------------------------------------------------------------------
 
-interface LanePlanRow {
-  lane: string;
-  ventureId: string;
-  currentDailyCents: Cents;
-  proposedDailyCents: Cents;
-  changedAt: string;
-}
-
-/** The previous plan's daily budget per venture (allocation plans are event-sourced). */
-function previousPlan(ctx: TickContext): Map<string, LanePlanRow> {
-  const last = ctx.store.recentEvents((e) => e.type === "allocation.planned").at(-1);
-  const rows = ((last?.data["lanes"] ?? []) as LanePlanRow[]).map((r) => [r.ventureId, r] as const);
-  return new Map(rows);
-}
-
 function initialDaily(ctx: TickContext, v: Venture): Cents {
   const scale = ctx.store.actions.list((a) => a.kind === "venture.scale" && a.ventureId === v.id && a.status === "executed").at(-1);
   return scale ? (scale.payload as { proposedDailyCents: Cents }).proposedDailyCents : 0;
@@ -221,14 +206,14 @@ export function planAllocation(ctx: TickContext, ledger: LedgerSync): Allocation
   const testBudgetCents = Math.round(dailyCap * b.testBudgetShare);
   const scalePool = Math.max(0, dailyCap - testBudgetCents);
   const maxPayback = freeCashCents >= b.richFreeCashCents ? b.maxPaybackDaysWhenRich : b.maxPaybackDays;
-  const prev = previousPlan(ctx);
   const s4Bar = ctx.config.lab.s4MinRoasD60P20;
 
   const rows: (AllocationPlan["lanes"][number] & { changedAt: string })[] = [];
   for (const v of ctx.store.ventures.list((x) => x.stage === "scaling")) {
     const econ = ventureEconomics(ctx, v);
-    const before = prev.get(v.id);
-    const current = before?.proposedDailyCents ?? initialDaily(ctx, v);
+    // The last plan lives on the venture, so cuts and ramp limits survive a process per tick.
+    const before = v.budget;
+    const current = before?.dailyCents ?? initialDaily(ctx, v);
     const lastChange = before?.changedAt ?? now;
     let proposed = current;
     let reason = "hold";
@@ -269,14 +254,21 @@ export function planAllocation(ctx: TickContext, ledger: LedgerSync): Allocation
       r.reason += "; scaled to the daily pool";
     }
   }
-  // Cash trough: spend committed until each lane pays back must fit in free cash.
+  // Cash trough: spend committed until each lane pays back must fit in free cash, less the validation
+  // pipeline's share, so scaling batches cannot lock up the cash new experiments need.
+  const scaleCashCents = Math.max(0, freeCashCents) * (1 - b.testBudgetShare);
   const committed = rows.reduce((s, r) => s + r.proposedDailyCents * (r.paybackDaysPred ?? maxPayback), 0);
-  if (committed > freeCashCents && committed > 0) {
-    const f = Math.max(0, freeCashCents) / committed;
+  if (committed > scaleCashCents && committed > 0) {
+    const f = scaleCashCents / committed;
     for (const r of rows) {
       r.proposedDailyCents = Math.floor(r.proposedDailyCents * f);
       r.reason += "; limited by the cash trough";
     }
+  }
+  for (const r of rows) {
+    const v = ctx.store.ventures.require(r.ventureId);
+    if (v.budget?.dailyCents === r.proposedDailyCents && v.budget.changedAt === r.changedAt) continue;
+    ctx.store.ventures.put({ ...v, budget: { dailyCents: r.proposedDailyCents, changedAt: r.changedAt }, updatedAt: now });
   }
   const projectedTroughCents = freeCashCents - rows.reduce((s, r) => s + r.proposedDailyCents * (r.paybackDaysPred ?? maxPayback), 0);
   const plan: AllocationPlan = { date: ctx.today, freeCashCents, projectedTroughCents, testBudgetCents, lanes: rows.map(({ changedAt: _c, ...r }) => r) };

@@ -77,6 +77,7 @@ function draftFindings(d: ContentDraft) {
       { text: d.script, path: "script" },
       { text: d.callToAction, path: "callToAction" },
       ...d.slides.map((s, i) => ({ text: s.text, path: `slides[${i}].text` })),
+      ...d.hashtags.map((h, i) => ({ text: h, path: `hashtags[${i}]` })),
     ],
     "content",
   );

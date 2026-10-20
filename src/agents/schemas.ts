@@ -150,7 +150,8 @@ export interface ContentFormatSummary {
 export interface SchemaInputs {
   IdeaBatch: {
     count: number;
-    signals: { title: string; detail: string; metrics: Record<string, number>; tags: string[] }[];
+    /** Title and detail only for studio-written signals; external ones carry a ref into the market_signals untrusted block. */
+    signals: { ref?: string; title?: string; detail?: string; metrics: Record<string, number>; tags: string[] }[];
     coreNeeds: CoreNeed[];
     avoidTitles: string[];
     playbookNotes: string[];
@@ -215,6 +216,7 @@ export interface SchemaInputs {
     pendingApprovals: number;
     openHumanTasks: number;
   };
+  /** `name` is an opaque app ref (app_1); the third-party names travel in the app_store untrusted block. */
   SignalDigest: {
     charts: { name: string; genre: string; rank: number; chart: string; country: string }[];
     searches: { term: string; top: { name: string; ratingCount: number; priceCents: number }[] }[];

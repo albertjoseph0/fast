@@ -184,6 +184,14 @@ describe("free cash", () => {
     expect(ledger.accruedLiabilities() + ledger.outstandingCommitments(START)).toBe(50_000);
   });
 
+  it("nets refunds already booked out of the refund reserve: they have left cash", () => {
+    const { ledger } = makeWorld();
+    ledger.syncRevenue("ven_000001", [metricsRow({ date: "2026-02-20", grossRevenueCents: 100_000, proceedsCents: 80_000, refundsCents: 3_000 })]);
+    expect(ledger.refundReserve(START)).toBe(Math.ceil(0.083 * 100_000) - 3_000);
+    ledger.syncRevenue("ven_000001", [metricsRow({ date: "2026-02-21", grossRevenueCents: 0, proceedsCents: 0, refundsCents: 9_000 })]);
+    expect(ledger.refundReserve(START)).toBe(0);
+  });
+
   it("computes refund reserve, burn reserve, free cash and the daily cap", () => {
     const { ledger, store, config } = makeWorld({ config: { budgets: { startingCashCents: 2_000_000, reserveFloorCents: 100_000, reserveFixedBurnDays: 90 } } });
     ledger.syncRevenue("ven_000001", [metricsRow({ date: "2026-02-20", grossRevenueCents: 100_000, proceedsCents: 80_000 })]);
@@ -210,5 +218,76 @@ describe("free cash", () => {
   it("caps the daily spend by free cash share and never goes negative", () => {
     const { ledger } = makeWorld({ config: { budgets: { startingCashCents: 0 } } });
     expect(ledger.dailySpendCap(START)).toBe(0);
+  });
+});
+
+describe("review regressions", () => {
+  const campaignCreate = (maxTotalCents: number) =>
+    executed({ kind: "creator.campaign_create", payload: { campaignId: "ccmp_000001" }, commitment: { kind: "lifetime_cap", amountCents: maxTotalCents, maxTotalCents, startsAt: START } });
+  const payout = (patch: Partial<Action> = {}) =>
+    executed({
+      id: "act_000010",
+      kind: "creator.payout",
+      payload: { submissionId: "sub_000001", amountCents: 7_500, basis: { views: 40_000, viewsAsOf: START, flatFeeCents: 1_500, cpmCents: 150, capCents: 15_000 } },
+      status: "failed",
+      ...patch,
+    }) as Action<"creator.payout">;
+
+  it("#5 a closed creator campaign keeps the commitment its in-flight submissions may still earn", () => {
+    const { ledger, store } = makeWorld();
+    store.campaigns.put(campaign({ budgetCents: 75_000, status: "closed" }));
+    store.governanceActions().put(campaignCreate(75_000));
+    store.submissions.put(submission({ id: "sub_000001", stage: "draft_approved" }));
+    store.submissions.put(submission({ id: "sub_000002", stage: "posted" }));
+    store.submissions.put(submission({ id: "sub_000003", stage: "rejected" }));
+    // Two in flight at up to 15,000 each.
+    expect(ledger.outstandingCommitments(START)).toBe(30_000);
+    store.submissions.put(submission({ id: "sub_000002", stage: "rejected" }));
+    expect(ledger.outstandingCommitments(START)).toBe(15_000);
+    store.submissions.put(submission({ id: "sub_000001", stage: "rejected" }));
+    expect(ledger.outstandingCommitments(START)).toBe(0);
+  });
+
+  it("#5 the in-flight hold never exceeds what the campaign has left", () => {
+    const { ledger, store } = makeWorld();
+    store.campaigns.put(campaign({ budgetCents: 20_000, status: "closed" }));
+    store.governanceActions().put(campaignCreate(20_000));
+    store.submissions.put(submission({ id: "sub_000001", stage: "post_approved" }));
+    for (const id of ["sub_000002", "sub_000003"]) store.submissions.put(submission({ id, stage: "posted" }));
+    // 7,500 accrued on sub 1 leaves 12,500 of the cap for the two in-flight posts.
+    expect(ledger.outstandingCommitments(START)).toBe(12_500);
+  });
+
+  it("#2 a payout of unknown outcome is booked as paid until released", () => {
+    const { ledger, store } = makeWorld();
+    store.campaigns.put(campaign());
+    store.submissions.put(submission());
+    const a = store.governanceActions().put(payout()) as Action<"creator.payout">;
+    const before = ledger.freeCash(START);
+    const cash = ledger.cash(START);
+    expect(ledger.accruedFor("sub_000001")).toBe(7_500);
+    ledger.holdUnknownPayout(a);
+    expect(ledger.cash(START)).toBe(cash - 7_500);
+    expect(ledger.paidOnCampaign("ccmp_000001")).toBe(7_500);
+    expect(ledger.accruedFor("sub_000001")).toBe(0);
+    expect(ledger.freeCash(START)).toBe(before);
+    expect(ledger.spentToday()).toBe(7_500);
+    expect(ledger.unknownPayouts()).toEqual([{ actionId: a.id, submissionId: "sub_000001", amountCents: 7_500, at: START }]);
+    ledger.releaseUnknownPayout(a.id);
+    expect(ledger.cash(START)).toBe(cash);
+    expect(ledger.paidOnCampaign("ccmp_000001")).toBe(0);
+    expect(ledger.accruedFor("sub_000001")).toBe(7_500);
+    expect(ledger.unknownPayouts()).toEqual([]);
+  });
+
+  it("#9 a submission whose payout the board rejected is no longer accrued", () => {
+    const { ledger, store } = makeWorld();
+    store.campaigns.put(campaign());
+    store.submissions.put(submission());
+    store.governanceActions().put(payout({ status: "rejected" }));
+    expect(ledger.accruedFor("sub_000001")).toBe(0);
+    // A new open payout for it makes the liability live again.
+    store.governanceActions().put(payout({ id: "act_000011", status: "awaiting_approval" }));
+    expect(ledger.accruedFor("sub_000001")).toBe(7_500);
   });
 });

@@ -11,12 +11,13 @@
  * Deterministic: the same venture, spec and config produce the same bytes. A re-render
  * replaces every generated file but keeps app/assets (the brand agent's icon).
  */
+import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import type { PriceLadderEntry, StudioConfig } from "../config/schema.ts";
 import { AppSpec as AppSpecSchema, type AppSpec, type BuildRecord, type Idea, type SensitiveDomain, type Venture } from "../core/types.ts";
 import { ladderEntry } from "../playbook/product.ts";
-import { lintSpec } from "../principles/product.ts";
+import { LOCALE, lintSpec } from "../principles/product.ts";
 import { legalMarkdown, privacyPolicy, termsOfUse } from "./legal.ts";
 import { metadataProblems, storeMetadata } from "./metadata.ts";
 import { applePrivacyAnswers, collectedData, dataSafetyCsv, privacyManifest, privacyManifestPlist } from "./privacy.ts";
@@ -67,7 +68,24 @@ const TEMPLATE_REQUIRED = [
   "server/src/index.ts",
 ];
 
-function write(path: string, content: string | Buffer, files: string[]): void {
+/** Write a generated file; a path that resolves outside the venture root is a bug or an attack and throws. */
+/** Rasterized screenshots by SVG hash: re-renders for a changed binding redraw the same images. */
+const PNG_CACHE = new Map<string, Buffer>();
+const PNG_CACHE_MAX = 256;
+
+function rasterizeCached(svg: string): Buffer {
+  const key = createHash("sha256").update(svg).digest("hex");
+  const hit = PNG_CACHE.get(key);
+  if (hit) return hit;
+  const png = rasterize(svg);
+  if (PNG_CACHE.size >= PNG_CACHE_MAX) PNG_CACHE.delete(PNG_CACHE.keys().next().value as string);
+  PNG_CACHE.set(key, png);
+  return png;
+}
+
+function write(root: string, path: string, content: string | Buffer, files: string[]): void {
+  const base = resolve(root);
+  if (!resolve(path).startsWith(base + sep)) throw new Error(`refusing to write outside ${base}: ${path}`);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content);
   files.push(path);
@@ -128,42 +146,43 @@ export function renderApp(input: RenderInput): BuildRecord & { files: string[] }
 
   const urls = ventureUrls(venture, config);
   const studio = buildStudioJson({ venture, spec, config, ...(input.appleTeamId ? { appleTeamId: input.appleTeamId } : {}) });
-  write(join(projectDir, "spec.json"), json(spec), files);
-  write(join(projectDir, "studio.json"), json(studio), files);
+  write(root, join(projectDir, "spec.json"), json(spec), files);
+  write(root, join(projectDir, "studio.json"), json(studio), files);
   const easPath = join(projectDir, "eas.json");
   if (existsSync(easPath)) writeFileSync(easPath, withAscAppId(readFileSync(easPath, "utf8"), venture.bindings.ascAppId));
-  write(join(projectDir, "server", "tenants", `${venture.slug}.json`), json(buildTenantJson({ venture, spec, config, domains })), files);
+  write(root, join(projectDir, "server", "tenants", `${venture.slug}.json`), json(buildTenantJson({ venture, spec, config, domains })), files);
 
-  const metaDir = join(root, "store", "metadata", spec.locale);
+  // An invalid locale is reported by the spec_lint check; it never becomes a path.
+  const metaDir = join(root, "store", "metadata", LOCALE.test(spec.locale) ? spec.locale : config.company.defaultLocale);
   const meta = storeMetadata(spec, urls);
-  for (const [name, value] of Object.entries(meta)) write(join(metaDir, `${name}.txt`), `${value}\n`, files);
+  for (const [name, value] of Object.entries(meta)) write(root, join(metaDir, `${name}.txt`), `${value}\n`, files);
 
   const shots = screenshotSvgs(spec);
   const shotProblems: string[] = [];
   for (const shot of shots) {
-    write(join(root, "store", "screenshots-src", `${shot.name}.svg`), shot.svg, files);
-    const png = rasterize(shot.svg);
+    write(root, join(root, "store", "screenshots-src", `${shot.name}.svg`), shot.svg, files);
+    const png = rasterizeCached(shot.svg);
     const info = pngInfo(png);
     if (!info || info.width !== SCREENSHOT_SIZE.width || info.height !== SCREENSHOT_SIZE.height || info.colorType !== 2) {
       shotProblems.push(`${shot.name}.png is not a ${SCREENSHOT_SIZE.width}x${SCREENSHOT_SIZE.height} RGB PNG`);
     }
-    write(join(root, "store", "screenshots", `${shot.name}.png`), png, files);
+    write(root, join(root, "store", "screenshots", `${shot.name}.png`), png, files);
   }
   if (shots.length < SCREENSHOT_COUNT[0] || shots.length > SCREENSHOT_COUNT[1]) {
     shotProblems.push(`${shots.length} screenshots (App Store Connect takes ${SCREENSHOT_COUNT[0]}..${SCREENSHOT_COUNT[1]})`);
   }
 
   const privacyAnswers = applePrivacyAnswers(spec);
-  write(join(root, "store", "app-privacy.json"), json(privacyAnswers), files);
-  write(join(root, "store", "data-safety.csv"), dataSafetyCsv(spec), files);
-  write(join(root, "ios", "PrivacyInfo.xcprivacy"), privacyManifestPlist(privacyManifest(spec)), files);
+  write(root, join(root, "store", "app-privacy.json"), json(privacyAnswers), files);
+  write(root, join(root, "store", "data-safety.csv"), dataSafetyCsv(spec), files);
+  write(root, join(root, "ios", "PrivacyInfo.xcprivacy"), privacyManifestPlist(privacyManifest(spec)), files);
 
   const legalInput = { spec, config, urls, updated: venture.updatedAt.slice(0, 10), products: paywallProducts(spec, config) };
   const privacy = privacyPolicy(legalInput);
   const terms = termsOfUse(legalInput);
-  write(join(root, "legal", "privacy.md"), legalMarkdown(privacy), files);
-  write(join(root, "legal", "terms.md"), legalMarkdown(terms), files);
-  for (const f of siteFiles({ spec, studio, privacy, terms })) write(join(root, "site", f.path), f.content, files);
+  write(root, join(root, "legal", "privacy.md"), legalMarkdown(privacy), files);
+  write(root, join(root, "legal", "terms.md"), legalMarkdown(terms), files);
+  for (const f of siteFiles({ spec, studio, privacy, terms })) write(root, join(root, "site", f.path), f.content, files);
 
   const checks: Check[] = [];
   const parsed = AppSpecSchema.safeParse(spec);

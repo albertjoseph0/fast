@@ -1,5 +1,5 @@
 import { generateKeyPairSync } from "node:crypto";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -232,14 +232,91 @@ describe("credential resolution", () => {
 describe("live iOS flows (fake App Store Connect)", () => {
   const created = (c: { json?: any }) => ({ data: { ...c.json.data, id: `new_${c.json.data.type}`, attributes: c.json.data.attributes ?? {} } });
 
-  it("submitForReview attaches the build, writes notes, sets manual release and submits", async () => {
+  const contactEnv = { ASC_REVIEW_CONTACT_FIRST_NAME: "Ada", ASC_REVIEW_CONTACT_LAST_NAME: "Lovelace", ASC_REVIEW_CONTACT_PHONE: "+1 415 555 0100" };
+  const product = { productId: "com.fast.astra.week_699_t3", ladderId: "week_699_t3", platform: "ios" as const, status: "created" as const };
+
+  it("submitForReview fills the required metadata and submits the version with its first subscriptions", async () => {
     const { write, f } = setup({
       dryRun: false,
-      env: { ...liveEnv, ASC_REVIEW_CONTACT_FIRST_NAME: "Ada", ASC_REVIEW_CONTACT_PHONE: "+1 415 555 0100" },
+      env: { ...liveEnv, ...contactEnv },
       routes: [
         { method: "GET", match: "/appStoreVersions?", json: { data: [{ type: "appStoreVersions", id: "V1", attributes: { versionString: "1.0.2" } }] } },
         { method: "PATCH", match: "/v1/appStoreVersions/V1/relationships/build", status: 204 },
         { method: "PATCH", match: "/v1/appStoreVersions/V1", json: (c) => c.json },
+        { method: "GET", match: /\/v1\/apps\/6400000001$/, json: { data: { type: "apps", id: "6400000001", attributes: { contentRightsDeclaration: null } } } },
+        { method: "PATCH", match: "/v1/apps/6400000001", json: (c) => c.json },
+        { method: "GET", match: "/v1/apps/6400000001/appPriceSchedule", json: { data: null } },
+        { method: "GET", match: "/v1/apps/6400000001/appPricePoints", json: { data: [{ type: "appPricePoints", id: "PP0.99", attributes: { customerPrice: "0.99" } }, { type: "appPricePoints", id: "PP0", attributes: { customerPrice: "0.0" } }] } },
+        { method: "POST", match: "/v1/appPriceSchedules", json: created },
+        { method: "GET", match: "/appStoreReviewDetail", json: { data: { type: "appStoreReviewDetails", id: "RD1", attributes: {} } } },
+        { method: "PATCH", match: "/v1/appStoreReviewDetails/RD1", json: (c) => c.json },
+        { method: "GET", match: "/reviewSubmissions?", json: { data: [] } },
+        { method: "GET", match: "/v1/apps/6400000001/subscriptionGroups", json: { data: [{ type: "subscriptionGroups", id: "G1", attributes: {} }] } },
+        {
+          method: "GET",
+          match: "/v1/subscriptionGroups/G1/subscriptions",
+          json: { data: [{ type: "subscriptions", id: "S1", attributes: { productId: product.productId, state: "READY_TO_SUBMIT" } }, { type: "subscriptions", id: "S9", attributes: { productId: "other.app.product", state: "READY_TO_SUBMIT" } }] },
+        },
+        { method: "GET", match: "/v1/subscriptionGroups/G1/versions", json: { data: [{ type: "subscriptionGroupVersions", id: "GV1", attributes: { state: "PREPARE_FOR_SUBMISSION" } }] } },
+        { method: "GET", match: "/v1/subscriptions/S1/versions", json: { data: [] } },
+        { method: "POST", match: "/v1/subscriptionVersions", json: created },
+        { method: "POST", match: "/v1/reviewSubmissions", json: created },
+        { method: "POST", match: "/v1/reviewSubmissionItems", json: created },
+        { method: "PATCH", match: "/v1/reviewSubmissions/", json: (c) => c.json },
+      ],
+    });
+    const ref = await write.submitForReview({
+      bindings: bindings({ ascAppId: "6400000001", products: [product] }),
+      platform: "ios",
+      storeBuildId: "BUILD7",
+      notesForReviewer: "Answer 3 questions; the verdict follows.",
+    });
+    expect(ref).toEqual({ op: "store.review", externalRef: { platform: "ios", appId: "6400000001", versionId: "V1", reviewSubmissionId: "new_reviewSubmissions" }, pollAfterSec: 3600 });
+    const writes = f.writes().map((w) => [w.method, w.url.replace(ASC, ""), w.json?.data]);
+    expect(writes[0]).toEqual(["PATCH", "/v1/appStoreVersions/V1/relationships/build", { type: "builds", id: "BUILD7" }]);
+    expect(writes[1]).toEqual(["PATCH", "/v1/appStoreVersions/V1", { type: "appStoreVersions", id: "V1", attributes: { releaseType: "MANUAL", copyright: "2026 Fast Studio LLC" } }]);
+    expect(writes[2]).toEqual(["PATCH", "/v1/apps/6400000001", { type: "apps", id: "6400000001", attributes: { contentRightsDeclaration: "DOES_NOT_USE_THIRD_PARTY_CONTENT" } }]);
+    expect(writes[3]![1]).toBe("/v1/appPriceSchedules");
+    const schedule = f.writes()[3]!.json;
+    expect(schedule.data.relationships.baseTerritory).toEqual({ data: { type: "territories", id: "USA" } });
+    expect(schedule.included).toEqual([{ type: "appPrices", id: "${price-free}", attributes: { startDate: null }, relationships: { appPricePoint: { data: { type: "appPricePoints", id: "PP0" } } } }]);
+    expect(writes[4]![2]).toEqual({
+      type: "appStoreReviewDetails",
+      id: "RD1",
+      attributes: { notes: "Answer 3 questions; the verdict follows.", contactEmail: "support@example.com", contactFirstName: "Ada", contactLastName: "Lovelace", contactPhone: "+1 415 555 0100" },
+    });
+    expect(writes.slice(5).map((w) => `${w[0]} ${w[1]}`)).toEqual([
+      "POST /v1/reviewSubmissions",
+      "POST /v1/subscriptionVersions",
+      "POST /v1/reviewSubmissionItems",
+      "POST /v1/reviewSubmissionItems",
+      "POST /v1/reviewSubmissionItems",
+      "PATCH /v1/reviewSubmissions/new_reviewSubmissions",
+    ]);
+    const items = f.writes().filter((w) => w.url.endsWith("/v1/reviewSubmissionItems")).map((w) => Object.entries(w.json.data.relationships).find(([k]) => k !== "reviewSubmission"));
+    expect(items).toEqual([
+      ["appStoreVersion", { data: { type: "appStoreVersions", id: "V1" } }],
+      ["subscriptionGroupVersion", { data: { type: "subscriptionGroupVersions", id: "GV1" } }],
+      ["subscriptionVersion", { data: { type: "subscriptionVersions", id: "new_subscriptionVersions" } }],
+    ]);
+    expect(f.writes().find((w) => w.url.endsWith("/v1/subscriptionVersions"))!.json.data.relationships).toEqual({ subscription: { data: { type: "subscriptions", id: "S1" } } });
+  });
+
+  it("submitForReview keeps a human's App Store answers and refuses to submit without a review contact", async () => {
+    const missing = setup({ dryRun: false, env: { ...liveEnv, ASC_REVIEW_CONTACT_FIRST_NAME: "Ada" } });
+    await expect(missing.write.submitForReview({ bindings: bindings({ ascAppId: "6400000001" }), platform: "ios", storeBuildId: "B", notesForReviewer: "n" })).rejects.toThrow(
+      "App Review contact missing: set ASC_REVIEW_CONTACT_LAST_NAME, ASC_REVIEW_CONTACT_PHONE",
+    );
+    expect(missing.f.calls).toEqual([]);
+
+    const { write, f } = setup({
+      dryRun: false,
+      env: { ...liveEnv, ...contactEnv },
+      routes: [
+        { method: "GET", match: "/appStoreVersions?", json: { data: [{ type: "appStoreVersions", id: "V1", attributes: { versionString: "1.0.2" } }] } },
+        { method: "PATCH", match: "/v1/appStoreVersions/V1", status: 204 },
+        { method: "GET", match: /\/v1\/apps\/6400000001$/, json: { data: { type: "apps", id: "6400000001", attributes: { contentRightsDeclaration: "USES_THIRD_PARTY_CONTENT" } } } },
+        { method: "GET", match: "/v1/apps/6400000001/appPriceSchedule", json: { data: { type: "appPriceSchedules", id: "6400000001", attributes: {} } } },
         { method: "GET", match: "/appStoreReviewDetail", json: { data: { type: "appStoreReviewDetails", id: "RD1", attributes: {} } } },
         { method: "PATCH", match: "/v1/appStoreReviewDetails/RD1", json: (c) => c.json },
         { method: "GET", match: "/reviewSubmissions?", json: { data: [] } },
@@ -248,17 +325,134 @@ describe("live iOS flows (fake App Store Connect)", () => {
         { method: "PATCH", match: "/v1/reviewSubmissions/", json: (c) => c.json },
       ],
     });
-    const ref = await write.submitForReview({ bindings: bindings({ ascAppId: "6400000001" }), platform: "ios", storeBuildId: "BUILD7", notesForReviewer: "Answer 3 questions; the verdict follows." });
-    expect(ref).toEqual({ op: "store.review", externalRef: { platform: "ios", appId: "6400000001", versionId: "V1", reviewSubmissionId: "new_reviewSubmissions" }, pollAfterSec: 3600 });
-    const writes = f.writes().map((w) => [w.method, w.url.replace(ASC, ""), w.json?.data]);
-    expect(writes[0]).toEqual(["PATCH", "/v1/appStoreVersions/V1/relationships/build", { type: "builds", id: "BUILD7" }]);
-    expect(writes[1]).toEqual(["PATCH", "/v1/appStoreVersions/V1", { type: "appStoreVersions", id: "V1", attributes: { releaseType: "MANUAL" } }]);
-    expect(writes[2]![2]).toEqual({
-      type: "appStoreReviewDetails",
-      id: "RD1",
-      attributes: { notes: "Answer 3 questions; the verdict follows.", contactEmail: "support@example.com", contactFirstName: "Ada", contactPhone: "+1 415 555 0100" },
+    await write.submitForReview({ bindings: bindings({ ascAppId: "6400000001" }), platform: "ios", storeBuildId: "B", notesForReviewer: "n" });
+    expect(f.writes().map((w) => `${w.method} ${w.url.replace(ASC, "")}`).filter((w) => w.includes("/v1/apps") || w.includes("PriceSchedule"))).toEqual([]);
+  });
+
+  it("submitForReview stops when a subscription still lacks metadata", async () => {
+    const { write, f } = setup({
+      dryRun: false,
+      env: { ...liveEnv, ...contactEnv },
+      routes: [
+        { method: "GET", match: "/appStoreVersions?", json: { data: [{ type: "appStoreVersions", id: "V1", attributes: { versionString: "1.0.2" } }] } },
+        { method: "PATCH", match: "/v1/appStoreVersions/V1", status: 204 },
+        { method: "GET", match: /\/v1\/apps\/6400000001$/, json: { data: { type: "apps", id: "6400000001", attributes: { contentRightsDeclaration: "DOES_NOT_USE_THIRD_PARTY_CONTENT" } } } },
+        { method: "GET", match: "/v1/apps/6400000001/appPriceSchedule", json: { data: { type: "appPriceSchedules", id: "6400000001", attributes: {} } } },
+        { method: "GET", match: "/appStoreReviewDetail", json: { data: { type: "appStoreReviewDetails", id: "RD1", attributes: {} } } },
+        { method: "PATCH", match: "/v1/appStoreReviewDetails/RD1", json: (c) => c.json },
+        { method: "GET", match: "/reviewSubmissions?", json: { data: [] } },
+        { method: "POST", match: "/v1/reviewSubmissions", json: created },
+        { method: "GET", match: "/v1/apps/6400000001/subscriptionGroups", json: { data: [{ type: "subscriptionGroups", id: "G1", attributes: {} }] } },
+        { method: "GET", match: "/v1/subscriptionGroups/G1/subscriptions", json: { data: [{ type: "subscriptions", id: "S1", attributes: { productId: product.productId, state: "MISSING_METADATA" } }] } },
+      ],
     });
-    expect(writes.slice(3).map((w) => `${w[0]} ${w[1]}`)).toEqual(["POST /v1/reviewSubmissions", "POST /v1/reviewSubmissionItems", "PATCH /v1/reviewSubmissions/new_reviewSubmissions"]);
+    await expect(write.submitForReview({ bindings: bindings({ ascAppId: "6400000001", products: [product] }), platform: "ios", storeBuildId: "B", notesForReviewer: "n" })).rejects.toThrow(
+      /com\.fast\.astra\.week_699_t3 are missing metadata/,
+    );
+    expect(f.writes().some((w) => w.url.includes("/v1/reviewSubmissionItems") || (w.method === "PATCH" && w.url.includes("/v1/reviewSubmissions/")))).toBe(false);
+  });
+
+  it("upsertSubscriptions prices and opens only the storefronts a subscription still lacks", async () => {
+    const terr = (id: string) => ({ type: "territories", id });
+    const { write, f } = setup({
+      dryRun: false,
+      env: liveEnv,
+      routes: [
+        { method: "GET", match: "/v1/apps/6400000001/subscriptionGroups", json: { data: [{ type: "subscriptionGroups", id: "G1", attributes: { referenceName: "Astra Pro" } }] } },
+        { method: "GET", match: "/subscriptionGroupLocalizations", json: { data: [{ type: "subscriptionGroupLocalizations", id: "GL", attributes: { locale: "en-US" } }] } },
+        { method: "GET", match: "/v1/subscriptionGroups/G1/subscriptions", json: { data: [{ type: "subscriptions", id: "S1", attributes: { productId: products[0]!.productId, state: "APPROVED" } }] } },
+        { method: "GET", match: "/subscriptionLocalizations", json: { data: [{ type: "subscriptionLocalizations", id: "SL", attributes: { locale: "en-US" } }] } },
+        {
+          method: "GET",
+          match: "/v1/subscriptions/S1/prices",
+          json: { data: ["USA", "CAN", "AUS", "NZL"].map((t) => ({ type: "subscriptionPrices", id: `P${t}`, attributes: {}, relationships: { territory: { data: terr(t) } } })) },
+        },
+        { method: "GET", match: "/v1/subscriptions/S1/pricePoints", json: { data: [{ type: "subscriptionPricePoints", id: "PP699", attributes: { customerPrice: "6.99" } }] } },
+        {
+          method: "GET",
+          match: "/v1/subscriptionPricePoints/PP699/equalizations",
+          json: { data: [{ type: "subscriptionPricePoints", id: "EQGBR", attributes: { customerPrice: "6.99" }, relationships: { territory: { data: terr("GBR") } } }] },
+        },
+        { method: "POST", match: "/v1/subscriptionPrices", json: created },
+        { method: "GET", match: "/v1/subscriptions/S1/planAvailabilities", json: { data: [{ type: "subscriptionPlanAvailabilities", id: "PA1", attributes: { planType: "UPFRONT" } }] } },
+        { method: "GET", match: "/v1/subscriptionPlanAvailabilities/PA1/availableTerritories", json: { data: ["CAN", "AUS", "NZL"].map(terr) } },
+        { method: "PATCH", match: "/v1/subscriptionPlanAvailabilities/PA1/relationships/availableTerritories", status: 204 },
+        { method: "GET", match: "/introductoryOffers", json: { data: ["CAN", "AUS", "NZL", "USA", "GBR"].map((t) => ({ type: "subscriptionIntroductoryOffers", id: `I${t}`, attributes: {}, relationships: { territory: { data: terr(t) } } })) } },
+      ],
+    });
+    await write.upsertSubscriptions({ bindings: bindings({ ascAppId: "6400000001" }), platform: "ios", groupName: "Astra Pro", products: [{ ...products[0]!, territories: ["AU", "CA", "NZ", "US", "GB"] }] });
+    expect(f.calls.find((c) => c.url.includes("/equalizations"))!.url).toContain("filter[territory]=GBR&");
+    expect(f.writes().map((w) => [w.method, w.url.replace(ASC, ""), w.json])).toEqual([
+      ["POST", "/v1/subscriptionPrices", { data: { type: "subscriptionPrices", attributes: { preserveCurrentPrice: false }, relationships: { subscription: { data: { type: "subscriptions", id: "S1" } }, territory: { data: terr("GBR") }, subscriptionPricePoint: { data: { type: "subscriptionPricePoints", id: "EQGBR" } } } } }],
+      ["PATCH", "/v1/subscriptionPlanAvailabilities/PA1/relationships/availableTerritories", { data: ["CAN", "AUS", "NZL", "USA", "GBR"].map(terr) }],
+    ]);
+  });
+
+  it("removeFromSale also takes every subscription off sale so none renews", async () => {
+    const { write, f } = setup({
+      dryRun: false,
+      env: liveEnv,
+      routes: [
+        { method: "GET", match: "/v1/apps/6400000001/appAvailabilityV2", json: { data: { type: "appAvailabilities", id: "AV" } } },
+        { method: "GET", match: "/v2/appAvailabilities/AV/territoryAvailabilities", json: { data: [{ type: "territoryAvailabilities", id: "TA-CAN", attributes: { available: true }, relationships: { territory: { data: { type: "territories", id: "CAN" } } } }] } },
+        { method: "PATCH", match: "/v1/territoryAvailabilities/TA-CAN", json: (c) => c.json },
+        { method: "GET", match: "/v1/apps/6400000001/subscriptionGroups", json: { data: [{ type: "subscriptionGroups", id: "G1", attributes: {} }] } },
+        { method: "GET", match: "/v1/subscriptionGroups/G1/subscriptions", json: { data: [{ type: "subscriptions", id: "S1", attributes: {} }, { type: "subscriptions", id: "S2", attributes: {} }] } },
+        { method: "GET", match: "/v1/subscriptions/S1/planAvailabilities", json: { data: [{ type: "subscriptionPlanAvailabilities", id: "PA1", attributes: { planType: "UPFRONT" } }] } },
+        { method: "GET", match: "/v1/subscriptions/S2/planAvailabilities", json: { data: [{ type: "subscriptionPlanAvailabilities", id: "PA2", attributes: { planType: "UPFRONT" } }] } },
+        { method: "GET", match: "/v1/subscriptionPlanAvailabilities/PA1/availableTerritories", json: { data: [{ type: "territories", id: "CAN" }] } },
+        { method: "GET", match: "/v1/subscriptionPlanAvailabilities/PA2/availableTerritories", json: { data: [] } },
+        { method: "PATCH", match: "/v1/subscriptionPlanAvailabilities/PA1/relationships/availableTerritories", status: 204 },
+      ],
+    });
+    await write.removeFromSale({ bindings: bindings({ ascAppId: "6400000001" }), platform: "ios" });
+    expect(f.writes().map((w) => [w.method, w.url.replace(ASC, ""), w.json])).toEqual([
+      ["PATCH", "/v1/territoryAvailabilities/TA-CAN", { data: { type: "territoryAvailabilities", id: "TA-CAN", attributes: { available: false } } }],
+      ["PATCH", "/v1/subscriptionPlanAvailabilities/PA1/relationships/availableTerritories", { data: [] }],
+    ]);
+  });
+
+  it("release succeeds without a write when the version was already released", async () => {
+    const versions = (state: string): FakeRoute[] => [
+      { method: "GET", match: "filter[appVersionState]=PENDING_DEVELOPER_RELEASE", json: { data: [] } },
+      { method: "GET", match: "/v1/apps/6400000001/appStoreVersions", json: { data: [{ type: "appStoreVersions", id: "V1", attributes: { appVersionState: state, createdDate: "2026-10-10" } }] } },
+    ];
+    for (const state of ["PROCESSING_FOR_DISTRIBUTION", "READY_FOR_DISTRIBUTION"]) {
+      const { write, f } = setup({ dryRun: false, env: liveEnv, routes: versions(state) });
+      await write.release({ bindings: bindings({ ascAppId: "6400000001" }), platform: "ios", phased: true });
+      expect(f.writes()).toEqual([]);
+    }
+    const { write } = setup({ dryRun: false, env: liveEnv, routes: versions("WAITING_FOR_REVIEW") });
+    await expect(write.release({ bindings: bindings({ ascAppId: "6400000001" }), platform: "ios", phased: false })).rejects.toThrow(/no version waiting for manual release \(latest version is WAITING_FOR_REVIEW\)/);
+  });
+
+  it("submitBuild writes the app id and the App Store Connect key file into eas.json before eas submit", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "eas-project-"));
+    writeFileSync(join(dir, "eas.json"), JSON.stringify({ build: { production: {} }, submit: { production: { ios: {}, android: { track: "internal" } } } }));
+    const calls: { args: string[]; easJson: unknown }[] = [];
+    const runner: EasRunner = async (_cmd, args, opts) => {
+      calls.push({ args, easJson: JSON.parse(readFileSync(join(opts.cwd, "eas.json"), "utf8")) });
+      return { code: 0, stdout: "Submission details: https://expo.dev/accounts/f/projects/a/submissions/0f1e2d3c-4b5a-4968-8776-655443322110", stderr: "" };
+    };
+    const { write, store } = setup({ dryRun: false, env: liveEnv, runner, venture: venture({ build: { projectDir: dir, version: "1.0.2", buildNumber: 7, specVersion: 1, checks: [], builtAt: clock.iso() } as Venture["build"] }) });
+    store.publishers.put({ id: "pub_ios", entityId: "ent_1", platform: "ios", externalTeamId: "TEAM123", kind: "organization", status: "active", secretRefs: {} });
+    const ref = await write.submitBuild({ bindings: bindings({ ascAppId: "6400000001", publisherAccountIds: { ios: "pub_ios" } }), platform: "ios", easBuildId: "eas-1" });
+    expect(ref.externalRef).toMatchObject({ easSubmissionId: "0f1e2d3c-4b5a-4968-8776-655443322110", appId: "6400000001" });
+    expect(calls[0]!.args.slice(0, 2)).toEqual(["submit", "--platform"]);
+    expect(calls[0]!.easJson).toEqual({
+      build: { production: {} },
+      submit: {
+        production: {
+          ios: { ascAppId: "6400000001", ascApiKeyPath: liveEnv.ASC_PRIVATE_KEY_PATH, ascApiKeyId: "KEYDEFAULT", ascApiKeyIssuerId: "issuer-1", appleTeamId: "TEAM123" },
+          android: { track: "internal" },
+        },
+      },
+    });
+    expect(readFileSync(join(dir, "eas.json"), "utf8")).not.toContain("PRIVATE KEY");
+
+    const { ASC_PRIVATE_KEY_PATH: _path, ...noKeyFile } = liveEnv;
+    const inline = setup({ dryRun: false, env: noKeyFile, runner: forbiddenRunner, venture: venture({ build: { projectDir: dir, version: "1.0.2", buildNumber: 7, specVersion: 1, checks: [], builtAt: clock.iso() } as Venture["build"] }) });
+    await expect(inline.write.submitBuild({ bindings: bindings({ ascAppId: "6400000001" }), platform: "ios", easBuildId: "eas-1" })).rejects.toThrow("EAS Submit needs the App Store Connect key as a .p8 file: set ASC_PRIVATE_KEY_PATH");
   });
 
   it("updateListing writes app info, version localization and screenshots against the build's version", async () => {
@@ -344,6 +538,22 @@ describe("poll", () => {
     expect((await invalid.read.poll(job(ref))).status).toBe("failed");
   });
 
+  it("fails a submitted build as soon as its EAS submission errors, flagging when a new binary is needed", async () => {
+    const ref: JobRef = { op: "store.submit_build", externalRef: { platform: "ios", easBuildId: "eas-1", projectDir: "/p", appId: "6400000001", easSubmissionId: "sub-1" }, pollAfterSec: 1 };
+    const runner = (submission: Record<string, unknown>): EasRunner => async (_cmd, args) => ({ code: 0, stdout: args[0] === "submit:view" ? JSON.stringify({ id: "sub-1", platform: "IOS", ...submission }) : view("FINISHED"), stderr: "" });
+    const noBuild: FakeRoute = { match: "/v1/builds?", json: { data: [] } };
+    const duplicate = setup({ dryRun: false, env: liveEnv, runner: runner({ status: "ERRORED", error: { errorCode: "SUBMISSION_SERVICE_IOS_UNKNOWN_ERROR", message: "The bundle version must be higher than the previously uploaded version." } }), routes: [noBuild] });
+    expect(await duplicate.read.poll(job(ref))).toEqual({
+      status: "failed",
+      result: { easSubmissionId: "sub-1", easSubmissionStatus: "ERRORED", rebuild: true },
+      error: "SUBMISSION_SERVICE_IOS_UNKNOWN_ERROR: The bundle version must be higher than the previously uploaded version.",
+    });
+    const auth = setup({ dryRun: false, env: liveEnv, runner: runner({ status: "ERRORED", error: { message: "Invalid App Store Connect API key" } }), routes: [noBuild] });
+    expect(await auth.read.poll(job(ref))).toMatchObject({ status: "failed", result: { rebuild: false }, error: "Invalid App Store Connect API key" });
+    const uploading = setup({ dryRun: false, env: liveEnv, runner: runner({ status: "IN_PROGRESS" }), routes: [noBuild] });
+    expect(await uploading.read.poll(job(ref))).toMatchObject({ status: "running", pollAfterSec: 300 });
+  });
+
   it("maps a Play upload once the version code shows up on a track", async () => {
     const ref: JobRef = { op: "store.submit_build", externalRef: { platform: "android", easBuildId: "eas-1", projectDir: "/p", appId: "com.fast.astra" }, pollAfterSec: 1 };
     const { read } = setup({
@@ -379,8 +589,21 @@ describe("poll", () => {
     ];
     expect(await setup({ dryRun: false, env: liveEnv, routes: routes("PENDING_DEVELOPER_RELEASE", "COMPLETE") }).read.poll(job(ref))).toEqual({
       status: "succeeded",
-      result: { reviewState: "approved", versionState: "PENDING_DEVELOPER_RELEASE" },
+      result: { reviewState: "approved", versionState: "PENDING_DEVELOPER_RELEASE", productStates: {} },
     });
+    const withProducts = await setup({
+      dryRun: false,
+      env: liveEnv,
+      routes: [
+        ...routes("PENDING_DEVELOPER_RELEASE", "COMPLETE"),
+        { match: "/v1/apps/A/subscriptionGroups", json: { data: [{ type: "subscriptionGroups", id: "G1", attributes: {} }] } },
+        {
+          match: "/v1/subscriptionGroups/G1/subscriptions",
+          json: { data: [{ type: "subscriptions", id: "S1", attributes: { productId: "p.week", state: "APPROVED" } }, { type: "subscriptions", id: "S2", attributes: { productId: "p.year", state: "REJECTED" } }] },
+        },
+      ],
+    }).read.poll(job(ref));
+    expect(withProducts.result?.productStates).toEqual({ "p.week": "APPROVED", "p.year": "REJECTED" });
     const rejected = await setup({ dryRun: false, env: liveEnv, routes: routes("REJECTED", "UNRESOLVED_ISSUES") }).read.poll(job(ref));
     expect(rejected).toMatchObject({ status: "failed", result: { reviewState: "rejected" } });
     expect((rejected.result?.rejectionReasons as string[])[0]).toContain("Resolution Center");

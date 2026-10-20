@@ -19,6 +19,18 @@ export function netPriceCents(usdCents: Cents, geo: string, platform: StorePlatf
   return (usdCents / (1 + vat)) * (1 - fee);
 }
 
+/** A storefront, or installs by storefront when counts pooled across storefronts are priced. */
+export type GeoMix = string | Record<string, number>;
+
+/** Net price for one storefront, or the install-weighted mean over a mix (equal weights without installs). */
+export function mixedNetPriceCents(usdCents: Cents, geo: GeoMix, platform: StorePlatform, config: StudioConfig): number {
+  if (typeof geo === "string") return netPriceCents(usdCents, geo, platform, config);
+  const entries = Object.entries(geo);
+  if (entries.length === 0) return netPriceCents(usdCents, "US", platform, config);
+  const total = entries.reduce((s, [, w]) => s + w, 0);
+  return entries.reduce((s, [g, w]) => s + netPriceCents(usdCents, g, platform, config) * (total > 0 ? w / total : 1 / entries.length), 0);
+}
+
 /** Expected paid charges within `horizonDays` for a user who converts. */
 export function chargesWithin(entry: PriceLadderEntry, horizonDays: number, config: StudioConfig): number {
   const e = config.economics;
@@ -50,7 +62,7 @@ export interface RpiInput {
   trialStartRate: number;
   keep24: number;
   entry: PriceLadderEntry;
-  geo: string;
+  geo: GeoMix;
   platform: StorePlatform;
   horizonDays: number;
   config: StudioConfig;
@@ -63,7 +75,7 @@ export function predictNetRpiCents(i: RpiInput): number {
     i.trialStartRate *
     convert *
     chargesWithin(i.entry, i.horizonDays, i.config) *
-    netPriceCents(i.entry.usdCents, i.geo, i.platform, i.config) *
+    mixedNetPriceCents(i.entry.usdCents, i.geo, i.platform, i.config) *
     (1 - i.config.economics.refundHaircutPrior)
   );
 }
@@ -72,7 +84,7 @@ export interface RpiPosteriorInput {
   trialStart: { successes: number; trials: number; prior: number };
   keep24: { successes: number; trials: number; prior: number };
   entry: PriceLadderEntry;
-  geo: string;
+  geo: GeoMix;
   platform: StorePlatform;
   horizonDays: number;
   config: StudioConfig;

@@ -433,7 +433,11 @@ export type HumanTaskKind =
   /** App Store metadata no API covers well: age rating questionnaire, category, copyright, content rights, price. */
   | "apple.app_info"
   /** Post an owned-account draft (TikTok inbox) by hand, applying the exact disclosure labels listed. */
-  | "social.finish_draft";
+  | "social.finish_draft"
+  /** A creator payout the marketplace refused after retries (usually the creator's payout setup). */
+  | "creators.payout_failed"
+  /** A creator payout whose call failed after it may have reached the marketplace: was it sent? */
+  | "creators.verify_payout";
 
 export interface HumanTask {
   id: string;
@@ -488,13 +492,15 @@ export interface StageTransition {
   reason: string;
 }
 
+export type BakedBinding = "webBaseUrl" | "deepLinkDomain" | "easProjectId" | "ascAppId" | "backendUrl";
+
 export interface BuildRecord {
   projectDir: string;
   version: string;
   buildNumber: number;
   specVersion: number;
-  /** The published site the render baked into the app (legal links, deep-link domain). */
-  webBaseUrl?: string;
+  /** Bindings the render baked into the app (site, deep links, build project, app record); a change re-renders. */
+  baked?: Partial<Record<BakedBinding, string>>;
   checks: { name: string; passed: boolean; detail: string }[];
   builtAt: Iso;
   easBuildId?: string;
@@ -611,6 +617,8 @@ export interface Venture {
     /** Set once the variant is live (remote config executed, build live, hooks created). */
     readyAt?: Iso;
   };
+  /** The allocator's current daily growth budget while scaling (persisted so plans survive restarts). */
+  budget?: { dailyCents: Cents; changedAt: Iso };
   /** Human task ids this venture is waiting on; blocked time does not count against the time box. */
   blockedOn: string[];
   blockedMs: number;
@@ -1012,8 +1020,16 @@ export interface ExternalSubmission {
   postUrl?: string;
   /** Untrusted: text supplied by an external creator. */
   untrustedCaption: string;
+  /** Untrusted: the caption or title on the live post, when the marketplace reports it. */
+  untrustedPostCaption?: string;
   stage: "draft_submitted" | "posted";
   submittedAt: Iso;
+  /** When the post went live, when the marketplace reports it. */
+  postedAt?: Iso;
+  /** The post's current platform view count, when the marketplace reports it. */
+  views?: number;
+  /** The creator's audience as the marketplace reports it (needed to clear posts for 18+ apps). */
+  creatorAudience?: { geo: Record<string, number>; under18Share: number | null; followers: number; medianViews30d: number };
 }
 
 export interface CreatorSubmission {
@@ -1257,6 +1273,8 @@ export interface Approval {
   at: Iso;
   channel: "cli" | "web";
   note?: string;
+  /** needs_human rule ids the approver was shown; absent (older approvals) covers every rule. */
+  coveredRuleIds?: string[];
 }
 
 export interface Commitment {
@@ -1300,6 +1318,12 @@ export interface StoreListing {
 }
 
 /** Typed payload per action kind. */
+/**
+ * Why a kill or sunset was proposed. Time-box and spend-cap stops are withdrawn if the venture
+ * validates before the board decides; the others stand.
+ */
+export type StopCause = "evidence" | "timebox" | "spend_cap" | "scale_declined" | "app_review" | "human";
+
 export interface ActionPayloads {
   "store.register_bundle": { platform: StorePlatform; bundleId: string; capabilities: ("push" | "associated_domains" | "sign_in_with_apple")[] };
   "store.create_app": { platform: StorePlatform; bundleId: string; name: string; sku: string; primaryLocale: string };
@@ -1335,8 +1359,8 @@ export interface ActionPayloads {
   "ads.budget_change": { adCampaignId: string; fromDailyCents: Cents; toDailyCents: Cents; evidence: string };
   "ads.pause": { adCampaignId: string; reason: string };
   "venture.scale": { evidence: string; experimentIds: string[]; proposedDailyCents: Cents; addTerritories: string[] };
-  "venture.kill": { reason: string };
-  "venture.sunset": { activeSubscribers: number; plan: "serve_until_lapse" | "stop_renewals_and_notify"; reason: string };
+  "venture.kill": { reason: string; cause?: StopCause };
+  "venture.sunset": { activeSubscribers: number; plan: "serve_until_lapse" | "stop_renewals_and_notify"; reason: string; cause?: StopCause };
   "venture.exit_flag": { holdNpvCents: Cents; saleEstimateCents: Cents; rationale: string };
   "support.reply": { ticketId: string; reply: string; aiDisclosed: boolean };
 }
@@ -1479,6 +1503,7 @@ export type StudioEventType =
   | "experiment.observed"
   | "experiment.decided"
   | "creative.batch_closed"
+  | "content.requeued"
   | "action.proposed"
   | "action.decided"
   | "action.executed"

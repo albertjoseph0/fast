@@ -9,6 +9,7 @@
  * needs; poll() maps external states onto JobPoll (results use the keys the orchestrator
  * folds back: easBuildId, artifactUrl, storeBuildId, reviewState, rejectionReasons).
  */
+import { resolve } from "node:path";
 import type { Clock, StoreRead, StoreWrite } from "../core/ports.ts";
 import type { StudioStore } from "../core/store.ts";
 import type {
@@ -26,6 +27,7 @@ import type {
   VentureBindings,
 } from "../core/types.ts";
 import type { StudioConfig } from "../config/schema.ts";
+import { SystemClock } from "../core/clock.ts";
 import { HttpClient, HttpError } from "./http.ts";
 import type { DryRunRecorder } from "./http.ts";
 import { AscClient } from "./apple/appStoreConnect.ts";
@@ -36,9 +38,9 @@ import { EasCli } from "./expo/eas.ts";
 import type { EasRunner } from "./expo/eas.ts";
 
 export const ENV_VARS: readonly { name: string; purpose: string; required: boolean }[] = [
-  { name: "ASC_REVIEW_CONTACT_FIRST_NAME", purpose: "App Review contact first name (required by Apple on the first submission)", required: false },
-  { name: "ASC_REVIEW_CONTACT_LAST_NAME", purpose: "App Review contact last name", required: false },
-  { name: "ASC_REVIEW_CONTACT_PHONE", purpose: "App Review contact phone, e.g. +1 415 555 0100", required: false },
+  { name: "ASC_REVIEW_CONTACT_FIRST_NAME", purpose: "App Review contact first name (Apple refuses a submission without a contact)", required: true },
+  { name: "ASC_REVIEW_CONTACT_LAST_NAME", purpose: "App Review contact last name", required: true },
+  { name: "ASC_REVIEW_CONTACT_PHONE", purpose: "App Review contact phone, e.g. +1 415 555 0100", required: true },
   { name: "EXPO_TOKEN", purpose: "Expo token for EAS; a publisher can name another variable in secretRefs.expoToken", required: true },
 ];
 
@@ -71,6 +73,12 @@ const CAPABILITIES: Record<string, string> = {
  */
 export const PLAY_TARGETED_FRACTION = 0.999;
 const PLAY_PHASED_FRACTION = 0.2;
+
+/** A version in one of these states was already released (a store.release retry after an unacknowledged success). */
+const RELEASED_STATES = new Set(["PENDING_APPLE_RELEASE", "PROCESSING_FOR_DISTRIBUTION", "PROCESSING_FOR_APP_STORE", "READY_FOR_DISTRIBUTION", "READY_FOR_SALE"]);
+
+/** EAS submission errors that a new binary (new build number) fixes; re-uploading the same one cannot. */
+const REBUILD_ERROR = /CFBundleVersion|bundle version|build number|version code|already been (used|uploaded)|ITMS-9\d{4}/i;
 
 const APPROVED_STATES = new Set([
   "ACCEPTED",
@@ -214,8 +222,10 @@ export class LiveStores implements StoreRead, StoreWrite {
           { productId: def.productId, name: `${def.displayName} ${def.ladderId}`, displayName: def.displayName, period: def.period, groupLevel: 1 },
           locale,
         );
-        if (created || !(await asc.subscriptionHasPrices(subscription.id))) await asc.setSubscriptionPrices(subscription.id, def.usdCents, territories);
-        if (created || !(await asc.subscriptionHasAvailability(subscription.id))) await asc.setSubscriptionAvailability(subscription.id, territories);
+        // Per territory, so scaling into new storefronts (or retrying a partial write) fills the gaps only.
+        await asc.setSubscriptionPrices(subscription.id, def.usdCents, territories, created ? new Set() : await asc.subscriptionPricedTerritories(subscription.id));
+        if (created) await asc.setSubscriptionAvailability(subscription.id, territories);
+        else await asc.ensureSubscriptionAvailability(subscription.id, territories);
         if (def.trialDays > 0) await asc.ensureFreeTrial(subscription.id, def.trialDays, territories);
         ids.push(subscription.id);
       }
@@ -246,8 +256,14 @@ export class LiveStores implements StoreRead, StoreWrite {
   async submitBuild(req: { bindings: VentureBindings; platform: StorePlatform; easBuildId: string }): Promise<JobRef> {
     const projectDir = this.projectDir(req.bindings);
     const eas = this.eas(req.bindings);
-    const submission = await eas.submit({ platform: req.platform, buildId: req.easBuildId, projectDir, env: this.easEnv(req.bindings, req.platform) });
     const appId = req.platform === "ios" ? await this.iosAppId(req.bindings) : req.bindings.androidPackage;
+    const submission = await eas.submit({
+      platform: req.platform,
+      buildId: req.easBuildId,
+      projectDir,
+      env: this.easEnv(req.bindings, req.platform),
+      ...(req.platform === "ios" ? { submitProfile: this.iosSubmitProfile(req.bindings, appId) } : {}),
+    });
     return this.job("store.submit_build", { platform: req.platform, easBuildId: req.easBuildId, projectDir, appId, ...(submission.id ? { easSubmissionId: submission.id } : {}) }, 600);
   }
 
@@ -308,12 +324,17 @@ export class LiveStores implements StoreRead, StoreWrite {
   async submitForReview(req: { bindings: VentureBindings; platform: StorePlatform; storeBuildId: string; notesForReviewer: string }): Promise<JobRef> {
     if (req.platform === "ios") {
       const asc = this.asc(req.bindings);
+      const contact = this.reviewContact(asc.dryRun);
       const appId = await this.iosAppId(req.bindings);
       const version = await asc.ensureEditableVersion(appId, this.versionString(req.bindings));
       await asc.attachBuild(version.id, req.storeBuildId);
-      await asc.updateVersion(version.id, { releaseType: "MANUAL" });
-      await asc.upsertReviewDetail(version.id, { notes: req.notesForReviewer, contactEmail: this.opts.config.company.supportEmail, ...this.reviewContact() });
-      const reviewSubmissionId = await asc.submitForReview(appId, version.id);
+      const year = (this.opts.clock ?? new SystemClock()).now().getUTCFullYear();
+      await asc.updateVersion(version.id, { releaseType: "MANUAL", copyright: `${year} ${this.opts.config.company.legalName}` });
+      // The studio's apps show their own generated content; a human's answer in App Store Connect wins.
+      await asc.ensureContentRights(appId, "DOES_NOT_USE_THIRD_PARTY_CONTENT");
+      await asc.ensureFreeAppPrice(appId);
+      await asc.upsertReviewDetail(version.id, { notes: req.notesForReviewer, contactEmail: this.opts.config.company.supportEmail, ...contact });
+      const reviewSubmissionId = await asc.submitForReview(appId, version.id, { productIds: req.bindings.products.map((p) => p.productId) });
       return this.job("store.review", { platform: "ios", appId, versionId: version.id, reviewSubmissionId }, 3_600);
     }
     const countries = this.territories(req.bindings, "android").map((t) => t.toUpperCase());
@@ -332,7 +353,12 @@ export class LiveStores implements StoreRead, StoreWrite {
       const asc = this.asc(req.bindings);
       const appId = await this.iosAppId(req.bindings);
       const pending = (await asc.findVersions(appId, ["PENDING_DEVELOPER_RELEASE"]))[0];
-      if (!pending && !asc.dryRun) throw new Error(`App Store Connect app ${appId} has no version waiting for manual release`);
+      if (!pending && !asc.dryRun) {
+        const latest = await asc.latestVersion(appId);
+        const state = String(latest?.attributes.appVersionState ?? latest?.attributes.appStoreState ?? "");
+        if (RELEASED_STATES.has(state)) return;
+        throw new Error(`App Store Connect app ${appId} has no version waiting for manual release (latest version is ${state || "missing"})`);
+      }
       const versionId = pending?.id ?? `dry_appStoreVersions_${appId}`;
       if (req.phased) await asc.enablePhasedRelease(versionId);
       await asc.requestRelease(versionId);
@@ -348,8 +374,15 @@ export class LiveStores implements StoreRead, StoreWrite {
     });
   }
 
+  /** iOS also takes the subscriptions off sale: on-sale subscriptions keep renewing for a removed app. */
   async removeFromSale(req: { bindings: VentureBindings; platform: StorePlatform }): Promise<void> {
-    if (req.platform === "ios") return this.asc(req.bindings).setTerritories(await this.iosAppId(req.bindings), []);
+    if (req.platform === "ios") {
+      const asc = this.asc(req.bindings);
+      const appId = await this.iosAppId(req.bindings);
+      await asc.setTerritories(appId, []);
+      await asc.removeSubscriptionsFromSale(appId);
+      return;
+    }
     await this.editProduction(req.bindings, (releases) => {
       const active = releases.filter((r) => r.status === "inProgress" || r.status === "completed");
       if (active.length === 0) return null;
@@ -452,7 +485,7 @@ export class LiveStores implements StoreRead, StoreWrite {
     if (!appBuildVersion) return { status: "running", error: "EAS build has no build number yet", pollAfterSec: 300 };
     const appId = ref.appId ?? (await this.iosAppId(bindings));
     const build = await this.asc(bindings).findBuild(appId, { version: appBuildVersion, ...(appVersion ? { shortVersion: appVersion } : {}) });
-    if (!build) return { status: "running", result: { appBuildVersion }, pollAfterSec: 300 };
+    if (!build) return (await this.easSubmissionFailure(bindings, ref)) ?? { status: "running", result: { appBuildVersion }, pollAfterSec: 300 };
     const processingState = String(build.attributes.processingState ?? "");
     if (processingState === "VALID") return { status: "succeeded", result: { storeBuildId: build.id, processingState } };
     if (processingState === "FAILED" || processingState === "INVALID") return { status: "failed", result: { storeBuildId: build.id, processingState }, error: `App Store build processing ${processingState}` };
@@ -466,7 +499,20 @@ export class LiveStores implements StoreRead, StoreWrite {
     const pkg = ref.appId ?? bindings.androidPackage;
     const tracks = await play.withReadEdit(pkg, (editId) => play.listTracks(pkg, editId));
     const found = tracks.some((t) => (t.releases ?? []).some((r) => (r.versionCodes ?? []).includes(appBuildVersion)));
-    return found ? { status: "succeeded", result: { storeBuildId: appBuildVersion } } : { status: "running", result: { appBuildVersion }, pollAfterSec: 300 };
+    if (found) return { status: "succeeded", result: { storeBuildId: appBuildVersion } };
+    return (await this.easSubmissionFailure(bindings, ref)) ?? { status: "running", result: { appBuildVersion }, pollAfterSec: 300 };
+  }
+
+  /**
+   * `eas submit --no-wait` only schedules the upload, so a failed upload shows up on the EAS
+   * submission, not in the store. `rebuild` tells the orchestrator a new binary is needed.
+   */
+  private async easSubmissionFailure(bindings: VentureBindings, ref: Record<string, string>): Promise<JobPoll | null> {
+    if (!ref.easSubmissionId) return null;
+    const submission = await this.eas(bindings).submissionStatus({ id: ref.easSubmissionId, projectDir: ref.projectDir ?? this.projectDir(bindings) });
+    if (submission.status !== "ERRORED" && submission.status !== "CANCELED") return null;
+    const error = submission.error ?? `EAS submission ${submission.status.toLowerCase()}`;
+    return { status: "failed", result: { easSubmissionId: submission.id, easSubmissionStatus: submission.status, rebuild: REBUILD_ERROR.test(error) }, error };
   }
 
   private async pollScreenshots(bindings: VentureBindings, ref: Record<string, string>): Promise<JobPoll> {
@@ -491,7 +537,12 @@ export class LiveStores implements StoreRead, StoreWrite {
     const submission = ref.reviewSubmissionId ? await asc.getReviewSubmission(ref.reviewSubmissionId) : null;
     const versionState = (version?.attributes.appVersionState ?? version?.attributes.appStoreState) as string | undefined;
     const submissionState = submission?.attributes.state as string | undefined;
-    return iosReviewPoll({ appId: ref.appId ?? "", ...(versionState ? { versionState } : {}), ...(submissionState ? { submissionState } : {}) });
+    const poll = iosReviewPoll({ appId: ref.appId ?? "", ...(versionState ? { versionState } : {}), ...(submissionState ? { submissionState } : {}) });
+    if (poll.status !== "succeeded" || !ref.appId) return poll;
+    // Each subscription is reviewed on its own; only those Apple approved can be sold.
+    const productStates: Record<string, string> = {};
+    for (const { subscription } of await asc.appSubscriptions(ref.appId)) productStates[String(subscription.attributes.productId)] = String(subscription.attributes.state ?? "");
+    return { ...poll, result: { ...poll.result, productStates } };
   }
 
   /**
@@ -664,13 +715,43 @@ export class LiveStores implements StoreRead, StoreWrite {
     return out;
   }
 
-  private reviewContact(): { contactFirstName?: string; contactLastName?: string; contactPhone?: string } {
+  /**
+   * eas.json submit profile fields for iOS: `eas submit --non-interactive` reads the app id and
+   * the App Store Connect key only from eas.json. Ids and the key's file path, never key material.
+   */
+  private iosSubmitProfile(bindings: VentureBindings, ascAppId: string): Record<string, string> {
+    const { refs, publisher } = this.refs(bindings, "ios");
     const env = this.opts.env;
+    const keyPath = refs.privateKeyPath ? env[refs.privateKeyPath] : undefined;
+    const keyId = refs.keyId ? env[refs.keyId] : undefined;
+    const issuerId = refs.issuerId ? env[refs.issuerId] : undefined;
+    if (!this.opts.dryRun && !(keyPath && keyId && issuerId)) {
+      const names = [refs.privateKeyPath ?? "ASC_PRIVATE_KEY_PATH", refs.keyId ?? "ASC_KEY_ID", refs.issuerId ?? "ASC_ISSUER_ID"];
+      throw new Error(`EAS Submit needs the App Store Connect key as a .p8 file: set ${names.filter((n) => !env[n]).join(", ")}`);
+    }
+    const teamId = publisher?.externalTeamId && publisher.externalTeamId !== "UNSET" ? publisher.externalTeamId : undefined;
     return {
-      ...(env.ASC_REVIEW_CONTACT_FIRST_NAME ? { contactFirstName: env.ASC_REVIEW_CONTACT_FIRST_NAME } : {}),
-      ...(env.ASC_REVIEW_CONTACT_LAST_NAME ? { contactLastName: env.ASC_REVIEW_CONTACT_LAST_NAME } : {}),
-      ...(env.ASC_REVIEW_CONTACT_PHONE ? { contactPhone: env.ASC_REVIEW_CONTACT_PHONE } : {}),
+      ascAppId,
+      // eas runs in the project directory, so a relative path from the studio's env must be made absolute.
+      ...(keyPath ? { ascApiKeyPath: resolve(keyPath) } : {}),
+      ...(keyId ? { ascApiKeyId: keyId } : {}),
+      ...(issuerId ? { ascApiKeyIssuerId: issuerId } : {}),
+      ...(teamId ? { appleTeamId: teamId } : {}),
     };
+  }
+
+  /** The App Review contact; Apple refuses a submission without one, so live mode requires it. */
+  private reviewContact(dryRun: boolean): { contactFirstName?: string; contactLastName?: string; contactPhone?: string } {
+    const env = this.opts.env;
+    const vars = { contactFirstName: "ASC_REVIEW_CONTACT_FIRST_NAME", contactLastName: "ASC_REVIEW_CONTACT_LAST_NAME", contactPhone: "ASC_REVIEW_CONTACT_PHONE" } as const;
+    const missing = Object.values(vars).filter((name) => !env[name]);
+    if (missing.length > 0 && !dryRun) throw new Error(`App Review contact missing: set ${missing.join(", ")}`);
+    const out: { contactFirstName?: string; contactLastName?: string; contactPhone?: string } = {};
+    for (const [key, name] of Object.entries(vars) as [keyof typeof vars, string][]) {
+      const value = env[name];
+      if (value) out[key] = value;
+    }
+    return out;
   }
 
   private async iosAppId(bindings: VentureBindings): Promise<string> {
