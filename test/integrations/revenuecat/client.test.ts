@@ -3,7 +3,7 @@ import { defaultConfig } from "../../../src/config/schema.ts";
 import { SimClock } from "../../../src/core/clock.ts";
 import { StudioStore } from "../../../src/core/store.ts";
 import type { VentureBindings } from "../../../src/core/types.ts";
-import { DryRunRecorder } from "../../../src/integrations/http.ts";
+import { DryRunRecorder, MissingBindingError } from "../../../src/integrations/http.ts";
 import { LiveMonetizationWrite, storeIdentifier } from "../../../src/integrations/revenuecat/client.ts";
 import { fake, noFetch, noSleep } from "../posthog/fakeFetch.ts";
 
@@ -142,7 +142,9 @@ describe("LiveMonetizationWrite.configure", () => {
   it("refuses products that are not bound to the venture and a missing project", async () => {
     const { port } = setup(fake());
     await expect(port.configure({ bindings, productIds: ["com.other.x"], entitlementId: "pro" })).rejects.toThrow(/not bound/);
-    await expect(port.configure({ bindings: { ...bindings, revenueCatProjectId: undefined }, productIds, entitlementId: "pro" })).rejects.toThrow(/revenueCatProjectId/);
+    const missing = port.configure({ bindings: { ...bindings, revenueCatProjectId: undefined }, productIds, entitlementId: "pro" });
+    await expect(missing).rejects.toBeInstanceOf(MissingBindingError);
+    await expect(missing).rejects.toMatchObject({ service: "revenuecat", binding: "revenueCatProjectId", message: expect.stringMatching(/integrations\.bind_projects/) });
   });
 
   it("revenueOverview reads the overview metrics", async () => {

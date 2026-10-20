@@ -21,6 +21,7 @@ import type {
 } from "../core/types.ts";
 import { deriveDisclosure, labelsFor } from "../governance/disclosure.ts";
 import { OPEN_STATUSES } from "../governance/outbox.ts";
+import { adultOnly } from "../governance/policy.ts";
 import { computePayout } from "../governance/payouts.ts";
 import { allocate, armsToCull, postsPerArm, probabilityBest, type ArmStats } from "../lab/creative.ts";
 import { decideExperiment, evaluateCell } from "../lab/decide.ts";
@@ -35,6 +36,8 @@ import { lintCopy } from "../principles/copy.ts";
 const DAY_MS = 86_400_000;
 /** Payout attempts the marketplace may refuse before a human looks at the creator's setup. */
 const MAX_PAYOUT_ATTEMPTS = 3;
+/** Days a posted submission may lack a URL before a human is asked to find it. */
+const POST_URL_GRACE_DAYS = 2;
 /** Re-read a post's views at most this often while it waits for its view lock. */
 const VIEW_REFRESH_HOURS = 20;
 
@@ -147,15 +150,36 @@ function captionProblems(text: string): string[] {
     .map((f) => f.message);
 }
 
-async function reviewWithLint(ctx: TickContext, deps: StudioDeps, sub: CreatorSubmission, campaign: CreatorCampaign): Promise<NonNullable<CreatorSubmission["review"]>> {
+/**
+ * Campaign fields that keep an 18+ app's creator recruitment to adult audiences: a brief line so
+ * creators with young audiences don't apply, and the ceiling for marketplaces that filter on it.
+ */
+export function adultRecruitment(ctx: TickContext, v: Venture, brief: CreatorCampaign["brief"]): Pick<CreatorCampaign, "brief"> & Partial<Pick<CreatorCampaign, "creatorAudienceUnder18MaxPct">> {
+  if (!adultOnly(ctx, v)) return { brief };
+  const max = ctx.config.creators.maxAudienceUnder18Share;
+  const line = `Only apply if at least ${Math.round((1 - max) * 100)}% of your audience is 18 or older: this app is for adults`;
+  return { brief: { ...brief, mustInclude: [...brief.mustInclude, line] }, creatorAudienceUnder18MaxPct: max };
+}
+
+/** An 18+ app is never promoted to a mostly-young audience: such a creator's draft or post is turned down. */
+function audienceProblem(ctx: TickContext, v: Venture, sub: CreatorSubmission): string | null {
+  if (!adultOnly(ctx, v)) return null;
+  const share = ctx.store.creators.get(sub.creatorId)?.audienceUnder18Share ?? null;
+  const max = ctx.config.creators.maxAudienceUnder18Share;
+  return share !== null && share > max ? `${Math.round(share * 100)}% of your audience is under 18, and this app is for adults only` : null;
+}
+
+async function reviewWithLint(ctx: TickContext, deps: StudioDeps, v: Venture, sub: CreatorSubmission, campaign: CreatorCampaign): Promise<NonNullable<CreatorSubmission["review"]>> {
   const review = await deps.agents.reviewSubmission(ctx, { submission: sub, brief: campaign.brief });
-  const problems = captionProblems(sub.untrustedCaption);
-  if (!problems.length) return { approve: review.approve, injectionAttempt: review.injectionAttempt, policyIssues: review.policyIssues, note: review.note };
+  const audience = audienceProblem(ctx, v, sub);
+  const caption = captionProblems(sub.untrustedCaption);
+  if (!caption.length && !audience) return { approve: review.approve, injectionAttempt: review.injectionAttempt, policyIssues: review.policyIssues, note: review.note };
+  const note = audience ? `Thank you, but we can't use this: ${audience}.` : `Please remove from the caption: ${caption.join("; ")}`;
   return {
     approve: false,
     injectionAttempt: review.injectionAttempt,
-    policyIssues: [...review.policyIssues, ...problems],
-    note: `Please remove from the caption: ${problems.join("; ")}`.slice(0, 280),
+    policyIssues: [...review.policyIssues, ...caption, ...(audience ? [audience] : [])],
+    note: note.slice(0, 280),
   };
 }
 
@@ -163,26 +187,34 @@ async function stepSubmission(ctx: TickContext, deps: StudioDeps, v: Venture, ca
   const now = ctx.ports.clock.iso();
   const base = { ventureId: v.id, proposedBy: "creator_ops" as const, ...(campaign.experimentId ? { experimentId: campaign.experimentId } : {}), ...(campaign.cellId ? { cellId: campaign.cellId } : {}) };
   if (sub.stage === "draft_submitted" && !sub.review) {
-    const review = await reviewWithLint(ctx, deps, sub, campaign);
+    const review = await reviewWithLint(ctx, deps, v, sub, campaign);
     sub = ctx.store.submissions.put({ ...sub, review });
     ctx.outbox.propose({ ...base, kind: "creator.review_draft", payload: { submissionId: sub.id, approve: review.approve, note: review.note }, summary: `${review.approve ? "Approve" : "Reject"} draft from ${sub.creatorHandle}`, rationale: review.note, naturalKey: `draft:${sub.id}` });
     return;
   }
   if (sub.stage === "posted" && !sub.verification) {
     const postUrl = sub.postUrl;
-    if (!postUrl) return;
+    if (!postUrl) {
+      // Without a link the post cannot be verified or paid: after a grace period, a human finds it.
+      const since = sub.postedAt ?? sub.submittedAt;
+      if (now >= addDays(since, POST_URL_GRACE_DAYS) && !ctx.store.tasks.count((t) => t.kind === "creators.verify_post" && t.instructions.includes(`submission ${sub.id}`))) {
+        ctx.outbox.openTask(taskDraft("creators.verify_post", v.id, `${sub.creatorHandle} on ${sub.platform}, campaign ${campaign.id}, submission ${sub.id}, posted ${since.slice(0, 10)}`));
+      }
+      return;
+    }
     if (!sub.review) {
       // Posted without a reviewed draft (marketplaces may skip the draft step), or posted with a
       // caption other than the approved draft's: review what went live.
-      sub = ctx.store.submissions.put({ ...sub, review: await reviewWithLint(ctx, deps, sub, campaign) });
+      sub = ctx.store.submissions.put({ ...sub, review: await reviewWithLint(ctx, deps, v, sub, campaign) });
     }
     const verification = await ctx.ports.creators.verifyPost({ submissionExternalId: sub.externalId, postUrl, platform: sub.platform });
     sub = ctx.store.submissions.put({ ...sub, verification });
+    const audience = audienceProblem(ctx, v, sub);
     const problems = captionProblems(sub.untrustedCaption);
-    const ok = Boolean(sub.review?.approve && !sub.review.injectionAttempt && !problems.length && verification.postIsPublic && verification.authorHandleMatches && verification.platformDisclosureLabel);
+    const ok = Boolean(!audience && sub.review?.approve && !sub.review.injectionAttempt && !problems.length && verification.postIsPublic && verification.authorHandleMatches && verification.platformDisclosureLabel);
     const why = ok
       ? "post verified on the platform of record"
-      : `post failed verification (${[!verification.postIsPublic && "not public", !verification.authorHandleMatches && "author mismatch", !verification.platformDisclosureLabel && "no paid-partnership label", sub.review?.injectionAttempt && "prompt injection", problems.length && `caption: ${problems.join("; ")}`, sub.review && !sub.review.approve && "review rejected"].filter(Boolean).join(", ")})`;
+      : `post failed verification (${[!verification.postIsPublic && "not public", !verification.authorHandleMatches && "author mismatch", !verification.platformDisclosureLabel && "no paid-partnership label", sub.review?.injectionAttempt && "prompt injection", problems.length && `caption: ${problems.join("; ")}`, audience, sub.review && !sub.review.approve && "review rejected"].filter(Boolean).join(", ")})`;
     ctx.outbox.propose({ ...base, kind: "creator.review_post", payload: { submissionId: sub.id, approve: ok, note: why.slice(0, 280) }, summary: `${ok ? "Approve" : "Reject"} post from ${sub.creatorHandle}`, rationale: why, naturalKey: `post:${sub.id}` });
     return;
   }
@@ -562,10 +594,10 @@ export async function runCreativeLoop(ctx: TickContext, deps: StudioDeps, v: Ven
     const campaign: CreatorCampaign = {
       id: ctx.store.nextId("campaign"),
       ventureId: v.id,
-      brief: { ...brief, hooks: [hook.text, ...brief.hooks.filter((h) => h !== hook.text)], formats: [hook.formatId, ...brief.formats.filter((f) => f !== hook.formatId)] },
       platforms: ["tiktok", "instagram"],
       targetCountries: geos,
       creatorAudienceCountryMinPct: ctx.config.lab.minCreatorGeoShare,
+      ...adultRecruitment(ctx, v, { ...brief, hooks: [hook.text, ...brief.hooks.filter((h) => h !== hook.text)], formats: [hook.formatId, ...brief.formats.filter((f) => f !== hook.formatId)] }),
       flatFeeCents: ctx.config.creators.defaultDeal.flatFeeCents,
       cpmCents: ctx.config.creators.defaultDeal.cpmCents,
       maxPayoutPerVideoCents: ctx.config.creators.defaultDeal.maxPayoutCents,

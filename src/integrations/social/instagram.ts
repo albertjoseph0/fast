@@ -5,7 +5,9 @@
  * poll() waits for the container's status_code to reach FINISHED and then calls
  * media_publish, which completes the already-approved content.publish action. AI and
  * paid-partnership labels go on the published container only (carousel children reject
- * is_ai_generated). Writes are dry-run by default and answered with "dry_" ids.
+ * is_ai_generated). A trial reel needs exactly one video, so a trial_reel request for slides
+ * is published directly instead (as a single image or a carousel) and externalRef.mode says
+ * which mode was used. Writes are dry-run by default and answered with "dry_" ids.
  */
 import { createHash } from "node:crypto";
 import type { Clock } from "../../core/ports.ts";
@@ -64,13 +66,14 @@ export class InstagramClient implements PlatformPublisher {
   }
 
   async publish(req: PublishRequest): Promise<JobRef> {
-    const { account, piece, mode } = req;
-    if (mode === "inbox_draft") throw new Error("Instagram has no draft API: publish as direct or trial_reel");
+    const { account, piece } = req;
+    if (req.mode === "inbox_draft") throw new Error("Instagram has no draft API: publish as direct or trial_reel");
     const labels = requireLabels(req.labels.instagram, "instagram", piece.id);
     const igUserId = account.externalId;
     if (!igUserId) throw new Error(`instagram account ${account.id} has no externalId (IG user id)`);
     const urls = publicUrls(piece);
     const kinds = piece.media.map(mediaKind);
+    const mode = req.mode === "trial_reel" && !(urls.length === 1 && kinds[0] === "video") ? "direct" : req.mode;
     const caption = captionText(piece).slice(0, CAPTION_MAX);
     const disclosure = { is_ai_generated: labels.is_ai_generated, is_paid_partnership: labels.is_paid_partnership };
     const ctx = { ventureId: piece.ventureId };
@@ -87,11 +90,9 @@ export class InstagramClient implements PlatformPublisher {
           ...(mode === "trial_reel" ? { trial_params: { graduation_strategy: "SS_PERFORMANCE" } } : {}),
         }, ctx);
       } else {
-        if (mode === "trial_reel") throw new Error(`content ${piece.id}: trial reels need a video`);
         containerId = await this.container(account, igUserId, { image_url: url, caption, ...disclosure }, ctx);
       }
     } else {
-      if (mode === "trial_reel") throw new Error(`content ${piece.id}: trial reels need a single video, got ${urls.length} items`);
       if (urls.length > CAROUSEL_MAX_ITEMS) throw new Error(`content ${piece.id}: carousels hold at most ${CAROUSEL_MAX_ITEMS} items, got ${urls.length}`);
       const children: string[] = [];
       for (const [i, url] of urls.entries()) {
@@ -102,7 +103,7 @@ export class InstagramClient implements PlatformPublisher {
     }
     return {
       op: "social.publish",
-      externalRef: { platform: "instagram", accountId: account.id, contentId: piece.id, igUserId, containerId, captionSha: sha(caption) },
+      externalRef: { platform: "instagram", accountId: account.id, contentId: piece.id, igUserId, containerId, captionSha: sha(caption), mode },
       pollAfterSec: kinds.includes("video") ? 60 : 10,
     };
   }

@@ -94,6 +94,13 @@ A variant that ships as a new build sends a live venture back through `building`
 still be harvested or sunset from there. A venture that has completed its ladder is outside the time box
 while its `venture.scale` decision is pending.
 
+Stop decisions record their cause (`evidence`, `timebox`, `spend_cap`, `scale_declined`, `app_review`,
+`human`). While one is with the board, the venture registers no new experiment and replicates nothing.
+A time-box or spend-cap stop is withdrawn if the venture validates before the board decides. The time box
+pauses while the venture waits on a human, and while its experiment's creator campaigns are held by the
+reserve because the studio is funding other ventures. The test-spend cap counts booked spend plus what
+the venture's campaigns can still spend, and a test that would cross it is not registered.
+
 **Build first, test with creators.** Vert ships builds every ~3 days. A pre-build "concept test" can't
 be measured: TikTok and Reels have no clickable links, and creators would be endorsing a product that
 doesn't exist. So the deciding test runs on the live app. The optional **S0 attention probe** runs owned
@@ -127,31 +134,43 @@ friends, or its primary channel is invites.
 
 ## 6. Lab
 
-* **Metrics** (`MetricKey`) are proportions with Beta(1,1) posteriors, or rates (kFactor) with
-  Gamma(0.5 + events, exposure) posteriors. Thresholds are in raw units with `{floor, target, futility}`.
+* **Metrics** (`MetricKey`) are proportions with Beta posteriors, or rates (kFactor) with Gamma
+  posteriors, both under skeptical priors centred on the floor (`lab/stats.ts`). Thresholds are in raw
+  units with `{floor, target, futility}`.
 * **Maturity.** `MetricsPort.cellMetric` counts only denominator units at least `maturityHours` old.
   For example, `trialKeep24h` uses trials ≥ 24h old, and true trial-to-paid is a scaling tripwire on
   matured cohorts.
-* **Clustering.** Installs arrive from a few posts, so counts come `bySource`. The posterior uses
-  `nEff = n / (1 + (m̄−1)ρ)` with a method-of-moments ICC (floor 0.01). Validity `source_concentration`
-  requires ≥ 5 sources and none above 50% of the denominator.
+* **Clustering.** Installs arrive from a few posts, so counts come `bySource`. Each source is weighted
+  by `1/(1 + (n_i−1)ρ)` (rates: `1/(1 + n_i·φ)`, with φ the overdispersion), and `nEff = Σ n_i w_i`, so
+  one viral post adds at most about 1/ρ units of information. The ICC floor is 0.01 for user metrics and
+  the planning `viewRho` (0.0003) for per-view metrics. Validity `source_concentration` requires ≥ 5
+  sources.
 * **Cells and attribution.** iOS has no install referrer.
   * Acquisition-side variables (hooks, creators, positioning) use **storefront-geo cells**, with
     territories = cell geos and creators recruited with ≥ 50% audience in the cell geo.
   * Product-side variables (onboarding, paywall, share, core prompt) use **user-randomized sticky flag
     variants** inside one storefront.
+  * The app sets `source_id` and `channel` once, from the opening link (`?src=`, `?c=` creator code,
+    `?ch=`) or else the attribution survey. PostHog spreads users with no source over 20 stable
+    `unattributed:N` buckets, so they read as independent traffic, not one cluster. Shares and invites
+    the app could not confirm (Android's share sheet never reports completion) don't count.
 * **Decision table** (`lab/decide.ts`): continue / pass / replicate (sequential phase 2 is pre-registered)
   / iterate / kill / fix_harness / escalate. Iterations are capped per step, harness fixes are capped
   and then escalate to a human, and a test-spend cap per venture applies.
-* **Read timing.** A cell's exposure clock starts when its creator campaign goes live, not at
-  registration, so approvals and marketplace setup don't count against it. Distribution tests start it
-  on the first in-geo post view, not on organic installs. Creator-led reads cover the posting window plus
-  post maturity, so the first few posts don't decide the test.
+* **Read timing.** The exposure SLA runs from when a cell's creator campaign goes live, not from
+  registration, so approvals and marketplace setup don't count against it. A campaign whose create ended
+  without running (rejected, failed, withdrawn) starts the SLA when it ended, so the cell goes invalid
+  instead of waiting forever. A creator cell's exposure clock, and the start of its metric reads, is its
+  first creator post: organic storefront users and the previous step's tail never start it. Every
+  creator-led read covers the posting window plus the longest metric maturity, and early reads wait for
+  the posting window, so the first few posts don't decide the test.
+* **Cost at read.** A cell's spend prices each approved post at its locked views or, before the lock, at
+  its views as of the latest sync (refreshed daily), so CAC covers the same views the installs came from.
 * **Robust reads.** Viral concentration is normal: one post often brings most of a cell's traffic. A
   cell is invalid for concentration only when its pass/fail verdict changes after dropping the top source
   (leave-one-out). A cell short of its planned sample at the deadline still decides when the posterior
   is conclusive. A fail can be conclusive at any sample; a pass needs at least half the planned sample.
-  Only an open answer is a harness failure.
+  Only an open answer is a harness failure. The leave-one-out read uses the full cell's clustering.
 * **S4 unit economics.** The 20th percentile of predicted net D60 revenue per install (`lab/ltv.ts`:
   install → trial → keep-proxy → renewal survival, net of store fee and VAT) divided by the cell's CAC
   must reach `s4MinRoasD60P20`.
@@ -161,8 +180,16 @@ friends, or its primary channel is invites.
 1. **Creator UGC (primary).** Creators are sourced by niche and audience geo. Deals are per-video, CPM,
    retainer or guarantee, with views locked after 7 days. Claude writes briefs. The flow is pre-post
    draft approval, then post-post verification fetched from the platform (public, author match,
-   disclosure label, views). Payouts are computed in code and capped per creator per 30 days. The first
-   payout to a new creator needs a human.
+   disclosure label, views). A post whose live caption differs from the approved draft is reviewed again,
+   and every caption passes the copy lint (counts, rankings, prices, efficacy claims) whatever the
+   reviewer says. Views lock once, 7 days after posting. Payouts are computed in code and capped per
+   creator per 30 days. The first payout to a new creator needs a human, and so does any post or payout
+   for an 18+ app whose creator's under-18 audience share is unknown. An 18+ app recruits adult
+   audiences: its brief asks for them, the campaign carries the under-18 ceiling for marketplaces that
+   filter on it, and a draft or post from a mostly-young audience is turned down. A payout the marketplace refuses is
+   retried daily under a fresh idempotency key and goes to a human (`creators.payout_failed`) after three
+   refusals. A payout whose call may have reached the marketplace is held as paid until a human checks
+   (`creators.verify_payout`): sent books it, not sent releases it to be paid again.
 2. **Always-on creative loop** (`lab/creative.ts`), separate from the ladder. Weekly batches of
    `format × hook` arms are sampled with Thompson sampling on post-level installs per 1K views. An arm
    is culled at ≥ 6 posts with P(best) < 0.05, and 20% of traffic goes to exploration. Creator and owned
@@ -184,15 +211,20 @@ friends, or its primary channel is invites.
   Revenue is booked as proceeds after store fee and VAT, with `settlesAt` reflecting store settlement
   lag. Cash counts settled proceeds only.
 * **Free cash** = cash − outstanding commitments − accrued creator liabilities − refund reserve. Every
-  spend policy check uses free cash.
+  spend policy check uses free cash. The refund reserve is the haircut on the refund window's gross
+  revenue less the refunds already booked in it. A closed creator campaign keeps what its in-flight posts
+  may still earn. The reserve never holds back a payout of money already owed: paying an accrued
+  liability leaves free cash unchanged.
 * **Allocator** (`orchestrator/allocator.ts`). Each scaling venture is one lane today. Its unit economics
   come from cohorts at least one trial period old over the last 28 days. Predicted D60 net revenue per
   install is computed at the 20th percentile of the conversion posterior. Marginal CAC is the average CAC
   × 1.25, a deliberately conservative stand-in for a fitted response curve. Budget moves +25% at most
   every 3 days when marginal ROAS(D60, p20) ≥ 1 and payback fits the window (30 days, or 60 when free cash
   is high). It is cut by 25% below the S4 bar and set to zero below half of it. The pool is the daily cap
-  minus the 35% held back for validation. Spend committed until payback must fit in free cash (the cash
-  trough). The scaling budget funds weekly Thompson-sampled creator batches.
+  minus the 35% held back for validation. Spend committed until payback must fit in the free cash
+  validation does not hold (the same 35%), so scaling batches cannot lock up the cash new experiments
+  need. Each venture's last budget and when it changed live on the venture, so cuts and ramp cool-downs
+  survive a process per tick. The scaling budget funds weekly Thompson-sampled creator batches.
 * **Harvest, sunset and exit.**
   * Scaling → harvest when the lane is cut to zero and weekly proceeds fall more than 30% below peak.
   * Harvest → sunset after the configured number of consecutive months of negative *organic*
@@ -217,14 +249,27 @@ friends, or its primary channel is invites.
   * payouts only for post-approved, platform-verified, view-locked submissions with amounts recomputed
   * ads only for proven creatives
 * **Human tasks** cover steps no API allows:
-  * iOS app creation (App Store Connect returns 403 on create), App Privacy labels, the Paid Apps Agreement
+  * iOS app creation (App Store Connect returns 403 on create), App Privacy labels, the age rating and
+    primary category (`apple.app_info`), the Paid Apps Agreement
   * Play app creation and content rating
   * TikTok audit and domain verification
   * Meta business verification, ad billing, creator wallet funding
   * connecting social accounts, deploying the web host and backend
+  * per venture: the PostHog, RevenueCat and EAS projects (`integrations.bind_projects`), the backend
+    tenant (`backend.add_tenant`, re-opened whenever the tenant file's content changes), and spec copy
+    the linter cannot clear alone (`legal.review` before submission)
+  * console steps an adapter reports it cannot do, repeated build or upload failures, and failed
+    subscription setup (`store.manual_step`)
+  * posting a TikTok inbox draft with its labels (`social.finish_draft`), creator payouts the marketplace
+    refused or whose outcome is unknown
 
-  Each task has typed inputs (e.g. `ascAppId`) written back into `VentureBindings`. Time a venture
-  spends blocked on a human doesn't count against its time box.
+  Each task has typed inputs (e.g. `ascAppId`) written back into `VentureBindings`, and opens as soon as
+  its inputs exist so people work while the API steps run. Time a venture spends blocked on a required
+  task doesn't count against its time box.
+* **Dry run.** One flag drives the live ports, the executor and the outbox. A write port's dry-run answer
+  is recorded as `dry_run`, never `executed`, and holds its dedupe key while dry-run is on. Lifecycle
+  decisions (`venture.*`) have no external effect and run even in dry-run. After go-live, dry runs count
+  for nothing, so the first real submission still meets its gates.
 * **Accounts.** The studio uses **one legal entity, one Apple organization account and one Google Play
   organization account.** We deliberately do *not* copy Vert's multi-LLC structure. Spreading
   template-built apps across shell accounts is the signature Apple 4.3 and Play's "evading enforcement"
@@ -250,6 +295,14 @@ friends, or its primary channel is invites.
 | `src/integrations/` | Apple (App Store Connect, charts), Google Play, EAS, RevenueCat, PostHog (metrics + flags), SideShift, Instagram, TikTok, YouTube, Meta Ads, Apple Ads, web host |
 | `src/orchestrator/` | tick phases, lifecycle state machine, metrics assembly, allocator, harvest and exit, reports, sim runner |
 | `src/cli/` | `factory` command |
+
+**The app and its backend** (`templates/expo-app/`). An 18+ app asks for age before onboarding and stops
+under-18 users. A trial is offered only when StoreKit reports the user eligible. The app's user id is
+stored per install (never a shared fallback), and the backend authenticates requests with an
+HMAC-signed install token it mints per install, so a reinstalled or rotated id gets no extra free uses
+and deleting data does not reset limits. User input is JSON-encoded inside its prompt tags. Each tenant
+file sets the app's rate limits, daily verdict cap and a token budget with room for every output
+section; the backend re-reads changed tenant files without a restart.
 
 ## 11. Design-review decisions
 
@@ -303,4 +356,18 @@ Claude agents can run against it too (`--llm gateway`). They exposed problems no
   figures per store revision.
 * **Gateway.** Long, high-effort structured calls (idea batches) were dropped as 502s when sent
   non-streaming. Gateway calls now always stream.
+
+An adversarial review of the whole system then confirmed 87 findings, fixed module by module with a
+regression test each. The ones that changed behaviour most:
+
+* **Money.** Lifetime campaign commitments, payout retries, unknown-outcome payouts and the test-spend
+  cap all undercounted what the studio had promised. Scaling batches could take every cent of free
+  cash, so validation starved and the time box killed ventures that were only waiting for money.
+* **Lab.** One viral post collapsed a cell's effective sample. Reads started the clock on organic users
+  and priced posts at day-0 views, which biased per-view conversion down and CAC down by about 1.4×.
+* **Lifecycle.** A pending time-box sunset could wind down a winner that validated the next day. A
+  failed designer call re-tested the failed baseline. A failed campaign create left an experiment that
+  never decided.
+* **Operations.** The allocator forgot its plan between live ticks, a simulation could overwrite a live
+  data directory, and the executor could record a dry-run response as executed.
 

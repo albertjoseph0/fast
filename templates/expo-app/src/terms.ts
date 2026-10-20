@@ -33,3 +33,16 @@ export function trialDaysFromIntro(intro: { price: number; periodUnit: string; p
   const perUnit: Record<string, number> = { DAY: 1, WEEK: 7, MONTH: 30, YEAR: 365 };
   return (perUnit[intro.periodUnit] ?? 0) * intro.periodNumberOfUnits * Math.max(1, intro.cycles);
 }
+
+/** RevenueCat INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_ELIGIBLE. */
+const INTRO_ELIGIBLE = 2;
+
+/**
+ * Trial days this customer is actually offered. On iOS the intro offer is the product's,
+ * not the customer's, so it counts only when RevenueCat reports eligibility (unknown shows
+ * the plain price). Android passes null: its default offer already reflects eligibility.
+ */
+export function offeredTrialDays(intro: Parameters<typeof trialDaysFromIntro>[0], iosEligibility: number | null): number {
+  if (iosEligibility !== null && iosEligibility !== INTRO_ELIGIBLE) return 0;
+  return trialDaysFromIntro(intro);
+}

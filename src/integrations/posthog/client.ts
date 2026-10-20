@@ -15,9 +15,9 @@ import type { StudioConfig } from "../../config/schema.ts";
 import type { CohortMetrics, DailyMetrics, Iso, VentureBindings } from "../../core/types.ts";
 import { EV, EXTERNAL_EVENTS } from "../../core/events.ts";
 import { SystemClock, addDays } from "../../core/clock.ts";
-import { HttpClient, withQuery } from "../http.ts";
+import { HttpClient, MissingBindingError, withQuery } from "../http.ts";
 import type { DryRunRecorder, HttpRequest } from "../http.ts";
-import { cellMetricQuery, cohortQuery, dailyQuery, internalShareQuery, subscriptionsQuery } from "./hogql.ts";
+import { ROW_LIMIT, cellMetricQuery, cohortQuery, dailyQuery, internalShareQuery, paged, subscriptionsQuery } from "./hogql.ts";
 import type { HogQLQuery } from "./hogql.ts";
 import { buildCohorts, buildDaily, cellCounts, cohortPersons, dayStartMs, geoCodes, postExposure, purchases, viewExposure } from "./metrics.ts";
 import type { MetricCounts } from "./metrics.ts";
@@ -34,6 +34,8 @@ export const REMOTE_CONFIG_KEYS = ["paywall", "onboarding", "share", "core"] as 
 const VARIANT_KEY = /^[A-Za-z0-9_-]{1,200}$/;
 /** Purchases older than this cannot still be active (annual plans), so subscriber counts look back this far. */
 const SUBSCRIPTION_LOOKBACK_DAYS = 370;
+/** Pages read before a query is refused as unbounded (2.5M rows). */
+const MAX_QUERY_PAGES = 50;
 
 export interface PostHogOptions {
   config: StudioConfig;
@@ -130,16 +132,23 @@ export class PostHogClient {
     return `${this.host}/api/projects/${encodeURIComponent(projectId)}${path}`;
   }
 
-  /** Run a HogQL query; returns result rows. */
+  /** Run a HogQL query; returns all result rows, read page by page past PostHog's per-query row cap. */
   async query(projectId: string, q: HogQLQuery, name?: string): Promise<unknown[][]> {
     if (this.offline) return [];
-    const res = await this.http.request<{ results?: unknown[][] }>({
-      method: "POST",
-      url: this.projectUrl(projectId, "/query/"),
-      json: { query: { kind: "HogQLQuery", query: q.query, values: q.values }, ...(name ? { name } : {}) },
-      sideEffect: false,
-    });
-    return res.data.results ?? [];
+    const rows: unknown[][] = [];
+    for (let page = 0; ; page++) {
+      if (page === MAX_QUERY_PAGES) throw new Error(`posthog: query ${name ?? ""} returned more than ${MAX_QUERY_PAGES * ROW_LIMIT} rows`);
+      const p = paged(q, rows.length);
+      const res = await this.http.request<{ results?: unknown[][] }>({
+        method: "POST",
+        url: this.projectUrl(projectId, "/query/"),
+        json: { query: { kind: "HogQLQuery", query: p.query, values: p.values }, ...(name ? { name } : {}) },
+        sideEffect: false,
+      });
+      const results = res.data.results ?? [];
+      rows.push(...results);
+      if (results.length < ROW_LIMIT) return rows;
+    }
   }
 
   async findFlag(projectId: string, key: string): Promise<PostHogFlag | null> {
@@ -158,7 +167,7 @@ export class PostHogClient {
 }
 
 function projectOf(bindings: VentureBindings): string {
-  if (!bindings.posthogProjectId) throw new Error(`posthog: no posthogProjectId bound for ${bindings.bundleId}`);
+  if (!bindings.posthogProjectId) throw new MissingBindingError("posthog", "posthogProjectId", bindings.bundleId);
   return bindings.posthogProjectId;
 }
 

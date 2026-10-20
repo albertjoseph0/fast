@@ -56,10 +56,10 @@ export default function Paywall() {
   async function buy() {
     if (!chosen) return;
     setBusy(true);
-    const outcome = await purchase(chosen);
+    const { outcome, trial } = await purchase(chosen);
     setBusy(false);
     if (outcome === "purchased") {
-      if (chosen.trialDays > 0 && (await once(KEYS.trialStarted))) track(APP_EVENTS.trialStart, { product: chosen.ladderId, trial_days: chosen.trialDays });
+      if (trial && (await once(KEYS.trialStarted))) track(APP_EVENTS.trialStart, { product: chosen.ladderId, trial_days: chosen.trialDays });
       router.replace("/home");
     } else if (outcome === "cancelled") {
       track(APP_EVENTS.transactionAbandon, { product: chosen.ladderId });

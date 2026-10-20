@@ -57,7 +57,28 @@ A simulation writes its state, its event log and a daily report per day to `.fac
 (`reports/latest.md`). Simulations use the same orchestrator, governance and lab code as live mode. The
 simulated board approves queued actions and completes human tasks after a delay.
 
-<!-- results -->
+### What a simulated company does
+
+Three 180-day runs (`npx factory sim --days 180 --seed <n>`, stub LLM, $50,000 starting cash, creators
+as the only paid channel):
+
+| Seed | Ideas → screened in → ventures → live → scaled | Cash after 180 days | Revenue | Creator spend |
+|---|---|---|---|---|
+| 42 | 42 → 25 → 10 → 9 → 4 | $333,343 | $936,715 | $63,039 |
+| 7 | 78 → 30 → 13 → 10 → 1 | $105,175 | $306,200 | $40,825 |
+| 3 | 48 → 29 → 12 → 10 → 2 | $95,701 | $199,661 | $45,826 |
+
+Most ventures never validate. They spend their iterations or their time box, and the ones with paying
+users are harvested without further growth spend. Each run's few winners pay for everything. Every
+venture goes through the same pipeline: about 100 human tasks over the run (app records, privacy labels,
+per-venture projects, tenant deploys, reviews), App Review, three-storefront creator tests read as
+pre-registered decisions, and the allocator's ramp limits. Some runs lose a venture to App Review's
+4.3 spam rejection.
+
+The simulated market is a model, not evidence: its parameters come from the sourced benchmarks in
+`src/playbook/benchmarks.ts`, and its job is to exercise every decision path and failure mode the live
+studio will meet. An adversarial review of the whole system confirmed 87 defects, all fixed with
+regression tests (`docs/ARCHITECTURE.md` §12).
 
 ## Going live
 

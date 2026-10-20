@@ -13,6 +13,7 @@ import { designExperiment } from "../lab/experiments.ts";
 import { ladderEntry } from "../playbook/product.ts";
 import type { StudioDeps } from "./deps.ts";
 import { ideaFor } from "./pipeline.ts";
+import { adultRecruitment } from "./growth.ts";
 import { blockingTasks, isLiveOnStore, ORGANIC_CATEGORIES, patch, transition, windDown } from "./lifecycle.ts";
 
 function cellCampaigns(ctx: TickContext, experimentId: string, cellId?: string): CreatorCampaign[] {
@@ -201,10 +202,10 @@ async function staffCells(ctx: TickContext, deps: StudioDeps, plan: ExperimentPl
     const campaign: CreatorCampaign = {
       id: ctx.store.nextId("campaign"),
       ventureId: v.id,
-      brief,
       platforms: ["tiktok", "instagram"],
       targetCountries: [cell.geo],
       creatorAudienceCountryMinPct: ctx.config.lab.minCreatorGeoShare,
+      ...adultRecruitment(ctx, v, brief),
       flatFeeCents: deal.flatFeeCents,
       cpmCents: deal.cpmCents,
       maxPayoutPerVideoCents: deal.maxPayoutCents,

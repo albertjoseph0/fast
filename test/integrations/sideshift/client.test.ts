@@ -7,6 +7,7 @@ import { DryRunRecorder } from "../../../src/integrations/http.ts";
 import {
   LiveCreatorRead,
   LiveCreatorWrite,
+  briefText,
   disclosureLabelOf,
   pairPosts,
   parseSubmissionId,
@@ -95,6 +96,14 @@ describe("helpers", () => {
     expect(disclosureLabelOf({})).toBe(false);
   });
 
+  it("accepts a disclosure hashtag in the live caption, since SideShift's Post has no label field", () => {
+    expect(disclosureLabelOf({ id: "p", title: "my chart roasted me #ad #astrology" })).toBe(true);
+    expect(disclosureLabelOf({ id: "p", title: "#Sponsored by Astra" })).toBe(true);
+    expect(disclosureLabelOf({ id: "p", title: "#adhd #adventure #bad" })).toBe(false);
+    expect(disclosureLabelOf({ id: "p", title: "email me at ad@x.com" })).toBe(false);
+    expect(briefText(campaign)).toContain("#ad in the caption");
+  });
+
   it("pairs a post only with a draft approved before it was uploaded", () => {
     const drafts = [{ id: "d1", creatorId: "c", status: "approved", reviewedAt: "2026-10-05T00:00:00Z" }];
     const early = { id: "p0", uploadedAt: "2026-10-04T00:00:00Z" };
@@ -103,6 +112,24 @@ describe("helpers", () => {
     const { pairedPost, pairedDraft } = pairPosts(drafts, [late, early], owners);
     expect(pairedPost.get("d1")?.id).toBe("p1");
     expect(pairedDraft.has("p0")).toBe(false);
+  });
+
+  it("keeps prior pairings when an earlier post turns up late, and never pairs a standalone post", () => {
+    const drafts = [
+      { id: "D1", creatorId: "c", status: "approved", reviewedAt: "2026-03-01T10:00:00Z" },
+      { id: "D2", creatorId: "c", status: "approved", reviewedAt: "2026-03-02T00:00:00Z" },
+    ];
+    const p1 = { id: "P1", uploadedAt: "2026-03-01T18:00:00Z" };
+    const p2 = { id: "P2", uploadedAt: "2026-03-03T00:00:00Z" };
+    const owners = new Map([["P1", "c"], ["P2", "c"], ["P3", "c"]]);
+    expect(pairPosts(drafts, [p2], owners).pairedPost.get("D1")?.id).toBe("P2");
+    const later = pairPosts(drafts, [p1, p2], owners, { drafts: new Map([["D1", "P2"]]), standalone: new Set() });
+    expect(later.pairedPost.get("D1")?.id).toBe("P2");
+    expect(later.pairedPost.get("D2")?.id).toBeUndefined(); // P1 predates D2's approval
+    expect(later.pairedDraft.has("P1")).toBe(false);
+    const p3 = { id: "P3", uploadedAt: "2026-03-04T00:00:00Z" };
+    const standalone = pairPosts(drafts, [p3], owners, { drafts: new Map([["D1", null]]), standalone: new Set(["P3"]) });
+    expect(standalone.pairedPost.size).toBe(0);
   });
 });
 
@@ -121,6 +148,8 @@ describe("LiveCreatorRead", () => {
         stage: "posted",
         submittedAt: "2026-10-03T00:00:00.000Z",
         postUrl: "https://www.tiktok.com/@jane/video/1",
+        postedAt: "2026-10-03T00:00:00.000Z",
+        views: 12_000,
       },
       {
         externalId: "vs:prog1:d2",
@@ -142,6 +171,8 @@ describe("LiveCreatorRead", () => {
         stage: "posted",
         submittedAt: "2026-10-01T00:00:00.000Z",
         postUrl: "https://www.instagram.com/reel/abc/",
+        postedAt: "2026-10-01T00:00:00.000Z",
+        views: 900,
       },
     ]);
     expect(f!.calls.every((c) => c.headers["x-api-key"] === "ss_key" && c.url.startsWith(API))).toBe(true);
@@ -188,6 +219,63 @@ describe("LiveCreatorRead", () => {
     const v = await read.verifyPost({ submissionExternalId: "post:prog1:post2", postUrl: "https://www.instagram.com/reel/abc/", platform: "instagram" });
     expect(v).toMatchObject({ postIsPublic: true, authorHandleMatches: true, platformDisclosureLabel: false, viewsFromPlatform: 900 });
     expect(f!.calls.some((c) => c.url.includes("graph.facebook.com"))).toBe(false);
+  });
+
+  describe("a creator on two platforms whose earlier post is tracked late", () => {
+    const P1 = { id: "P1", creator: "@jane.ig", platform: "instagram", views: 5_000, uploadedAt: sec("2026-10-01T18:00:00Z"), url: "https://www.instagram.com/reel/abc/" };
+    const P2 = { id: "P2", creator: "@jane_tt", platform: "tiktok", views: 100, uploadedAt: sec("2026-10-03T00:00:00Z"), url: "https://www.tiktok.com/@jane_tt/video/2" };
+    const routes = (posts: () => object[]): Route[] => [
+      { method: "GET", match: /\/posts\/P1$/, json: { data: { ...P1, views: 7_000, title: "my chart roasted me #ad" } } },
+      { method: "GET", match: /\/posts\/P2$/, json: { data: { ...P2, views: 40_000 } } },
+      {
+        method: "GET",
+        match: /\/video-submissions\?/,
+        json: {
+          data: {
+            submissions: [
+              { id: "D1", contractId: "ct1", creatorId: "cr1", status: "approved", reviewedAt: "2026-10-01T10:00:00.000Z" },
+              { id: "D2", contractId: "ct1", creatorId: "cr1", status: "approved", reviewedAt: "2026-10-02T00:00:00.000Z" },
+            ],
+            pagination: { hasMore: false },
+          },
+        },
+      },
+      { method: "GET", match: /\/posts\?/, json: () => ({ data: posts(), hasMore: false }) },
+      { method: "GET", match: /\/contracts\?/, json: { data: [{ id: "ct1", contractorId: "cr1", status: "active" }], hasMore: false } },
+      {
+        method: "GET",
+        match: /\/applications\?/,
+        json: {
+          data: [
+            { id: "a2", programId: "prog1", handle: "@jane.ig", platform: "instagram", status: "approved", creator: { id: "cr1" } },
+            { id: "a1", programId: "prog1", handle: "@jane_tt", platform: "tiktok", status: "approved", creator: { id: "cr1" } },
+          ],
+          hasMore: false,
+        },
+      },
+    ];
+
+    it("keeps each id on the post it first named, with that post's platform, handle and current views", async () => {
+      let posts = [P2];
+      const { read, store } = setup(routes(() => posts));
+      const first = await read.listSubmissions({ campaignExternalId: "prog1" });
+      expect(first.find((x) => x.externalId === "vs:prog1:D1")).toMatchObject({ postUrl: P2.url, platform: "tiktok", creatorHandle: "jane_tt", views: 100 });
+      store.submissions.put({ id: "sub1", externalId: "vs:prog1:D1", stage: "post_approved", postUrl: P2.url, postedAt: "2026-10-03T00:00:00.000Z" } as never);
+
+      posts = [P1, P2];
+      const second = await read.listSubmissions({ campaignExternalId: "prog1" });
+      expect(second.find((x) => x.externalId === "vs:prog1:D1")).toMatchObject({ postUrl: P2.url, platform: "tiktok" });
+      expect(second.find((x) => x.externalId === "vs:prog1:D2")).toMatchObject({ stage: "draft_submitted" });
+      expect(second.find((x) => x.externalId === "post:prog1:P1")).toMatchObject({ platform: "instagram", creatorHandle: "jane.ig", postUrl: P1.url, views: 5_000 });
+
+      expect(await read.verifyPost({ submissionExternalId: "vs:prog1:D1", postUrl: P2.url, platform: "tiktok" })).toMatchObject({ viewsFromPlatform: 40_000 });
+    });
+
+    it("checks the author against the creator's handle on the post's own platform", async () => {
+      const { read } = setup(routes(() => [P1, P2]));
+      const v = await read.verifyPost({ submissionExternalId: "post:prog1:P1", postUrl: P1.url, platform: "instagram" });
+      expect(v).toMatchObject({ authorHandleMatches: true, platformDisclosureLabel: true, viewsFromPlatform: 7_000 });
+    });
   });
 
   it("reads the wallet balance and searches recruits (a read-only POST, sent even in dry-run)", async () => {

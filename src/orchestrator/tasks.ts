@@ -119,6 +119,22 @@ export function applyTaskOutcomes(ctx: TickContext): string[] {
       out.push(`${job.id} re-armed after ${t.id}`);
     }
   }
+  // A TikTok inbox draft a human posted: its publish job resumes polling with the labels it asked for.
+  for (const t of ctx.store.tasks.list((x) => x.status === "done" && x.kind === "social.finish_draft" && Boolean(x.ventureId))) {
+    for (const job of ctx.store.jobs.list((j) => j.ventureId === t.ventureId && j.op === "social.publish" && j.status === "needs_human" && j.createdAt <= (t.completedAt ?? ""))) {
+      ctx.store.jobs.put({ ...job, status: "running", nextPollAt: ctx.ports.clock.iso() });
+      out.push(`${job.id} re-armed after ${t.id}`);
+    }
+  }
+  // A post URL a human found: the creator sync verifies the post next.
+  for (const t of ctx.store.tasks.list((x) => x.status === "done" && x.kind === "creators.verify_post")) {
+    const submissionId = /submission (\S+?),/.exec(t.instructions)?.[1];
+    const sub = submissionId ? ctx.store.submissions.get(submissionId) : undefined;
+    const postUrl = t.outputs?.["postUrl"];
+    if (!sub || !postUrl || sub.postUrl) continue;
+    ctx.store.submissions.put({ ...sub, postUrl });
+    out.push(`${sub.id} post URL from ${t.id}`);
+  }
   // A payout a human voided releases its liability; "retry" is picked up by the creator sync.
   for (const t of ctx.store.tasks.list((x) => x.status === "done" && x.kind === "creators.payout_failed" && x.outputs?.["decision"] === "void")) {
     for (const actionId of t.blocksActionIds) {

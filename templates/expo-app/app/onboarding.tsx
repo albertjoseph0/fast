@@ -6,9 +6,11 @@
 import { router } from "expo-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Switch, TextInput, View } from "react-native";
-import { track } from "../src/analytics";
+import { track, trackAttributionAnswer } from "../src/analytics";
 import { APP_EVENTS } from "../src/events";
 import { requestPermission, scheduleReminders } from "../src/notifications";
+import { isEntitled } from "../src/purchases";
+import { afterOnboardingRoute } from "../src/routing";
 import { markActivated } from "../src/session";
 import { studio, useSpec } from "../src/spec";
 import { getJson, KEYS, setJson, type Profile } from "../src/storage";
@@ -66,11 +68,11 @@ export default function Onboarding() {
   }
 
   async function next() {
-    if (step?.kind === "attribution_survey" && typeof answer === "string") track(APP_EVENTS.attributionAnswer, { answer });
+    if (step?.kind === "attribution_survey" && typeof answer === "string") trackAttributionAnswer(answer);
     if (index + 1 < steps.length) return setIndex(index + 1);
     await setJson(KEYS.onboardingDone, true);
     track(APP_EVENTS.onboardingComplete, { steps: steps.length });
-    router.replace(spec.paywall.placement === "after_onboarding" ? "/paywall" : "/home");
+    router.replace(afterOnboardingRoute(spec.paywall.placement, await isEntitled()));
   }
 
   async function consent(granted: boolean) {

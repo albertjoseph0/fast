@@ -132,11 +132,16 @@ export interface TenantJson {
   /** Env var holding this app's RevenueCat secret key (REST v1). */
   revenueCatSecretEnv: string;
   rateLimit: { perMinute: number; perDay: number };
+  /** Verdicts the backend serves this app per UTC day: a ceiling on a runaway inference bill. */
+  dailyVerdictCap: number;
   maxInputChars: number;
   supportEmail: string;
   /** GET /v1/config payloads by variant id; `default` applies when no variant matches. */
   remoteConfig: Record<string, Partial<Pick<AppSpec, "paywall" | "onboarding" | "share" | "core">>>;
 }
+
+/** Per-app daily verdict ceiling (about 40 USD of inference at the studio's cost per session). */
+const DAILY_VERDICT_CAP = 2_000;
 
 export function buildTenantJson(input: { venture: Venture; spec: AppSpec; config: StudioConfig; domains: SensitiveDomain[] }): TenantJson {
   const { venture, spec, config, domains } = input;
@@ -146,13 +151,15 @@ export function buildTenantJson(input: { venture: Venture; spec: AppSpec; config
     systemPrompt: composeSystemPrompt(spec.core.aiSystemPrompt, domains),
     model: config.llm.model,
     effort: "low",
-    maxTokens: 1_500,
+    // The server's floor for a complete verdict: room for every output section.
+    maxTokens: 4_000 + 500 * spec.core.outputSections.length,
     inputKind: spec.core.inputKind,
     outputSections: [...spec.core.outputSections],
     freeUses: Math.max(0, spec.core.freeUsesBeforePaywall),
     entitlementId: config.monetization.entitlementId,
     revenueCatSecretEnv: `REVENUECAT_SECRET_KEY_${venture.slug.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`,
     rateLimit: { perMinute: 6, perDay: 60 },
+    dailyVerdictCap: DAILY_VERDICT_CAP,
     maxInputChars: 4_000,
     supportEmail: config.company.supportEmail,
     remoteConfig: { default: {} },

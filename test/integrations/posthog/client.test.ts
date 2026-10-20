@@ -4,7 +4,7 @@ import { SimClock } from "../../../src/core/clock.ts";
 import { StudioStore } from "../../../src/core/store.ts";
 import type { CreatorCampaign, CreatorSubmission, Venture, VentureBindings } from "../../../src/core/types.ts";
 import type { CellMetricRequest } from "../../../src/core/ports.ts";
-import { DryRunRecorder } from "../../../src/integrations/http.ts";
+import { DryRunRecorder, MissingBindingError } from "../../../src/integrations/http.ts";
 import { LiveMetricsPort, LiveRemoteConfigWrite, flagBody } from "../../../src/integrations/posthog/client.ts";
 import { fake, noFetch, noSleep } from "./fakeFetch.ts";
 
@@ -76,7 +76,9 @@ describe("PostHog query API", () => {
 
   it("requires a bound PostHog project", async () => {
     const { metrics } = world(fake());
-    await expect(metrics.cellMetric(req({ bindings: { ...bindings, posthogProjectId: undefined } }))).rejects.toThrow(/posthogProjectId/);
+    const missing = metrics.cellMetric(req({ bindings: { ...bindings, posthogProjectId: undefined } }));
+    await expect(missing).rejects.toBeInstanceOf(MissingBindingError);
+    await expect(missing).rejects.toMatchObject({ service: "posthog", binding: "posthogProjectId", message: expect.stringMatching(/integrations\.bind_projects/) });
   });
 });
 
@@ -84,7 +86,7 @@ describe("installsPer1kViews from verified views", () => {
   it("uses in-geo views of mature cell posts as trials and in-storefront installs as successes", async () => {
     const f = fake([{ method: "POST", match: "/query/", json: { results: [["cr1", 9, 9], ["unknown", 3, 3]] } }]);
     const { metrics, store } = world(f);
-    store.campaigns.put({ id: "camp1", ventureId: "v1", experimentId: "exp1", cellId: "cellCA" } as CreatorCampaign);
+    store.campaigns.put({ id: "camp1", ventureId: "v1", experimentId: "exp1", cellId: "cellCA", targetCountries: ["CA"], creatorAudienceCountryMinPct: 0.5 } as CreatorCampaign);
     store.creators.put({ id: "cr1", audienceGeo: { CA: 0.5 } } as never);
     const sub = (id: string, postedAt: string, views: number): CreatorSubmission =>
       ({
@@ -103,6 +105,22 @@ describe("installsPer1kViews from verified views", () => {
     expect(out.successes).toBe(12);
     expect(out.bySource).toEqual({ cr1: { successes: 9, trials: 8_000 }, unknown: { successes: 3, trials: 0 } });
     expect(f.calls[0]?.json.query.values).toMatchObject({ v0: "2026-10-05 00:00:00" });
+  });
+
+  it("counts current views, and a geo-only campaign's required audience share when no geo was measured", async () => {
+    const f = fake([{ method: "POST", match: "/query/", json: { results: [["cr1", 30, 30]] } }]);
+    const { metrics, store } = world(f);
+    store.campaigns.put({ id: "camp1", ventureId: "v1", experimentId: "exp1", cellId: "cellCA", targetCountries: ["CA"], creatorAudienceCountryMinPct: 0.6 } as CreatorCampaign);
+    store.campaigns.put({ id: "camp2", ventureId: "v1", experimentId: "exp1", cellId: "cellCA", targetCountries: ["CA", "AU"], creatorAudienceCountryMinPct: 0.6 } as CreatorCampaign);
+    store.creators.put({ id: "cr1", audienceGeo: {} } as never);
+    store.creators.put({ id: "cr2", audienceGeo: {} } as never);
+    const verification = { fetchedAt: "2026-10-08T00:00:00.000Z", postIsPublic: true, authorHandleMatches: true, platformDisclosureLabel: true, viewsFromPlatform: 120_000 };
+    // Locked early at 1,500 views; the platform now reports 120,000.
+    store.submissions.put({ id: "s1", externalId: "s1", campaignId: "camp1", creatorId: "cr1", stage: "post_approved", postedAt: "2026-10-05T10:00:00.000Z", viewsAtLock: 1_500, verification } as unknown as CreatorSubmission);
+    store.submissions.put({ id: "s2", externalId: "s2", campaignId: "camp2", creatorId: "cr2", stage: "post_approved", postedAt: "2026-10-05T10:00:00.000Z", verification } as unknown as CreatorSubmission);
+    const out = await metrics.cellMetric(req({ numerator: "install", denominator: "view", maturityHours: 48, windowHours: undefined }));
+    expect(out.trials).toBe(72_000);
+    expect(out.bySource).toEqual({ cr1: { successes: 30, trials: 72_000 } });
   });
 
   it("no mature post means no unit and no query", async () => {
@@ -170,6 +188,23 @@ describe("feature flags (remote config)", () => {
 });
 
 describe("daily and cohorts", () => {
+  it("reads subscriptions past PostHog's 50k row cap, so the newest purchases still count", async () => {
+    const old = Array.from({ length: 50_000 }, (_, i) => [`old${i}`, "CAN", "2025-11-01 00:00:00", "2025-12-01T00:00:00Z"]);
+    const recent = [["p1", "CAN", "2026-10-08 10:00:00", "2026-10-15T10:00:00Z"], ["p2", "CAN", "2026-10-08 11:00:00", "2026-10-15T11:00:00Z"]];
+    const f = fake([
+      {
+        method: "POST",
+        match: "/query/",
+        json: (c) => (String(c.json.name).startsWith("daily") ? { results: [] } : { results: String(c.json.query.query).endsWith("OFFSET 0") ? old : recent }),
+      },
+    ]);
+    const { metrics } = world(f);
+    const rows = await metrics.daily({ bindings, ventureId: "v1", since: "2026-10-08", until: "2026-10-09" });
+    expect(rows.find((r) => r.date === "2026-10-09" && r.geo === null)?.activeSubscribers).toBe(2);
+    const subs = f.calls.filter((c) => String(c.json.name).startsWith("subscriptions")).map((c) => String(c.json.query.query).match(/LIMIT \d+ OFFSET \d+$/)?.[0]);
+    expect(subs).toEqual(["LIMIT 50000 OFFSET 0", "LIMIT 50000 OFFSET 50000"]);
+  });
+
   it("assembles daily rows from event counts, revenue and active subscriptions", async () => {
     const f = fake([
       {

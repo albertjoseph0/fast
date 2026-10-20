@@ -129,7 +129,7 @@ export function isLiveOnStore(v: Venture): boolean {
 }
 
 /** Tasks a venture can proceed without: they never block the pipeline, the lab or the time box. */
-export const OPTIONAL_TASK_KINDS: readonly HumanTask["kind"][] = ["social.connect_account", "social.finish_draft", "creators.payout_failed", "creators.verify_payout"];
+export const OPTIONAL_TASK_KINDS: readonly HumanTask["kind"][] = ["social.connect_account", "social.finish_draft", "creators.payout_failed", "creators.verify_payout", "creators.verify_post"];
 
 /** Open, required human tasks the venture is waiting on. */
 export function blockingTasks(store: StudioStore, v: Venture): string[] {

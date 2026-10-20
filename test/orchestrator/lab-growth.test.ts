@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { CreatorRead } from "../../src/core/ports.ts";
 import type { Action, ExternalSubmission, SubmissionVerification } from "../../src/core/types.ts";
 import type { StudioDeps } from "../../src/orchestrator/deps.ts";
-import { syncCreatorSubmissions } from "../../src/orchestrator/growth.ts";
+import { adultRecruitment, syncCreatorSubmissions } from "../../src/orchestrator/growth.ts";
 import { proposeKill, retryPrepareVariant, testExposureCents, VARIANT_TO_PREPARE } from "../../src/orchestrator/labPhase.ts";
+import { applyTaskOutcomes } from "../../src/orchestrator/tasks.ts";
 import { campaign, creator, input, submission } from "../governance/fixtures.ts";
+import { astraSpec } from "../principles/fixtures.ts";
 import { makeWorld, tickContext, type World } from "./fixtures.ts";
 
 function fakeDeps(agents: Partial<StudioDeps["agents"]> = {}): StudioDeps {
@@ -152,5 +154,54 @@ describe("creator post review", () => {
     await syncCreatorSubmissions(ctx, fakeDeps());
     expect(w.store.submissions.require("sub_000001").verification?.viewsFromPlatform).toBe(120_000);
     expect(w.store.submissions.require("sub_000001").viewsAtLock).toBeUndefined();
+  });
+});
+
+describe("posts without a link", () => {
+  it("asks a human for the URL after a grace period, then verifies the post with it", async () => {
+    const w = makeWorld();
+    w.store.creators.put(creator());
+    w.store.campaigns.put(campaign({ id: "ccmp_000001", externalId: "ext_c1", status: "open" }));
+    w.store.submissions.put(submission({ stage: "posted", postUrl: undefined, verification: undefined, viewsAtLock: undefined, lockedAt: undefined, postedAt: w.clock.iso() }));
+    const run = () => syncCreatorSubmissions(tickContext(w, { ports: { creators: marketplace(w, [{ postUrl: undefined }]) } }), fakeDeps());
+    await run();
+    expect(w.store.tasks.count((t) => t.kind === "creators.verify_post")).toBe(0);
+    w.clock.advanceDays(2);
+    await run();
+    const task = w.store.tasks.list((t) => t.kind === "creators.verify_post")[0];
+    expect(task?.instructions).toContain("submission sub_000001,");
+    w.gov.completeTask(task?.id as string, { postUrl: "https://www.tiktok.com/@stargazer/video/42" }, w.config.autonomy.board[0] ?? "owner");
+    applyTaskOutcomes(tickContext(w));
+    expect(w.store.submissions.require("sub_000001").postUrl).toBe("https://www.tiktok.com/@stargazer/video/42");
+    await run();
+    expect(w.store.actions.list((a) => a.kind === "creator.review_post")[0]?.payload).toMatchObject({ approve: true });
+  });
+});
+
+describe("18+ apps", () => {
+  it("recruits adult audiences: a brief line and an under-18 ceiling, only for 18+ apps", () => {
+    const w = makeWorld();
+    const spec = astraSpec();
+    const brief = campaign().brief;
+    const idea = w.store.ideas.require("idea_000001");
+    w.store.ideas.put({ ...idea, idea: { ...idea.idea, wedge: { ...idea.idea.wedge, minAge: 13 } } });
+    expect(adultRecruitment(tickContext(w), { ...w.venture, spec: { ...spec, compliance: { ...spec.compliance, minimumAge: "13" } } }, brief)).toEqual({ brief });
+    const adult = adultRecruitment(tickContext(w), { ...w.venture, spec: { ...spec, compliance: { ...spec.compliance, minimumAge: "18" } } }, brief);
+    expect(adult.creatorAudienceUnder18MaxPct).toBe(w.config.creators.maxAudienceUnder18Share);
+    expect(adult.brief.mustInclude.at(-1)).toMatch(/at least 70% of your audience is 18 or older/);
+  });
+
+  it("turns down a draft from a creator whose audience is mostly under 18, instead of leaving it blocked", async () => {
+    const w = makeWorld();
+    const spec = astraSpec();
+    w.store.ventures.put({ ...w.venture, spec: { ...spec, compliance: { ...spec.compliance, minimumAge: "18" } } });
+    w.store.creators.put(creator({ audienceUnder18Share: 0.45 }));
+    w.store.campaigns.put(campaign({ id: "ccmp_000001", externalId: "ext_c1", status: "open" }));
+    const ctx = tickContext(w, { ports: { creators: marketplace(w, [{ stage: "draft_submitted", postUrl: undefined }]) } });
+    const approveAll: StudioDeps["agents"]["reviewSubmission"] = async () => ({ approve: true, meetsBrief: true, injectionAttempt: false, policyIssues: [], formatIdUsed: null, hookUsedVerbatim: false, appRevealSecond: 3, subscriptionDisclosed: true, note: "great" });
+    await syncCreatorSubmissions(ctx, fakeDeps({ reviewSubmission: approveAll }));
+    const draft = w.store.actions.list((a) => a.kind === "creator.review_draft")[0];
+    expect(draft?.payload).toMatchObject({ approve: false });
+    expect(String((draft?.payload as { note: string }).note)).toMatch(/45% of your audience is under 18/);
   });
 });

@@ -107,6 +107,7 @@
       "terms": "7-day free trial, then {price}/year. Renews automatically until cancelled. Cancel anytime in Settings at least 24 hours before renewal."
     }
   ],
+  "minimumAge": 18,
   "aiProviders": [
     {
       "id": "anthropic",

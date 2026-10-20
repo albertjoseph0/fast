@@ -15,7 +15,17 @@ export const KEYS = {
   notificationsEnabled: "notifications_enabled",
   promoOptIn: "promo_opt_in",
   lastResult: "last_result",
+  appUserId: "app_user_id",
+  installToken: "install_token",
+  ageGate: "age_gate",
 } as const;
+
+/**
+ * Kept by Delete my data: the purchase identity and install token (the subscription is not
+ * cancelled, and the server keys abuse limits on the install), and the once-per-user markers
+ * so the lab does not count a second install, activation, share or trial for the same person.
+ */
+const KEPT_ON_DELETE: readonly string[] = [KEYS.appUserId, KEYS.installToken, KEYS.installTracked, KEYS.activated, KEYS.trialStarted, KEYS.shareFirst, KEYS.usesConsumed];
 
 export type StoredResult = { id: string; sections: VerdictSection[]; createdAt: string };
 export type Profile = Record<string, string | string[]>;
@@ -40,6 +50,8 @@ export async function once(key: string): Promise<boolean> {
   return true;
 }
 
-export async function clearAll(): Promise<void> {
-  await AsyncStorage.clear();
+/** Delete my data: removes answers, results, consent and preferences. */
+export async function clearPersonalData(): Promise<void> {
+  const keys = await AsyncStorage.getAllKeys();
+  await AsyncStorage.multiRemove(keys.filter((k) => !KEPT_ON_DELETE.includes(k)));
 }

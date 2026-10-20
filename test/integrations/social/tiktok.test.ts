@@ -148,6 +148,29 @@ describe("TikTokClient.poll and stats", () => {
     expect(done).toEqual({ status: "succeeded", result: { externalId: "7300000000000000001", url: "https://www.tiktok.com/@astra.app/video/7300000000000000001", moderation: "live" } });
   });
 
+  it("hands a photo inbox draft to a human with the exact labels, then waits for it to go live", async () => {
+    const { tt } = client([{ method: "POST", match: "content/init", json: ok({ publish_id: "p_pub_2" }) }]);
+    const job = await tt.publish({ account: account("tiktok"), platform: "tiktok", piece: piece("tiktok", [image(1), image(2)]), mode: "inbox_draft", labels });
+    expect(job.externalRef.labelsToApplyInApp).toBe("ai_generated,your_brand");
+    const wanted = ["AI-generated content", "Content disclosure: Your brand"];
+
+    const first = await client([status({ status: "SEND_TO_USER_INBOX" })]).tt.poll(jobFrom(job), account("tiktok"));
+    expect(first).toEqual({ status: "needs_human", result: { moderation: "pending_human", labelsToApply: wanted } });
+
+    // Re-armed after the human confirmed: the job keeps its result, so nobody is asked twice.
+    const rearmed = jobFrom(job, { result: first.result as Record<string, unknown> });
+    const waiting = await client([status({ status: "SEND_TO_USER_INBOX" })]).tt.poll(rearmed, account("tiktok"));
+    expect(waiting).toMatchObject({ status: "running", pollAfterSec: 3_600, result: { labelsToApply: wanted } });
+    const live = await client([status({ status: "PUBLISH_COMPLETE", publicaly_available_post_id: ["7301"] })]).tt.poll(rearmed, account("tiktok"));
+    expect(live).toMatchObject({ status: "succeeded", result: { externalId: "7301", url: "https://www.tiktok.com/@astra.app/photo/7301" } });
+  });
+
+  it("never reports an inbox draft live before a human was asked about its labels", async () => {
+    const draft = { ...ref, externalRef: { ...ref.externalRef, mode: "inbox_draft", labelsToApplyInApp: "ai_generated,your_brand" } };
+    const poll = await client([status({ status: "PUBLISH_COMPLETE", publicaly_available_post_id: ["7302"] })]).tt.poll(jobFrom(draft), account("tiktok"));
+    expect(poll).toMatchObject({ status: "needs_human", result: { labelsToApply: ["AI-generated content", "Content disclosure: Your brand"] } });
+  });
+
   it("reads Display API counts", async () => {
     const { tt, fake } = client([{ method: "POST", match: "video/query", json: ok({ videos: [{ id: "730", view_count: 5000, like_count: 300, comment_count: 12, share_count: 40 }] }) }]);
     const stats = await tt.postStats("730", account("tiktok"));

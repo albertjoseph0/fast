@@ -56,14 +56,26 @@ describe("InstagramClient.publish", () => {
       trial_params: { graduation_strategy: "SS_PERFORMANCE" },
     });
     expect(job.pollAfterSec).toBe(60);
+    expect(job.externalRef.mode).toBe("trial_reel");
   });
 
-  it("refuses unlabeled content, drafts, image trial reels and unhosted media", async () => {
+  it("publishes slides requested as a trial reel as a direct carousel or image", async () => {
+    let n = 0;
+    const { ig, fake } = client([{ method: "POST", match: `${IG}/media`, json: () => ({ id: `c${++n}` }) }]);
+    const slides = await ig.publish({ account: account("instagram"), platform: "instagram", piece: piece("instagram", [image(1), image(2), image(3)]), mode: "trial_reel", labels });
+    expect(fake.calls.map((c) => c.json)[3]).toEqual({ media_type: "CAROUSEL", children: "c1,c2,c3", caption, is_ai_generated: true, is_paid_partnership: false });
+    expect(slides.externalRef).toMatchObject({ containerId: "c4", mode: "direct" });
+    const single = await ig.publish({ account: account("instagram"), platform: "instagram", piece: piece("instagram", [image(1)]), mode: "trial_reel", labels });
+    expect(fake.calls[4]?.json).toEqual({ image_url: "https://cdn.fast.test/slide1.jpg", caption, is_ai_generated: true, is_paid_partnership: false });
+    expect(single.externalRef.mode).toBe("direct");
+    for (const call of fake.calls) expect(call.json).not.toHaveProperty("trial_params");
+  });
+
+  it("refuses unlabeled content, drafts and unhosted media", async () => {
     const { ig, fake } = client([]);
     const base = { account: account("instagram"), platform: "instagram" as const, mode: "direct" as const };
     await expect(ig.publish({ ...base, piece: piece("instagram", [image(1)]), labels: {} })).rejects.toThrow(/disclosure labels/);
     await expect(ig.publish({ ...base, piece: piece("instagram", [image(1)]), labels, mode: "inbox_draft" })).rejects.toThrow(/no draft API/);
-    await expect(ig.publish({ ...base, piece: piece("instagram", [image(1)]), labels, mode: "trial_reel" })).rejects.toThrow(/need a video/);
     await expect(ig.publish({ ...base, piece: piece("instagram", [{ ...image(1), publicUrl: undefined } as never]), labels })).rejects.toThrow(/publicUrl/);
     expect(fake.calls).toHaveLength(0);
   });

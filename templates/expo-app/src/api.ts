@@ -1,6 +1,9 @@
-/** Verdict backend client (server/src/index.ts). */
+/**
+ * Verdict backend client (server/src/index.ts). Verdicts and deletion carry the install
+ * token the server minted for this install; the server keys free uses and limits on it.
+ */
 import { studio } from "./spec";
-import type { Profile } from "./storage";
+import { getJson, KEYS, setJson, type Profile } from "./storage";
 import type { InputKind, VerdictSection } from "./types";
 
 export interface VerdictInput {
@@ -33,8 +36,27 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return data;
 }
 
+async function installToken(): Promise<string> {
+  const stored = await getJson<string | null>(KEYS.installToken, null);
+  if (stored) return stored;
+  const { installToken: token } = await post<{ installToken: string }>("/v1/install", { slug: studio.slug });
+  await setJson(KEYS.installToken, token);
+  return token;
+}
+
+/** A token the server no longer accepts (it restarted with a new signing key) is replaced once. */
+async function postAsInstall<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  try {
+    return await post<T>(path, { ...body, installToken: await installToken() });
+  } catch (err) {
+    if (!(err instanceof ApiError && err.code === "install_token")) throw err;
+    await setJson(KEYS.installToken, null);
+    return post<T>(path, { ...body, installToken: await installToken() });
+  }
+}
+
 export function requestVerdict(appUserId: string, input: VerdictInput, consent: boolean): Promise<{ id: string; sections: VerdictSection[] }> {
-  return post("/v1/verdict", { slug: studio.slug, appUserId, input, consent });
+  return postAsInstall("/v1/verdict", { slug: studio.slug, appUserId, input, consent });
 }
 
 export function reportResult(appUserId: string, resultId: string, reason: string): Promise<{ ok: true }> {
@@ -42,5 +64,5 @@ export function reportResult(appUserId: string, resultId: string, reason: string
 }
 
 export function deleteServerData(appUserId: string): Promise<{ ok: true }> {
-  return post("/v1/delete", { slug: studio.slug, appUserId });
+  return postAsInstall("/v1/delete", { slug: studio.slug, appUserId });
 }

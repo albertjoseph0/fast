@@ -81,7 +81,13 @@ export function cellCounts(rows: unknown[][]): MetricCounts {
   return out;
 }
 
-/** In-geo views of the cell's mature posts (creator submissions and owned content), by source. */
+/**
+ * In-geo views of the cell's mature posts (creator submissions and owned content), by source.
+ * Creator posts count their current platform views (the view lock is for payouts only). The
+ * in-geo share is the post's or creator's measured audience share; without one, a campaign
+ * recruited for this geo alone counts its required audience share (creatorAudienceCountryMinPct,
+ * which the marketplace enforces), the floor every recruit meets.
+ */
 export function viewExposure(store: StudioStore, req: CellMetricRequest): { trials: number; firstPostedAt: number | null; bySource: Record<string, number> } {
   const asOf = new Date(req.asOf).getTime();
   const geo = req.geo.toUpperCase();
@@ -95,11 +101,15 @@ export function viewExposure(store: StudioStore, req: CellMetricRequest): { tria
     bySource[source] = (bySource[source] ?? 0) + views;
     first = Math.min(first, new Date(postedAt).getTime());
   };
-  const campaigns = new Set(store.campaigns.list((c) => c.experimentId === req.experimentId && c.cellId === req.cellId).map((c) => c.id));
-  for (const s of store.submissions.list((x) => campaigns.has(x.campaignId) && ["posted", "post_approved", "paid"].includes(x.stage))) {
+  const recruitedShare = new Map<string, number>();
+  for (const c of store.campaigns.list((x) => x.experimentId === req.experimentId && x.cellId === req.cellId)) {
+    const geoOnly = c.targetCountries.length === 1 && c.targetCountries[0]?.toUpperCase() === geo;
+    recruitedShare.set(c.id, geoOnly ? c.creatorAudienceCountryMinPct : 0);
+  }
+  for (const s of store.submissions.list((x) => recruitedShare.has(x.campaignId) && ["posted", "post_approved", "paid"].includes(x.stage))) {
     if (!s.verification || !mature(s.postedAt)) continue;
-    const share = s.verification.audienceGeo?.[geo] ?? store.creators.get(s.creatorId)?.audienceGeo[geo] ?? 0;
-    add(s.creatorId, Math.round((s.viewsAtLock ?? s.verification.viewsFromPlatform) * share), s.postedAt as string);
+    const share = s.verification.audienceGeo?.[geo] ?? store.creators.get(s.creatorId)?.audienceGeo[geo] ?? (recruitedShare.get(s.campaignId) as number);
+    add(s.creatorId, Math.round(Math.max(s.verification.viewsFromPlatform, s.viewsAtLock ?? 0) * share), s.postedAt as string);
   }
   for (const c of store.content.list((x) => x.ventureId === req.ventureId && x.experimentId === req.experimentId && x.cellId === req.cellId && x.status === "posted")) {
     if (!mature(c.postedAt) || !c.stats?.views) continue;

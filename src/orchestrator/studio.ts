@@ -14,6 +14,7 @@ import { Executor } from "../governance/executor.ts";
 import { BudgetExceededError, LedgerSync } from "../governance/ledger.ts";
 import { Governance, OPEN_STATUSES } from "../governance/outbox.ts";
 import { LlmError } from "../llm/errors.ts";
+import { taskDraft } from "../playbook/setup.ts";
 import { applyLifecycleDecisions, planAllocation, reviewMatureVentures } from "./allocator.ts";
 import type { StudioDeps } from "./deps.ts";
 import { promoteScreened, runDiscovery } from "./discovery.ts";
@@ -292,6 +293,10 @@ export class Studio {
         rows += await this.syncVenture(ctx, v, today, until);
       } catch (err) {
         failed.push(`${v.id}: ${err instanceof Error ? err.message : String(err)}`);
+        // An analytics or subscription project that was never bound: make sure someone is asked for it.
+        if (err instanceof Error && err.name === "MissingBindingError" && !this.store.tasks.count((t) => t.kind === "integrations.bind_projects" && t.ventureId === v.id && t.status === "open")) {
+          ctx.outbox.openTask(taskDraft("integrations.bind_projects", v.id, `${v.name} (${v.slug}): ${err.message}`));
+        }
       }
     }
     for (const c of this.store.adCampaigns.list((x) => Boolean(x.externalId) && x.status !== "pending")) {

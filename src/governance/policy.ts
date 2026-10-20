@@ -220,7 +220,7 @@ function otherOpenPayoutsOnCampaign(ctx: PolicyContext, a: Action<"creator.payou
 }
 
 /** An 18+ app: adult-only screening domains or wedge, or an 18+ store rating in the spec. */
-function adultOnly(ctx: PolicyContext, v: Venture): boolean {
+export function adultOnly(ctx: { store: StudioStore }, v: Venture): boolean {
   if (v.spec?.compliance.minimumAge === "18") return true;
   const idea = ctx.store.ideas.get(v.ideaId)?.idea;
   return idea !== undefined && minimumAgeFor(idea, ctx.store.latestScreening(v.ideaId)?.sensitiveDomains ?? []) === 18;

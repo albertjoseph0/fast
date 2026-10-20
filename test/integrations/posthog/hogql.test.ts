@@ -10,7 +10,9 @@ import {
   internalShareQuery,
   isoTimestamp,
   numeratorSpec,
+  paged,
   prop,
+  subscriptionsQuery,
 } from "../../../src/integrations/posthog/hogql.ts";
 
 const base = { appSlug: "astro", since: "2026-10-01T00:00:00Z", asOf: "2026-10-10T12:00:00.000Z" } as const;
@@ -65,7 +67,10 @@ describe("cellMetricQuery", () => {
     expect(q.query).toContain("SELECT person_id AS pid, min(timestamp) AS t0");
     expect(q.query).toContain("timestamp <= toDateTime({v1}, 'UTC') - toIntervalHour(24)");
     expect(q.query).toContain("max(if(num.ts >= den.t0 + toIntervalHour(0) AND num.ts < den.t0 + toIntervalHour(24), 1, 0)) AS hit");
-    expect(q.query).toContain("if(ifNull(toString(person.properties.source_id), '') != '', ifNull(toString(person.properties.source_id), ''), 'unknown')");
+    expect(q.query).toContain(
+      "if(ifNull(toString(person.properties.source_id), '') != '', ifNull(toString(person.properties.source_id), ''), concat('unattributed:', toString(cityHash64(toString(person_id)) % 20)))",
+    );
+    expect(q.query).not.toContain("'unknown'");
     expect(q.query).toContain("ifNull(toString(person.properties.$initial_geoip_country_code), '')");
     expect(q.query).toContain("ifNull(toString(properties.is_internal), '') != 'true'");
     expect(q.query).toMatch(/IN \(\{v\d+\}, \{v\d+\}\)/);
@@ -122,7 +127,19 @@ describe("other queries", () => {
   it("cohort query joins installs to later subscription events", () => {
     const q = cohortQuery({ appSlug: "astro", cohortSince: "2026-09-01", cohortUntil: "2026-10-01", asOf: base.asOf });
     expect(q.query).toContain(") AS i LEFT JOIN (");
-    expect(q.query).toContain("ORDER BY i.pid, e.ts");
+    expect(q.query).toContain("ORDER BY i.pid, e.ts, e.event, e.revenue, e.expires");
+    expect(q.query).toMatch(/timestamp < toDateTime\(\{v\d+\}, 'UTC'\) \+ toIntervalDay\(1\) AND timestamp <= toDateTime\(\{v\d+\}, 'UTC'\) GROUP BY person_id/);
     expect(Object.values(q.values)).toEqual(expect.arrayContaining(["install", "trial_start", "conversion", "renewal", "refund"]));
+  });
+});
+
+describe("paging", () => {
+  it("orders every row-level query totally and reads it in LIMIT/OFFSET pages", () => {
+    const subs = subscriptionsQuery({ since: "2025-10-01", until: "2026-10-10" });
+    expect(subs.query).toContain("ORDER BY timestamp, pid, geo, expires");
+    expect(subs.query).not.toContain("LIMIT");
+    expect(paged(subs, 50_000)).toEqual({ query: `${subs.query} LIMIT 50000 OFFSET 50000`, values: subs.values });
+    expect(() => paged(subs, -1)).toThrow(HogQLError);
+    expect(() => paged(subs, 1.5)).toThrow(HogQLError);
   });
 });

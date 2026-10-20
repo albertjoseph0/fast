@@ -14,7 +14,7 @@ import type { MonetizationWrite } from "../../core/ports.ts";
 import type { StudioStore } from "../../core/store.ts";
 import type { StudioConfig } from "../../config/schema.ts";
 import type { StoreProduct, StorePlatform, VentureBindings } from "../../core/types.ts";
-import { HttpClient, withQuery } from "../http.ts";
+import { HttpClient, MissingBindingError, withQuery } from "../http.ts";
 import type { DryRunRecorder, HttpRequest } from "../http.ts";
 
 export const ENV_VARS: readonly { name: string; purpose: string; required: boolean }[] = [
@@ -254,7 +254,7 @@ export class LiveMonetizationWrite implements MonetizationWrite {
   async configure(req: { bindings: VentureBindings; productIds: string[]; entitlementId: string }): Promise<{ offeringIds: Record<string, string> }> {
     const { bindings } = req;
     const projectId = bindings.revenueCatProjectId;
-    if (!projectId) throw new Error(`revenuecat: no revenueCatProjectId bound for ${bindings.bundleId}`);
+    if (!projectId) throw new MissingBindingError("revenuecat", "revenueCatProjectId", bindings.bundleId);
     const wanted = new Set(req.productIds);
     const products = bindings.products.filter((p) => wanted.has(p.productId));
     const known = new Set(products.map((p) => p.productId));

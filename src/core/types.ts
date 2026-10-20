@@ -437,7 +437,9 @@ export type HumanTaskKind =
   /** A creator payout the marketplace refused after retries (usually the creator's payout setup). */
   | "creators.payout_failed"
   /** A creator payout whose call failed after it may have reached the marketplace: was it sent? */
-  | "creators.verify_payout";
+  | "creators.verify_payout"
+  /** A creator post the marketplace reported without a URL: a human finds it so it can be verified. */
+  | "creators.verify_post";
 
 export interface HumanTask {
   id: string;
@@ -987,6 +989,8 @@ export interface CreatorCampaign {
   /** Must be within the cell geo (P4). */
   targetCountries: string[];
   creatorAudienceCountryMinPct: number;
+  /** 18+ apps: the most of a creator's audience that may be under 18 (0..1); unset for all-ages apps. */
+  creatorAudienceUnder18MaxPct?: number;
   flatFeeCents: Cents;
   cpmCents: Cents;
   maxPayoutPerVideoCents: Cents;

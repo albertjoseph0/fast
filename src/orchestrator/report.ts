@@ -71,10 +71,10 @@ export function renderReport(ctx: TickContext, summary: TickSummary, plan: Alloc
     for (const l of plan.lanes) lines.push(`| ${l.ventureId} | ${usd(l.currentDailyCents)} | ${usd(l.proposedDailyCents)} | ${l.marginalRoasD60.toFixed(2)} | ${l.paybackDaysPred ?? "—"}d | ${l.reason} |`);
     lines.push("", `Projected cash trough ${usd(plan.projectedTroughCents)}; validation budget ${usd(plan.testBudgetCents)}/day.`);
   }
-  const decided = ctx.store.recentEvents((e) => e.type === "experiment.decided" && e.at.slice(0, 10) === summary.date);
+  const decided = decisionsSince(ctx, `${summary.date}T00:00:00.000Z`).filter((d) => d.kind === "experiment");
   if (decided.length) {
     lines.push("", "## Experiment decisions", "");
-    for (const e of decided) lines.push(`- ${e.ventureId ?? ""} ${String(e.data["experimentId"])}: **${String(e.data["decision"])}** — ${String(e.data["rationale"] ?? "")}`);
+    for (const d of decided) lines.push(`- ${d.ventureId} ${d.subject}: **${d.what}** — ${d.why}`);
   }
   const awaiting = ctx.store.actions.list((a) => a.status === "awaiting_approval");
   if (awaiting.length) {
@@ -106,12 +106,38 @@ export function writeReport(dataDir: string, date: string, markdown: string): st
   return path;
 }
 
+interface Decision {
+  at: string;
+  kind: "experiment" | "stage";
+  ventureId: string;
+  subject: string;
+  what: string;
+  why: string;
+}
+
+/**
+ * Experiment decisions and stage changes since a time, from stored state (outcomes and venture
+ * history), so a live process that runs one tick still sees the whole week.
+ */
+function decisionsSince(ctx: TickContext, since: string): Decision[] {
+  const out: Decision[] = [];
+  for (const e of ctx.store.experiments.list()) {
+    for (const o of ctx.store.outcomes(e.id)) {
+      if (o.decidedAt >= since) out.push({ at: o.decidedAt, kind: "experiment", ventureId: e.ventureId, subject: e.id, what: o.decision, why: o.rationale });
+    }
+  }
+  for (const v of ctx.store.ventures.list()) {
+    for (const h of v.history) if (h.at >= since) out.push({ at: h.at, kind: "stage", ventureId: v.id, subject: `${h.from} → ${h.to}`, what: h.to, why: h.reason });
+  }
+  return out.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+}
+
 /** Weekly LLM board memo over the deterministic summary. */
 export async function boardMemo(ctx: TickContext, deps: StudioDeps, summary: TickSummary): Promise<BoardMemo> {
-  const decisions = ctx.store
-    .recentEvents((e) => (e.type === "experiment.decided" || e.type === "venture.stage_changed") && e.at >= new Date(new Date(ctx.ports.clock.iso()).getTime() - 7 * 86_400_000).toISOString())
+  const since = new Date(new Date(ctx.ports.clock.iso()).getTime() - 7 * 86_400_000).toISOString();
+  const decisions = decisionsSince(ctx, since)
     .slice(-30)
-    .map((e) => `${e.ventureId ?? ""} ${e.type}: ${JSON.stringify(e.data).slice(0, 200)}`);
+    .map((d) => `${d.ventureId} ${d.kind === "experiment" ? `${d.subject} decided ${d.what}` : `stage ${d.subject}`}: ${d.why.slice(0, 200)}`);
   return deps.agents.writeBoardMemo(ctx, {
     date: summary.date,
     cashCents: summary.cashCents,

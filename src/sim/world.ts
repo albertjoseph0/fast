@@ -518,7 +518,12 @@ export class SimWorld {
     const niche = this.idea(c.ventureId)?.wedge.creatorNiche ?? "general";
     const minShare = c.creatorAudienceCountryMinPct > 1 ? c.creatorAudienceCountryMinPct / 100 : c.creatorAudienceCountryMinPct;
     const r = this.rng.fork(`campaign:${state.externalId}`);
-    const eligible = c.platforms.flatMap((p) => creatorPool(niche, p, this.seed)).filter((cr) => c.targetCountries.some((g) => (cr.audienceGeo[g] ?? 0) >= minShare));
+    const maxUnder18 = c.creatorAudienceUnder18MaxPct;
+    const eligible = c.platforms
+      .flatMap((p) => creatorPool(niche, p, this.seed))
+      .filter((cr) => c.targetCountries.some((g) => (cr.audienceGeo[g] ?? 0) >= minShare))
+      // Most creators with young audiences skip a campaign that asks for adult ones; a few apply anyway.
+      .filter((cr) => maxUnder18 === undefined || cr.audienceUnder18Share === null || cr.audienceUnder18Share <= maxUnder18 || r.next() < 0.1);
     const { creatorsPerCell, postsPerCreator } = this.config.lab.creatorBatch;
     const maxCreators = c.experimentId ? creatorsPerCell : 30;
     const hooks = c.brief.hooks.length ? c.brief.hooks : [c.brief.title];

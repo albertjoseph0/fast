@@ -29,6 +29,12 @@ do when something goes wrong. The studio runs itself between those touchpoints.
    * Create one PostHog project per venture. The app template reads feature flags named exactly
      `paywall`, `onboarding`, `share` and `core` in that project, and sets the person properties the
      lab attributes by: storefront, `source_id`, channel, and experiment and cell ids.
+   * Give creators a link that names them, for link-in-bio and story stickers (TikTok and Reels captions
+     have no clickable links): `https://<deepLinkDomain>/?src=<creatorId>&ch=creator_ugc`, or `?c=<code>`
+     with a creator code. The app sets `source_id` and `channel` once from the opening link, and falls back
+     to the attribution survey, whose few answers alone stay under the lab's five-source minimum. Users
+     with no source are spread over 20 stable `unattributed:N` buckets, so they count as independent
+     traffic rather than one cluster.
    * Set `APPLE_TEAM_ID`. The first live run records the studio's entity and Apple organization
      account with it, and universal links use it.
 5. **Initialize and dry-run:**
@@ -45,7 +51,8 @@ do when something goes wrong. The studio runs itself between those touchpoints.
 The studio opens **human tasks** for steps no API allows. List them with `factory tasks`, read one
 with `factory task <id>`, and complete it with `factory complete <id> key=value ...`. Inputs are
 validated, and venture-scoped outputs are written into the venture's bindings. Time a venture spends
-waiting on you doesn't count against its validation time box.
+waiting on a required task doesn't count against its validation time box. Tasks open as soon as their
+inputs exist, so the per-venture ones usually arrive together and can be done in one sitting.
 
 | Task | Scope | When | You enter |
 |---|---|---|---|
@@ -53,9 +60,18 @@ waiting on you doesn't count against its validation time box.
 | `backend.deploy` | studio | first day | `backendUrl` (the verdict backend from `templates/expo-app/server`) |
 | `creators.fund_wallet` | studio | first day | `fundedCents` |
 | `apple.create_app` | venture | after the bundle id is registered | `ascAppId` (App Store Connect has no create-app API) |
-| `apple.privacy_labels` | venture | before the first submission | `confirmed=yes` |
+| `integrations.bind_projects` | venture | once the venture's site is published | `posthogProjectId`, `revenueCatProjectId`, `easProjectId` |
+| `web.deploy_site` | venture | once the venture's site is published | `deepLinkDomain` (the domain serving the site and universal links) |
+| `backend.add_tenant` | venture | before the first submission, and again whenever the tenant file changes | `confirmed=yes` after deploying the file named in the task |
+| `apple.privacy_labels` | venture | once the app record exists | `confirmed=yes` |
+| `apple.app_info` | venture | once the app record exists | `confirmed=yes` (age rating questionnaire and primary category) |
 | `social.connect_account` | venture | when owned content or the attention probe needs an account | `platform`, `handle`, `tokenSecretRef` |
-| `legal.review` | venture | sensitive or under-18 ideas, App Review rejections, escalated experiments | `decision` (and `reviewer`) |
+| `social.finish_draft` | venture | a TikTok inbox draft is waiting | `confirmed=yes` after posting it with the listed labels |
+| `legal.review` | venture | sensitive or under-18 ideas, spec copy the linter cannot clear, App Review rejections, escalated experiments | `decision` (and `reviewer`) |
+| `store.manual_step` | venture | a console-only store step, a build or upload that keeps failing, failed subscription setup | `confirmed=yes` after fixing it |
+| `creators.payout_failed` | venture | the marketplace refused a payout three times | `decision=retry` once fixed, or `decision=void` |
+| `creators.verify_payout` | venture | a payout call may have reached the marketplace | `decision=sent` or `decision=not_sent` after checking SideShift |
+| `creators.verify_post` | venture | the marketplace reported a post without a link for two days | `postUrl` (the post's public URL) |
 | `ads.billing_setup` | studio | before the first paid amplification | `network`, `adAccountId` |
 | `tiktok.audit`, `tiktok.verify_domain`, `meta.business_verification` | studio | once, to unlock direct posting and ads | as prompted |
 | `play.*` | venture | only with Android enabled | as prompted |
@@ -71,7 +87,14 @@ the action's payload hash, so if the payload changes, you'll be asked again. Exp
 * scaling, sunsetting and removal from sale
 * the first ad campaign on each network
 * the first payout to each creator
+* posts and payouts for an 18+ app when the creator's under-18 audience share is unknown
+* remote-config variants whose copy needs a human (efficacy, health or money claims)
+* creator campaigns and payouts beyond the day's spend cap
 * anything above the auto-approve limits in `autonomy.autoApproveBelowCentsByKind`
+
+An approval covers the findings you were shown. If a new rule starts to apply before the action runs
+(for example a creator's 30-day cap), you'll be asked again. A rejection stands for 14 days for the same
+payload.
 
 Approved actions run on the next tick, or immediately with `factory execute`.
 
@@ -90,9 +113,9 @@ call time. Keep them in your process manager or secret store, not in `.factory/`
 | App Store Connect | `ASC_ISSUER_ID` | yes | App Store Connect API issuer id (default name of secretRefs.issuerId) |
 | App Store Connect | `ASC_PRIVATE_KEY_PATH` | yes | Path to the AuthKey_<id>.p8 file (default name of secretRefs.privateKeyPath) |
 | App Store Connect | `ASC_PRIVATE_KEY` | no | PEM text of the .p8 key, an alternative to the path (secretRefs.privateKey) |
-| Store ports | `ASC_REVIEW_CONTACT_FIRST_NAME` | no | App Review contact first name (required by Apple on the first submission) |
-| Store ports | `ASC_REVIEW_CONTACT_LAST_NAME` | no | App Review contact last name |
-| Store ports | `ASC_REVIEW_CONTACT_PHONE` | no | App Review contact phone, e.g. +1 415 555 0100 |
+| Store ports | `ASC_REVIEW_CONTACT_FIRST_NAME` | yes | App Review contact first name (required by Apple on the first submission) |
+| Store ports | `ASC_REVIEW_CONTACT_LAST_NAME` | yes | App Review contact last name |
+| Store ports | `ASC_REVIEW_CONTACT_PHONE` | yes | App Review contact phone, e.g. +1 415 555 0100 |
 | Store ports | `EXPO_TOKEN` | yes | Expo token for EAS; a publisher can name another variable in secretRefs.expoToken |
 | Google Play | `PLAY_SERVICE_ACCOUNT_JSON` | yes | Path to the Google service-account key JSON (default name of secretRefs.serviceAccountJsonPath) |
 | Google Play | `PLAY_SERVICE_ACCOUNT_KEY` | no | Inline service-account key JSON, an alternative to the path (secretRefs.serviceAccountJson) |
@@ -145,7 +168,9 @@ call time. Keep them in your process manager or secret store, not in `.factory/`
 | A platform warns or strikes an account | `factory freeze platform:<tiktok\|instagram\|...> --reason "..."`. Actions on that platform are blocked until you `factory unfreeze` it. |
 | Ad spend misbehaves on a network | `factory freeze network:<meta\|tiktok\|apple> --reason "..."` |
 | One app needs to pause | `factory freeze venture:<ven_…> --reason "..."` |
-| A tick reports `interrupted during execution` | The process died mid-call. Check the external system for the action's effect, then cancel or re-approve it. Interrupted actions are never retried blindly. |
+| A tick reports `interrupted during execution` | The process died mid-call. Check the external system for the action's effect, then cancel or re-approve it. Interrupted actions are never retried blindly. An interrupted creator payout is held as paid and opens `creators.verify_payout`. |
+| `studio state ... is locked` | Another `factory` process is running. A lock left by a process that has exited is taken over automatically. |
+| You ran `factory sim --data` on a live directory | It refuses: simulations never replace a directory with a `config.json` or unmarked state. Live commands likewise refuse a directory marked `SIMULATION`. |
 | App Review rejects an app | Spam or duplicate rejections (4.3, 5.6) propose a kill. Others open a `legal.review` task: complete it with `decision=resubmit` after fixing, or `decision=abandon`. |
 | An experiment escalates | Its diagnostics are in the task. Complete it with `decision=rerun` or `decision=kill`. |
 | The LLM budget runs out | The tick skips discovery and building for the day; everything else continues. Raise `llm.maxDailyCents` if needed. |

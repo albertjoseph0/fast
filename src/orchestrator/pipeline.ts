@@ -356,6 +356,8 @@ export async function advanceBuilding(ctx: TickContext, deps: StudioDeps, ventur
     return "setting test territories";
   }
   if (!done(ctx, v, "monetization.configure")) {
+    // RevenueCat needs the venture's project; without it the action would fail on every tick.
+    if (!v.bindings.revenueCatProjectId) return ensureTask(ctx, v, "integrations.bind_projects", `${spec.appName} (${v.slug})`) ? "waiting for the RevenueCat project binding" : "waiting for EAS/PostHog/RevenueCat projects";
     propose({ ...base, kind: "monetization.configure", payload: { productIds: v.bindings.products.map((p) => p.productId), entitlementId: ctx.config.monetization.entitlementId }, naturalKey: "initial", summary: `Configure paywall products for ${spec.appName}`, rationale: "Entitlements and offerings for the price ladder" });
     return "configuring monetization";
   }

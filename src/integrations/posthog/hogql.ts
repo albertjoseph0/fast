@@ -33,7 +33,8 @@ const IDENT = /^[A-Za-z0-9_$.-]+$/;
 const PLAIN_IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const ISO = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
 const MAX_STRING = 1_000;
-const ROW_LIMIT = 50_000;
+/** PostHog's cap on rows per query: results are read in pages this size (see paged). */
+export const ROW_LIMIT = 50_000;
 
 /** Validate an identifier and quote it for HogQL when it is not a plain name. */
 export function ident(name: string): string {
@@ -88,6 +89,15 @@ export class HogQLBuilder {
   }
 }
 
+/**
+ * One page of a query's rows. Every query here orders its rows totally and bounds them in
+ * time, so consecutive pages neither skip nor repeat a row.
+ */
+export function paged(q: HogQLQuery, offset: number): HogQLQuery {
+  if (!Number.isSafeInteger(offset) || offset < 0) throw new HogQLError(`invalid row offset: ${offset}`);
+  return { query: `${q.query} LIMIT ${ROW_LIMIT} OFFSET ${offset}`, values: q.values };
+}
+
 /** `properties.<name>` / `person.properties.<name>` as a string ('' when missing). */
 export function prop(scope: "event" | "person", name: string): string {
   const base = scope === "event" ? "properties" : "person.properties";
@@ -100,14 +110,30 @@ const NOT_INTERNAL = `${prop("event", "is_internal")} != 'true'`;
 export const GEO_EXPR = `upper(if(${prop("person", "storefront")} != '', ${prop("person", "storefront")}, ${prop("person", "$initial_geoip_country_code")}))`;
 const CELL_EXPR = `if(${prop("event", "cell_id")} != '', ${prop("event", "cell_id")}, ${prop("person", "cell_id")})`;
 const SOURCE_EXPR = `if(${prop("person", "source_id")} != '', ${prop("person", "source_id")}, 'unknown')`;
+/** Stable buckets that persons without a source_id are spread over in cell breakdowns. */
+export const UNATTRIBUTED_BUCKETS = 20;
+/**
+ * A person's source in a cell breakdown. Unattributed persons fall into hash buckets of their
+ * person id rather than one 'unknown' source: one cluster holding a whole cell would read as a
+ * single source, collapsing its effective sample to 1 and failing every source check.
+ */
+const CELL_SOURCE_EXPR = `if(${prop("person", "source_id")} != '', ${prop("person", "source_id")}, concat('unattributed:', toString(cityHash64(toString(person_id)) % ${UNATTRIBUTED_BUCKETS})))`;
 const REVENUE_EXPR = `ifNull(toFloat(properties.revenue), 0)`;
 /** RevenueCat sends `platform` (iOS/Android); app events carry `$os`. */
 const PLATFORM_EXPR = `lower(if(${prop("event", "platform")} != '', ${prop("event", "platform")}, ${prop("event", "$os")}))`;
 
 /** App events carry app_slug; RevenueCat's server events do not (one project per venture anyway). */
+/**
+ * Share and invite events the app could not confirm (Android's share sheet never reports completion)
+ * don't count: a dismissed sheet is not a share. Events without the flag (older builds) still count.
+ */
+const SHARE_EVENTS: readonly string[] = [EV.share, EV.shareFirst, EV.inviteSent];
+const CONFIRMED = `${prop("event", "confirmed")} != 'false'`;
+
 function eventFilter(q: HogQLBuilder, event: string, appSlug: string): string {
   const base = `event = ${q.value(event)}`;
-  return APP_EVENT_NAMES.has(event) ? `${base} AND ${prop("event", "app_slug")} = ${q.value(appSlug)} AND ${NOT_INTERNAL}` : base;
+  if (!APP_EVENT_NAMES.has(event)) return base;
+  return `${base} AND ${prop("event", "app_slug")} = ${q.value(appSlug)} AND ${NOT_INTERNAL}${SHARE_EVENTS.includes(event) ? ` AND ${CONFIRMED}` : ""}`;
 }
 
 export type CellSelector = { kind: "geo"; geoCodes: string[] } | { kind: "user_random"; cellId: string };
@@ -174,7 +200,7 @@ export interface CellMetricQueryInput {
   cell: CellSelector;
 }
 
-/** Rows: [source, trials, successes] per traffic source (person property source_id). */
+/** Rows: [source, trials, successes] per traffic source (person property source_id, else an unattributed bucket). */
 export function cellMetricQuery(input: CellMetricQueryInput): HogQLQuery {
   const q = new HogQLBuilder();
   const den = denominatorSpec(input.denominator, input.maturityHours);
@@ -185,7 +211,7 @@ export function cellMetricQuery(input: CellMetricQueryInput): HogQLQuery {
     ? `HAVING t0 + toIntervalDay(toInt(ifNull(trial_days, ${q.value(DEFAULT_TRIAL_DAYS)}))) <= ${asOf}`
     : "";
   const denSelect = `
-    SELECT person_id AS pid, min(timestamp) AS t0, any(${SOURCE_EXPR}) AS source, any(distinct_id) AS did
+    SELECT person_id AS pid, min(timestamp) AS t0, any(${CELL_SOURCE_EXPR}) AS source, any(distinct_id) AS did
       ${den.trialPeriod ? ", argMin(toFloat(properties.trial_days), timestamp) AS trial_days" : ""}
     FROM events
     WHERE ${eventFilter(q, den.event, input.appSlug)}
@@ -214,8 +240,7 @@ export function cellMetricQuery(input: CellMetricQueryInput): HogQLQuery {
       GROUP BY den.pid
     )
     GROUP BY source
-    ORDER BY source
-    LIMIT ${ROW_LIMIT}`);
+    ORDER BY source`);
 }
 
 /** Rows: [internal, total]: internal_session vs all sessions in the cell (its cell_id, or untagged in its geo). */
@@ -260,10 +285,9 @@ export function dailyQuery(input: { appSlug: string; since: string; until: strin
     SELECT toString(toDate(timestamp)) AS day, ${GEO_EXPR} AS geo, ${PLATFORM_EXPR} AS platform, event, count() AS n, sum(${REVENUE_EXPR}) AS revenue
     FROM events
     WHERE timestamp >= ${from} AND timestamp < ${to}
-      AND ((event IN ${q.list(app)} AND ${prop("event", "app_slug")} = ${q.value(input.appSlug)} AND ${NOT_INTERNAL}) OR event IN ${q.list(server)})
+      AND ((event IN ${q.list(app)} AND ${prop("event", "app_slug")} = ${q.value(input.appSlug)} AND ${NOT_INTERNAL} AND (event NOT IN ${q.list([...SHARE_EVENTS])} OR ${CONFIRMED})) OR event IN ${q.list(server)})
     GROUP BY day, geo, platform, event
-    ORDER BY day, geo, platform, event
-    LIMIT ${ROW_LIMIT}`);
+    ORDER BY day, geo, platform, event`);
 }
 
 /** Rows: [person, geo, ts, expiration_at] for purchases that grant access, oldest first. */
@@ -274,8 +298,7 @@ export function subscriptionsQuery(input: { since: string; until: string }): Hog
     FROM events
     WHERE event IN ${q.list([EV.conversion, EV.renewal])}
       AND timestamp >= ${q.time(input.since)} AND timestamp < ${q.time(input.until)} + toIntervalDay(1)
-    ORDER BY timestamp
-    LIMIT ${ROW_LIMIT}`);
+    ORDER BY timestamp, pid, geo, expires`);
 }
 
 /** Events folded into cohort rows. */
@@ -298,7 +321,7 @@ export function cohortQuery(input: { appSlug: string; cohortSince: string; cohor
         any(${prop("person", "experiment_id")}) AS experiment, any(${CELL_EXPR}) AS cell
       FROM events
       WHERE ${eventFilter(q, EV.install, input.appSlug)}
-        AND timestamp >= ${from} AND timestamp < ${q.time(input.cohortUntil)} + toIntervalDay(1)
+        AND timestamp >= ${from} AND timestamp < ${q.time(input.cohortUntil)} + toIntervalDay(1) AND timestamp <= ${asOf}
       GROUP BY person_id
     ) AS i
     LEFT JOIN (
@@ -306,6 +329,5 @@ export function cohortQuery(input: { appSlug: string; cohortSince: string; cohor
       FROM events
       WHERE event IN ${q.list(COHORT_EVENTS)} AND timestamp >= ${from} AND timestamp <= ${asOf}
     ) AS e ON e.pid = i.pid
-    ORDER BY i.pid, e.ts
-    LIMIT ${ROW_LIMIT}`);
+    ORDER BY i.pid, e.ts, e.event, e.revenue, e.expires`);
 }

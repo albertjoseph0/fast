@@ -8,6 +8,7 @@
 import { createReadStream, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { Readable } from "node:stream";
 import { join } from "node:path";
+import type { VentureBindings } from "../core/types.ts";
 
 export type HttpMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -36,15 +37,34 @@ export interface HttpResponse<T = unknown> {
   dryRun: boolean;
 }
 
+/** A venture binding an adapter needs is unset: the venture's integrations.bind_projects task supplies it. */
+export class MissingBindingError extends Error {
+  constructor(
+    readonly service: string,
+    readonly binding: keyof VentureBindings,
+    readonly bundleId: string,
+  ) {
+    super(`${service}: no ${binding} bound for ${bundleId} (complete the venture's integrations.bind_projects task)`);
+    this.name = "MissingBindingError";
+  }
+}
+
+/** A non-2xx response. `url` and `body` are scrubbed of secret query values, since error messages reach reports and logs. */
 export class HttpError extends Error {
+  readonly url: string;
+  readonly body: string;
+
   constructor(
     readonly service: string,
     readonly status: number,
-    readonly url: string,
-    readonly body: string,
+    url: string,
+    body: string,
   ) {
-    super(`${service} ${status} ${url}: ${body.slice(0, 500)}`);
+    const safe = scrubSecrets(url, body);
+    super(`${service} ${status} ${safe.url}: ${safe.body.slice(0, 500)}`);
     this.name = "HttpError";
+    this.url = safe.url;
+    this.body = safe.body;
   }
 }
 
@@ -76,6 +96,22 @@ function redactUrl(raw: string): string {
   const url = new URL(raw);
   for (const key of [...url.searchParams.keys()]) if (SECRET_KEY.test(key)) url.searchParams.set(key, "<redacted>");
   return url.toString();
+}
+
+/** Mask secret query parameters in the URL, and their values wherever the body echoes them back. */
+function scrubSecrets(raw: string, body: string): { url: string; body: string } {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return { url: raw, body };
+  }
+  let scrubbed = body;
+  for (const [key, value] of url.searchParams) {
+    if (!SECRET_KEY.test(key) || !value) continue;
+    for (const form of [value, encodeURIComponent(value)]) scrubbed = scrubbed.split(form).join("<redacted>");
+  }
+  return { url: redactUrl(raw), body: scrubbed };
 }
 
 const SECRET_HEADER = /^(authorization|x-api-key|api-key|x-goog-api-key|cookie|x-access-token)$/i;

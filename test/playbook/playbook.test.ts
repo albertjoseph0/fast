@@ -309,6 +309,7 @@ describe("setup checklist", () => {
     "social.finish_draft",
     "creators.payout_failed",
     "creators.verify_payout",
+    "creators.verify_post",
   ];
 
   it("covers every human task kind exactly once", () => {

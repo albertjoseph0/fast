@@ -9,7 +9,13 @@
  *   vs:<campaignId>:<videoSubmissionId>   a draft, later paired with the post it became
  *   post:<campaignId>:<postId>            a tracked post with no reviewed draft before it
  * A post is paired with the creator's oldest unpaired draft approved no later than the
- * post's upload time, so an id never changes meaning between syncs.
+ * post's upload time. Pairings an earlier sync already exposed (the studio's submission has
+ * the post's URL or upload time) are kept, and a post already exposed under its own post: id
+ * is never paired later, so an id never changes meaning between syncs.
+ *
+ * SideShift's Post carries no disclosure field, so the paid-partnership check accepts an
+ * explicit label when SideShift reports one, and otherwise a disclosure hashtag in the live
+ * caption, which the brief asks creators to add.
  *
  * Payouts go through POST /payouts/execute with a per-contract custom amount (computed by
  * governance from verified views): first a SideShift dry run (dryRun: true) whose plan must
@@ -157,10 +163,13 @@ export function postUrlOf(post: Json): string | undefined {
 }
 
 const DISCLOSURE_KEYS = ["isBrandedContent", "brandedContent", "paidPartnership", "isPaidPartnership", "isAd", "adLabel", "commercialContent", "isCommercialContent"];
+const DISCLOSURE_TAG = /(^|[^\p{L}\p{N}_])#(ad|sponsored|paidpartnership|advertisement)(?![\p{L}\p{N}_])/iu;
+/** Caption line the brief asks for, so the live caption check has something to find. */
+export const DISCLOSURE_REQUIREMENT = "Disclosure: turn on the platform's paid-partnership or branded-content label and put #ad in the caption.";
 
-/** True only when SideShift's platform-synced post data explicitly carries a paid-partnership label. */
+/** True when the post explicitly carries a paid-partnership label, or its live caption discloses with #ad (or #sponsored). */
 export function disclosureLabelOf(post: Json): boolean {
-  return DISCLOSURE_KEYS.some((k) => post[k] === true);
+  return DISCLOSURE_KEYS.some((k) => post[k] === true) || DISCLOSURE_TAG.test(s(post.title));
 }
 
 export class SideShiftClient {
@@ -272,8 +281,15 @@ export interface CampaignSnapshot {
   /** post id → paired draft id */
   pairedDraft: Map<string, string>;
   contractOfCreator: Map<string, string>;
-  handleOfCreator: Map<string, { handle: string; platform: Platform | null }>;
+  /** creator id → the handles from their applications to this campaign, one per platform */
+  handlesOfCreator: Map<string, { handle: string; platform: Platform | null }[]>;
   creatorOfPost: Map<string, string>;
+}
+
+/** The creator's handle on a platform, else their only handle when the platform is unknown. */
+function handleOn(snap: CampaignSnapshot, creator: string, platform: Platform | null): string | undefined {
+  const known = snap.handlesOfCreator.get(creator) ?? [];
+  return (known.find((k) => k.platform === platform) ?? (platform === null && known.length === 1 ? known[0] : undefined))?.handle;
 }
 
 function ms(iso: string | undefined): number {
@@ -285,19 +301,40 @@ function creatorIdOf(app: SsApplication): string {
   return s(c.id) || s(c.contractorId) || s(c.userId) || s(c.creatorId);
 }
 
-/** Pair each post with the creator's oldest unpaired draft approved at or before the post's upload. */
-export function pairPosts(drafts: SsVideoSubmission[], posts: SsPost[], creatorOfPost: Map<string, string>): { pairedPost: Map<string, SsPost>; pairedDraft: Map<string, string> } {
+/** Pairings earlier syncs exposed: draft id → its post id (null when that post is no longer listed), and posts exposed on their own. */
+export interface PriorPairing {
+  drafts: Map<string, string | null>;
+  standalone: Set<string>;
+}
+
+/**
+ * Pair each post with the creator's oldest unpaired draft approved at or before the post's
+ * upload. Prior pairings stand; their drafts and posts, and standalone posts, are never re-paired.
+ */
+export function pairPosts(
+  drafts: SsVideoSubmission[],
+  posts: SsPost[],
+  creatorOfPost: Map<string, string>,
+  prior: PriorPairing = { drafts: new Map(), standalone: new Set() },
+): { pairedPost: Map<string, SsPost>; pairedDraft: Map<string, string> } {
   const pairedPost = new Map<string, SsPost>();
   const pairedDraft = new Map<string, string>();
+  for (const [draftId, postId] of prior.drafts) {
+    const post = postId === null ? undefined : posts.find((p) => p.id === postId);
+    if (!post) continue;
+    pairedPost.set(draftId, post);
+    pairedDraft.set(post.id, draftId);
+  }
   const approved = drafts
     .filter((d) => d.status === "approved" && d.creatorId && Number.isFinite(ms(toIso(d.reviewedAt))))
     .sort((a, b) => ms(toIso(a.reviewedAt)) - ms(toIso(b.reviewedAt)) || a.id.localeCompare(b.id));
   const ordered = [...posts].sort((a, b) => (ms(toIso(a.uploadedAt)) || 0) - (ms(toIso(b.uploadedAt)) || 0) || a.id.localeCompare(b.id));
   for (const post of ordered) {
+    if (pairedDraft.has(post.id) || prior.standalone.has(post.id)) continue;
     const creator = creatorOfPost.get(post.id);
     const uploaded = ms(toIso(post.uploadedAt));
     if (!creator || !Number.isFinite(uploaded)) continue;
-    const draft = approved.find((d) => d.creatorId === creator && !pairedPost.has(d.id) && ms(toIso(d.reviewedAt)) <= uploaded);
+    const draft = approved.find((d) => d.creatorId === creator && !pairedPost.has(d.id) && !prior.drafts.has(d.id) && ms(toIso(d.reviewedAt)) <= uploaded);
     if (!draft) continue;
     pairedPost.set(draft.id, post);
     pairedDraft.set(post.id, draft.id);
@@ -314,7 +351,32 @@ export function parseSubmissionId(externalId: string): { kind: "vs" | "post"; ca
 class Snapshots {
   private readonly cache = new Map<string, CampaignSnapshot>();
 
-  constructor(private readonly client: SideShiftClient) {}
+  constructor(
+    private readonly client: SideShiftClient,
+    private readonly store: StudioStore,
+  ) {}
+
+  /**
+   * What the studio already holds for this campaign: a vs: submission with a post URL or post
+   * time was paired, and keeps the post that URL (else upload time and creator) names.
+   */
+  private prior(campaignId: string, drafts: SsVideoSubmission[], posts: SsPost[], creatorOfPost: Map<string, string>): PriorPairing {
+    const out: PriorPairing = { drafts: new Map(), standalone: new Set() };
+    for (const sub of this.store.submissions.list((x) => x.externalId.startsWith(`vs:${campaignId}:`) || x.externalId.startsWith(`post:${campaignId}:`))) {
+      const ref = parseSubmissionId(sub.externalId);
+      if (ref.kind === "post") {
+        out.standalone.add(ref.id);
+        continue;
+      }
+      if (!sub.postUrl && !sub.postedAt) continue;
+      const creator = drafts.find((d) => d.id === ref.id)?.creatorId;
+      const post =
+        (sub.postUrl ? posts.find((p) => postUrlOf(p) === sub.postUrl) : undefined) ??
+        (sub.postedAt && creator ? posts.find((p) => creatorOfPost.get(p.id) === creator && toIso(p.uploadedAt) === sub.postedAt) : undefined);
+      out.drafts.set(ref.id, post?.id ?? null);
+    }
+    return out;
+  }
 
   async load(campaignId: string): Promise<CampaignSnapshot> {
     const c = this.client;
@@ -333,22 +395,27 @@ class Snapshots {
       if (!contractOfCreator.has(creator) || k.status === "active") contractOfCreator.set(creator, k.id);
     }
     for (const d of drafts) if (d.creatorId && d.contractId && !contractOfCreator.has(d.creatorId)) contractOfCreator.set(d.creatorId, d.contractId);
-    const handleOfCreator = new Map<string, { handle: string; platform: Platform | null }>();
+    const handlesOfCreator = new Map<string, { handle: string; platform: Platform | null }[]>();
     const creatorOfHandle = new Map<string, string>();
     for (const a of applications) {
       if (a.programId !== campaignId || !a.handle) continue;
       const creator = creatorIdOf(a);
       if (!creator) continue;
-      const handle = normalizeHandle(a.handle);
-      if (!handleOfCreator.has(creator) || a.status === "approved") handleOfCreator.set(creator, { handle, platform: platformOf(a.platform) });
-      creatorOfHandle.set(handle, creator);
+      const entry = { handle: normalizeHandle(a.handle), platform: platformOf(a.platform) };
+      const known = handlesOfCreator.get(creator) ?? [];
+      const i = known.findIndex((k) => k.platform === entry.platform);
+      if (i < 0) known.push(entry);
+      else if (a.status === "approved") known[i] = entry;
+      handlesOfCreator.set(creator, known);
+      creatorOfHandle.set(entry.handle, creator);
     }
     const creatorOfPost = new Map<string, string>();
     for (const p of posts) {
       const creator = creatorOfContract.get(s(p.contractId)) || s(p.creatorId) || s(p.contractorId) || creatorOfHandle.get(normalizeHandle(s(p.creator)));
       if (creator) creatorOfPost.set(p.id, creator);
     }
-    const snap: CampaignSnapshot = { campaignId, drafts, posts, ...pairPosts(drafts, posts, creatorOfPost), contractOfCreator, handleOfCreator, creatorOfPost };
+    const prior = this.prior(campaignId, drafts, posts, creatorOfPost);
+    const snap: CampaignSnapshot = { campaignId, drafts, posts, ...pairPosts(drafts, posts, creatorOfPost, prior), contractOfCreator, handlesOfCreator, creatorOfPost };
     this.cache.set(campaignId, snap);
     return snap;
   }
@@ -381,18 +448,33 @@ function caption(d: SsVideoSubmission): string {
   return [d.captionIdeas, d.notes].filter((x): x is string => typeof x === "string" && x.length > 0).join("\n");
 }
 
+/** Live-post facts the marketplace reports: when it went up, its caption and its current views. */
+function postFacts(post: SsPost): Pick<ExternalSubmission, "postUrl" | "postedAt" | "untrustedPostCaption" | "views"> {
+  const url = postUrlOf(post);
+  const postedAt = toIso(post.uploadedAt);
+  const views = Number(post.views);
+  return {
+    ...(url ? { postUrl: url } : {}),
+    ...(postedAt ? { postedAt } : {}),
+    ...(typeof post.title === "string" ? { untrustedPostCaption: post.title } : {}),
+    ...(post.views !== undefined && post.views !== null && Number.isFinite(views) ? { views: Math.max(0, Math.round(views)) } : {}),
+  };
+}
+
 /** Snapshot → port submissions: unpaired drafts, drafts that became posts, and posts without a draft. */
 export function toExternalSubmissions(snap: CampaignSnapshot): ExternalSubmission[] {
   const out: ExternalSubmission[] = [];
-  const who = (creator: string, fallbackHandle: string, fallbackPlatform: unknown) => {
-    const known = snap.handleOfCreator.get(creator);
-    return { handle: known?.handle ?? normalizeHandle(fallbackHandle), platform: known?.platform ?? platformOf(fallbackPlatform) ?? "tiktok" };
+  // A post's own platform wins; a draft takes the platform of the creator's application.
+  const who = (creator: string, fallbackHandle: string, post: SsPost | undefined) => {
+    const known = snap.handlesOfCreator.get(creator) ?? [];
+    const platform = platformOf(post?.platform) ?? (post ? null : (known.find((k) => k.platform)?.platform ?? null));
+    const handle = handleOn(snap, creator, platform) ?? (normalizeHandle(fallbackHandle) || known[0]?.handle || "");
+    return { handle, platform: platform ?? known[0]?.platform ?? "tiktok" };
   };
   for (const d of snap.drafts) {
     if (!d.creatorId) continue;
     const post = snap.pairedPost.get(d.id);
-    const { handle, platform } = who(d.creatorId, s(post?.creator) || s(d.creatorName), post?.platform);
-    const url = post ? postUrlOf(post) : undefined;
+    const { handle, platform } = who(d.creatorId, s(post?.creator) || s(d.creatorName), post);
     out.push({
       externalId: `vs:${snap.campaignId}:${d.id}`,
       campaignExternalId: snap.campaignId,
@@ -402,14 +484,13 @@ export function toExternalSubmissions(snap: CampaignSnapshot): ExternalSubmissio
       untrustedCaption: caption(d),
       stage: post ? "posted" : "draft_submitted",
       submittedAt: (post ? toIso(post.uploadedAt) : undefined) ?? toIso(d.submittedAt) ?? new Date(0).toISOString(),
-      ...(url ? { postUrl: url } : {}),
+      ...(post ? postFacts(post) : {}),
     });
   }
   for (const p of snap.posts) {
     const creator = snap.creatorOfPost.get(p.id);
     if (!creator || snap.pairedDraft.has(p.id)) continue;
-    const { handle, platform } = who(creator, s(p.creator), p.platform);
-    const url = postUrlOf(p);
+    const { handle, platform } = who(creator, s(p.creator), p);
     out.push({
       externalId: `post:${snap.campaignId}:${p.id}`,
       campaignExternalId: snap.campaignId,
@@ -419,7 +500,7 @@ export function toExternalSubmissions(snap: CampaignSnapshot): ExternalSubmissio
       untrustedCaption: s(p.title),
       stage: "posted",
       submittedAt: toIso(p.uploadedAt) ?? new Date(0).toISOString(),
-      ...(url ? { postUrl: url } : {}),
+      ...postFacts(p),
     });
   }
   return out;
@@ -435,7 +516,7 @@ export class LiveCreatorRead implements CreatorRead {
 
   constructor(private readonly opts: SideShiftOptions) {
     this.client = new SideShiftClient(opts);
-    this.snapshots = new Snapshots(this.client);
+    this.snapshots = new Snapshots(this.client, opts.store);
     this.clock = opts.clock ?? new SystemClock();
     this.oembed = new HttpClient({ service: "oembed", dryRun: opts.dryRun, ...(opts.fetch ? { fetch: opts.fetch } : {}), ...(opts.sleep ? { sleep: opts.sleep } : {}) });
   }
@@ -480,12 +561,16 @@ export class LiveCreatorRead implements CreatorRead {
     return toExternalSubmissions(await this.snapshots.load(req.campaignExternalId));
   }
 
-  /** Public status and author from oEmbed where available; views and labels only from SideShift's platform sync. */
+  /**
+   * Public status and author from oEmbed where available; the post's current views and its
+   * labels from SideShift's platform sync. The author must be the creator's handle on the
+   * post's own platform.
+   */
   async verifyPost(req: { submissionExternalId: string; postUrl: string; platform: Platform }): Promise<SubmissionVerification> {
     const { snap, post: tracked } = await this.snapshots.resolve(req.submissionExternalId, true);
     const post = (tracked ? await this.client.getPost(tracked.id) : null) ?? tracked ?? null;
     const creator = post ? snap.creatorOfPost.get(post.id) : undefined;
-    const expected = (creator ? snap.handleOfCreator.get(creator)?.handle : undefined) ?? normalizeHandle(s(post?.creator));
+    const expected = (creator ? handleOn(snap, creator, platformOf(post?.platform) ?? req.platform) : undefined) ?? normalizeHandle(s(post?.creator));
     const oembed = await verifyByOembed(this.oembed, { url: req.postUrl, platform: req.platform, instagramToken: this.opts.env.INSTAGRAM_OEMBED_TOKEN });
     const postedAt = post ? toIso(post.uploadedAt) : undefined;
     const trackedHandle = normalizeHandle(s(post?.creator));
@@ -512,7 +597,7 @@ function dollars(cents: Cents): number {
 export function briefText(c: CreatorCampaign): string {
   const b = c.brief;
   const list = (title: string, items: string[]) => (items.length ? `${title}:\n${items.map((x) => `- ${x}`).join("\n")}` : "");
-  return [b.productSummary, `Audience: ${b.audience}`, list("Formats", b.formats), list("Hooks", b.hooks), list("Must include", b.mustInclude), list("Must avoid", b.mustAvoid), `Deliverables: ${b.deliverables}`]
+  return [b.productSummary, `Audience: ${b.audience}`, list("Formats", b.formats), list("Hooks", b.hooks), list("Must include", b.mustInclude), list("Must avoid", b.mustAvoid), `Deliverables: ${b.deliverables}`, DISCLOSURE_REQUIREMENT]
     .filter(Boolean)
     .join("\n\n");
 }
@@ -604,7 +689,7 @@ export class LiveCreatorWrite implements CreatorWrite {
 
   constructor(private readonly opts: SideShiftOptions) {
     this.client = new SideShiftClient(opts);
-    this.snapshots = new Snapshots(this.client);
+    this.snapshots = new Snapshots(this.client, opts.store);
   }
 
   async createCampaign(campaign: CreatorCampaign): Promise<{ externalId: string }> {

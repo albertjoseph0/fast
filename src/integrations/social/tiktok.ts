@@ -5,8 +5,10 @@
  * finishes in the app, because TikTok's audit rejects uploaders for your own accounts.
  * Direct posting is refused unless this adapter is constructed with audited: true, and the
  * privacy level is always one that creator_info offers (TikTok forbids defaults otherwise).
- * Inbox video init accepts no post_info, so AI and commercial labels on video drafts must be
- * applied by the human; the job result says so. Stats come from the Display API.
+ * Inbox drafts (video init accepts no post_info, photo MEDIA_UPLOAD ignores the toggles) carry
+ * no AI or commercial labels, so the human must turn them on when posting: the first poll that
+ * sees the draft reports needs_human with result.labelsToApply, and the job only resumes once a
+ * human has been asked. Stats come from the Display API.
  */
 import type { Clock } from "../../core/ports.ts";
 import type { ExternalJob, JobPoll, JobRef, OwnedAccount, PlatformLabels, PostStats } from "../../core/types.ts";
@@ -164,7 +166,6 @@ export class TikTokClient implements PlatformPublisher {
       context: { ventureId: piece.ventureId },
     });
     const { publish_id } = unwrap(res.data, "post init");
-    const appliedInApp = mode === "inbox_draft" && isVideo;
     return {
       op: "social.publish",
       externalRef: {
@@ -174,7 +175,7 @@ export class TikTokClient implements PlatformPublisher {
         publishId: publish_id,
         mode,
         kind: isVideo ? "video" : "photo",
-        ...(appliedInApp ? { labelsToApplyInApp: labelList(labels).join(",") } : {}),
+        ...(mode === "inbox_draft" ? { labelsToApplyInApp: labelList(labels).join(",") } : {}),
       },
       pollAfterSec: 30,
     };
@@ -193,14 +194,20 @@ export class TikTokClient implements PlatformPublisher {
       sideEffect: false,
     });
     const data = unwrap(res.data, "status fetch");
-    const pending = job.externalRef.labelsToApplyInApp;
+    const draft = job.externalRef.mode === "inbox_draft";
+    const waiting = { moderation: "pending_human", labelsToApply: inAppLabels(job.externalRef.labelsToApplyInApp) };
+    // A draft is never trusted to be labelled until a human was told exactly which labels to turn on.
+    // The marker lives in job.result, which the orchestrator keeps when it re-arms the job.
+    if (draft && job.result?.["labelsToApply"] === undefined && (data.status === "SEND_TO_USER_INBOX" || data.status === "PUBLISH_COMPLETE")) {
+      return { status: "needs_human", result: waiting };
+    }
     switch (data.status) {
       case "PROCESSING_UPLOAD":
       case "PROCESSING_DOWNLOAD":
         return { status: "running", pollAfterSec: 30 };
       case "SEND_TO_USER_INBOX":
-        // The human finishes the draft in the TikTok app; keep waiting for PUBLISH_COMPLETE.
-        return { status: "running", pollAfterSec: 3_600, result: { moderation: "pending_human", ...(pending ? { labelsToApplyInApp: pending } : {}) } };
+        // The human was asked to finish the draft in the TikTok app; keep waiting for PUBLISH_COMPLETE.
+        return { status: "running", pollAfterSec: 3_600, result: draft ? waiting : { moderation: "pending_human" } };
       case "PUBLISH_COMPLETE": {
         const postId = data.publicaly_available_post_id?.[0];
         if (postId === undefined) {
@@ -253,4 +260,16 @@ function directPostInfo(creator: CreatorInfo | "offline", labels: NonNullable<Pl
 
 function labelList(labels: NonNullable<PlatformLabels["tiktok"]>): string[] {
   return [labels.is_aigc ? "ai_generated" : "", labels.brand_organic_toggle ? "your_brand" : "", labels.brand_content_toggle ? "branded_content" : ""].filter(Boolean);
+}
+
+/** The settings a human turns on in the TikTok app, named as the app names them. */
+const IN_APP_LABEL: Record<string, string> = {
+  ai_generated: "AI-generated content",
+  your_brand: "Content disclosure: Your brand",
+  branded_content: "Content disclosure: Branded content",
+};
+
+/** In-app label names for a job's labelsToApplyInApp ids. */
+function inAppLabels(ids: string | undefined): string[] {
+  return (ids ?? "").split(",").filter(Boolean).map((id) => IN_APP_LABEL[id] ?? id);
 }

@@ -104,6 +104,10 @@ export interface StudioJson {
   env: { posthogApiKey: string; posthogHost: string; revenueCatIosKey: string; revenueCatAndroidKey: string };
   entitlementId: string;
   products: StudioProduct[];
+  /** Youngest allowed user (spec.compliance.minimumAge); 18 turns on the in-app age gate. */
+  minimumAge: 13 | 16 | 18;
+  /** The lab experiment this build ships for, set once as the experiment_id person property. */
+  experimentId?: string | null;
   aiProviders: { id: string; name: string; role: string }[];
   privacyManifest: {
     NSPrivacyTracking: boolean;

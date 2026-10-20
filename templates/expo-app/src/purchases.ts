@@ -1,15 +1,17 @@
 /**
- * RevenueCat: one app user per PostHog distinct id, so RevenueCat's PostHog integration
- * books conversions, renewals and refunds onto the same person. Paywall products are
- * resolved from offerings by store product id; price, period and trial are read from the
- * store product, never from the spec.
+ * RevenueCat: the app user is the install's stored app user id (identity.ts), and the
+ * $posthogUserId attribute names the current PostHog distinct id, so RevenueCat's PostHog
+ * integration books conversions, renewals and refunds onto the right person. Paywall
+ * products are resolved from offerings by store product id; price, period and trial are
+ * read from the store product, never from the spec, and a trial is shown only to customers
+ * eligible for it.
  */
 import { Linking, Platform } from "react-native";
 import Purchases, { type CustomerInfo, type PurchasesPackage } from "react-native-purchases";
 import Constants from "expo-constants";
 import { markInternal } from "./analytics";
 import { studio } from "./spec";
-import { periodFromIso, termsLine, trialDaysFromIntro } from "./terms";
+import { offeredTrialDays, periodFromIso, termsLine } from "./terms";
 import type { Period } from "./types";
 
 let configured = false;
@@ -28,13 +30,18 @@ function apiKey(): string {
   return (Platform.OS === "ios" ? keys.ios : keys.android) ?? "";
 }
 
-export async function configurePurchases(appUserId: string): Promise<void> {
+export async function configurePurchases(appUserId: string, posthogId: string | null): Promise<void> {
   const key = apiKey();
   if (!key || configured) return;
   Purchases.configure({ apiKey: key, appUserID: appUserId });
   configured = true;
-  await Purchases.setAttributes({ $posthogUserId: appUserId });
+  await linkAnalyticsId(posthogId);
   noteSandbox(await Purchases.getCustomerInfo().catch(() => null));
+}
+
+/** Points RevenueCat's PostHog integration at the current distinct id (it changes on Delete my data). */
+export async function linkAnalyticsId(posthogId: string | null): Promise<void> {
+  if (configured && posthogId) await Purchases.setAttributes({ $posthogUserId: posthogId }).catch(() => undefined);
 }
 
 function noteSandbox(info: CustomerInfo | null): void {
@@ -58,6 +65,9 @@ export async function paywallProducts(ladderIds: string[]): Promise<PaywallProdu
   if (!configured) return [];
   const offerings = await Purchases.getOfferings();
   const packages = Object.values(offerings.all).flatMap((o) => o.availablePackages);
+  // A failed check reads as unknown for every product: show the plain price, never a trial the customer may not get.
+  const eligibility: Record<string, { status: number }> | null =
+    Platform.OS === "ios" ? await Purchases.checkTrialOrIntroductoryPriceEligibility(packages.map((p) => p.product.identifier)).catch(() => ({})) : null;
   return ladderIds.flatMap((ladderId) => {
     const product = studio.products.find((p) => p.ladderId === ladderId);
     if (!product) return [];
@@ -65,20 +75,22 @@ export async function paywallProducts(ladderIds: string[]): Promise<PaywallProdu
     const pkg = packages.find((p) => p.product.identifier === product.productId || p.product.identifier.startsWith(`${product.productId}:`));
     if (!pkg) return [];
     const period = periodFromIso(pkg.product.subscriptionPeriod) ?? product.period;
-    const trialDays = trialDaysFromIntro(pkg.product.introPrice);
+    const trialDays = offeredTrialDays(pkg.product.introPrice, eligibility ? (eligibility[pkg.product.identifier]?.status ?? 0) : null);
     return [{ ladderId, pkg, priceString: pkg.product.priceString, period, trialDays, terms: termsLine(pkg.product.priceString, period, trialDays) }];
   });
 }
 
 export type PurchaseOutcome = "purchased" | "cancelled" | "failed";
 
-export async function purchase(product: PaywallProduct): Promise<PurchaseOutcome> {
+/** `trial` is true only when the store actually started a free trial for this purchase. */
+export async function purchase(product: PaywallProduct): Promise<{ outcome: PurchaseOutcome; trial: boolean }> {
   try {
     const { customerInfo } = await Purchases.purchasePackage(product.pkg);
     noteSandbox(customerInfo);
-    return customerInfo.entitlements.active[studio.entitlementId] ? "purchased" : "failed";
+    const entitlement = customerInfo.entitlements.active[studio.entitlementId];
+    return entitlement ? { outcome: "purchased", trial: entitlement.periodType === "TRIAL" } : { outcome: "failed", trial: false };
   } catch (err) {
-    return (err as { userCancelled?: boolean | null }).userCancelled ? "cancelled" : "failed";
+    return { outcome: (err as { userCancelled?: boolean | null }).userCancelled ? "cancelled" : "failed", trial: false };
   }
 }
 

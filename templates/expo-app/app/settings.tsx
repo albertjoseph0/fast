@@ -3,14 +3,14 @@ import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Switch, View } from "react-native";
 import { deleteServerData } from "../src/api";
-import { resetAnalytics, track } from "../src/analytics";
+import { distinctId, resetAnalytics, track } from "../src/analytics";
 import { APP_EVENTS } from "../src/events";
 import { emailSupport, openPrivacy, openSupport, openTerms } from "../src/links";
 import { requestPermission, scheduleReminders } from "../src/notifications";
-import { openManageSubscription, restore } from "../src/purchases";
+import { linkAnalyticsId, openManageSubscription, restore } from "../src/purchases";
 import { appUserId } from "../src/session";
 import { studio, useSpec } from "../src/spec";
-import { clearAll, getJson, KEYS, setJson } from "../src/storage";
+import { clearPersonalData, getJson, KEYS, setJson } from "../src/storage";
 import { Body, Button, Card, Screen, Title } from "../src/ui";
 
 export default function Settings() {
@@ -59,8 +59,10 @@ export default function Settings() {
         onPress: () => {
           void (async () => {
             await deleteServerData(appUserId()).catch(() => undefined);
-            await clearAll();
+            await clearPersonalData();
             resetAnalytics();
+            // The purchase identity is kept (the subscription stays); only its PostHog link moves.
+            await linkAnalyticsId(distinctId());
             router.replace("/");
           })();
         },
