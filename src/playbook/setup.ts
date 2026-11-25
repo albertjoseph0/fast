@@ -233,6 +233,22 @@ export const SETUP_CHECKLIST: readonly SetupStep[] = [
     ],
   },
   {
+    kind: "integrations.bind_web_projects",
+    scope: "venture",
+    title: "Create the web venture's analytics and subscription projects",
+    instructions: [
+      "Web-lane ventures have no store record and no build project; they still keep their own analytics and subscriptions.",
+      "1. [PostHog](https://us.posthog.com/project/settings): create a project named after the app; copy its numeric project id and its public project API key (phc_…). The key is public and is baked into the web app.",
+      "2. [RevenueCat](https://app.revenuecat.com/projects): create a project and add a **Stripe** app connected to the studio's Stripe account; copy the project id (proj...). Enable the PostHog integration with the event names in the runbook.",
+      "3. Add that Stripe app's public API key to the verdict backend as the variable named in the venture's tenant file (`revenueCatStripeKeyEnv`), so purchases made by web checkout are attributed to the buyer.",
+    ].join("\n"),
+    inputs: [
+      { key: "posthogProjectId", label: "PostHog project id", pattern: "^\\d+$" },
+      { key: "posthogPublicKey", label: "PostHog public project API key (phc_…)", pattern: "^phc_[A-Za-z0-9]+$" },
+      { key: "revenueCatProjectId", label: "RevenueCat project id", pattern: "^proj[A-Za-z0-9]+$" },
+    ],
+  },
+  {
     kind: "backend.add_tenant",
     scope: "venture",
     title: "Add the venture to the verdict backend",

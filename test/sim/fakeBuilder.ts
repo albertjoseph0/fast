@@ -26,3 +26,6 @@ export const renderApp: RenderApp = ({ venture, spec, outRoot }) => {
     files: [appJson, ...site, shot],
   };
 };
+
+/** The web renderer is fast (no screenshots), so studio tests use the real one. */
+export { renderWebApp } from "../../src/builder/webapp.ts";

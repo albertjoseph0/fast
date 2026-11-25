@@ -25,12 +25,12 @@ const PLATFORM = "ios" as const;
 /** Upload attempts that fail before reaching the store before a human looks. */
 const MAX_UPLOAD_FAILURES = 3;
 
-function openActions(ctx: TickContext, v: Venture, prefix: string): Action[] {
+export function openActions(ctx: TickContext, v: Venture, prefix: string): Action[] {
   return ctx.store.actions.list((a) => a.ventureId === v.id && a.kind.startsWith(prefix) && OPEN_STATUSES.includes(a.status));
 }
 
 /** Executed, or recorded as a dry run while dry-run is still on (after go-live those steps run for real). */
-function done(ctx: TickContext, v: Venture, kind: Action["kind"], naturalSuffix?: string): boolean {
+export function done(ctx: TickContext, v: Venture, kind: Action["kind"], naturalSuffix?: string): boolean {
   return ctx.store.actions.list(
     (a) =>
       a.ventureId === v.id &&
@@ -41,7 +41,7 @@ function done(ctx: TickContext, v: Venture, kind: Action["kind"], naturalSuffix?
 }
 
 /** Open a venture task once (an open or completed one counts). */
-function ensureTask(ctx: TickContext, v: Venture, kind: HumanTask["kind"], extra?: string): boolean {
+export function ensureTask(ctx: TickContext, v: Venture, kind: HumanTask["kind"], extra?: string): boolean {
   if (taskDone(ctx, kind, v.id)) return true;
   if (!ctx.store.tasks.count((t) => t.kind === kind && t.ventureId === v.id && t.status === "open")) ctx.outbox.openTask(taskDraft(kind, v.id, extra));
   return false;
@@ -74,7 +74,7 @@ function buildJobFor(ctx: TickContext, v: Venture) {
 /** Builds of the current spec version that failed or were superseded; past the cap a human looks. */
 const MAX_BUILD_ATTEMPTS = 3;
 
-function taskDone(ctx: TickContext, kind: HumanTask["kind"], ventureId?: string): boolean {
+export function taskDone(ctx: TickContext, kind: HumanTask["kind"], ventureId?: string): boolean {
   return ctx.store.tasks.count((t) => t.kind === kind && t.status === "done" && (ventureId === undefined || t.ventureId === ventureId)) > 0;
 }
 
@@ -87,14 +87,14 @@ export function ideaFor(ctx: TickContext, v: Venture): Idea {
 }
 
 /** Sensitive domains of the venture as built: the screening's, plus what the current spec itself says. */
-function domainsFor(ctx: TickContext, v: Venture) {
+export function domainsFor(ctx: TickContext, v: Venture) {
   const idea = ideaFor(ctx, v);
   const screened = ctx.store.screenings.get(v.screeningId)?.sensitiveDomains ?? [];
   return v.spec ? specDomains(v.spec, idea, screened) : effectiveDomains(idea, screened);
 }
 
 /** A per-build human task: done only once a task naming this exact marker was completed. */
-function ensureTaskFor(ctx: TickContext, v: Venture, kind: HumanTask["kind"], marker: string, extra: string): boolean {
+export function ensureTaskFor(ctx: TickContext, v: Venture, kind: HumanTask["kind"], marker: string, extra: string): boolean {
   if (ctx.store.tasks.count((t) => t.kind === kind && t.ventureId === v.id && t.status === "done" && t.instructions.includes(marker)) > 0) return true;
   if (!ctx.store.tasks.count((t) => t.kind === kind && t.ventureId === v.id && t.status === "open")) ctx.outbox.openTask(taskDraft(kind, v.id, `${extra} (${marker})`));
   return false;
@@ -104,7 +104,7 @@ function ensureTaskFor(ctx: TickContext, v: Venture, kind: HumanTask["kind"], ma
  * Copy the linter cannot clear on its own (efficacy, health or money claims) goes to a person before
  * the spec ships: each distinct set of findings is reviewed once. Returns what is still pending.
  */
-function specReviewPending(ctx: TickContext, v: Venture, domains: ReturnType<typeof domainsFor>): string | null {
+export function specReviewPending(ctx: TickContext, v: Venture, domains: ReturnType<typeof domainsFor>): string | null {
   const spec = v.spec;
   if (!spec) return null;
   const findings = lintSpec(spec, ideaFor(ctx, v), ctx.config, domains).filter((f) => f.severity === "needs_human");
@@ -143,7 +143,7 @@ function tenantMarker(v: Venture, projectDir: string): string {
   return `tenant ${hash}`;
 }
 
-function listFiles(dir: string): string[] {
+export function listFiles(dir: string): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? listFiles(join(dir, e.name)) : [join(dir, e.name)]));
 }
@@ -158,8 +158,8 @@ function seedHooks(ctx: TickContext, v: Venture, idea: Idea, formatId: string): 
   });
 }
 
-/** Spec, render and icon: the in-house part of building. Returns false when the venture was killed. */
-async function ensureBuild(ctx: TickContext, deps: StudioDeps, v: Venture): Promise<Venture | null> {
+/** The venture's first spec (designed, linted, hooks seeded). Returns null when the venture was killed. */
+export async function ensureSpec(ctx: TickContext, deps: StudioDeps, v: Venture): Promise<Venture | null> {
   const idea = ideaFor(ctx, v);
   const clock = ctx.ports.clock;
   if (!v.spec) {
@@ -177,6 +177,16 @@ async function ensureBuild(ctx: TickContext, deps: StudioDeps, v: Venture): Prom
       baseline: { ...v.baseline, specVersion: 1, hookIds },
     });
   }
+  return v;
+}
+
+/** Spec, render and icon: the in-house part of building. Returns false when the venture was killed. */
+async function ensureBuild(ctx: TickContext, deps: StudioDeps, venture: Venture): Promise<Venture | null> {
+  const specced = await ensureSpec(ctx, deps, venture);
+  if (!specced) return null;
+  let v = specced;
+  const idea = ideaFor(ctx, v);
+  const clock = ctx.ports.clock;
   if (!v.bindings.backendUrl) return v; // the render bakes in the backend URL; advanceBuilding waits for it
   // Re-render for a new spec version, and whenever a baked binding (site, deep-link domain, EAS project,
   // app record) changes before the binary is built, so the app links to the real ones.

@@ -367,6 +367,23 @@ export const StudioConfig = z.object({
     })
     .prefault({}),
 
+  /**
+   * The web lane: ventures that ship as web apps with web checkout instead of App Store apps. No app
+   * record, App Review, privacy labels or build project, so a concept reaches its first test in a day.
+   */
+  web: z
+    .object({
+      /** Lane for new ventures: "ios" (App Store, the Vert model) or "web" (web app + Stripe checkout). */
+      defaultLane: z.enum(["ios", "web"]).default("ios"),
+      /** Wildcard domain web apps are served under, as <slug>.<appsDomain>. The .invalid default never deploys live. */
+      appsDomain: z.string().default("apps.example.invalid"),
+      currency: z.string().default("usd"),
+      /** Stripe customer portal login link for self-serve cancellation (ROSCA); without it the pages point to support email. */
+      customerPortalUrl: z.string().nullable().default(null),
+      posthogHost: z.string().default("https://us.i.posthog.com"),
+    })
+    .prefault({}),
+
   privacy: z
     .object({
       /** GB/EU storefronts need GDPR consent flows, an Art. 27 representative and DSA trader verification. */

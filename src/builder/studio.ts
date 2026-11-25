@@ -131,6 +131,8 @@ export interface TenantJson {
   entitlementId: string;
   /** Env var holding this app's RevenueCat secret key (REST v1). */
   revenueCatSecretEnv: string;
+  /** Web lane: env var holding the RevenueCat public API key of the project's Stripe app (POST /v1/receipts). */
+  revenueCatStripeKeyEnv?: string;
   rateLimit: { perMinute: number; perDay: number };
   /** Verdicts the backend serves this app per UTC day: a ceiling on a runaway inference bill. */
   dailyVerdictCap: number;

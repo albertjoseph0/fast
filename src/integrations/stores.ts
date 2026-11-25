@@ -59,6 +59,8 @@ export interface LiveStorePortsOptions {
 const DEFAULT_REFS: Record<StorePlatform, Record<string, string>> = {
   ios: { keyId: "ASC_KEY_ID", issuerId: "ASC_ISSUER_ID", privateKeyPath: "ASC_PRIVATE_KEY_PATH" },
   android: { serviceAccountJsonPath: "PLAY_SERVICE_ACCOUNT_JSON" },
+  // Web-lane apps have no store account; the executor routes them to WebWrite and CheckoutWrite.
+  web: {},
 };
 
 const CAPABILITIES: Record<string, string> = {

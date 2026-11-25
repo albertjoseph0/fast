@@ -31,7 +31,8 @@ export type CoreNeed = z.infer<typeof CoreNeed>;
 export const Platform = z.enum(["tiktok", "instagram", "youtube", "x", "pinterest", "snapchat", "threads"]);
 export type Platform = z.infer<typeof Platform>;
 
-export const StorePlatform = z.enum(["ios", "android"]);
+/** Where a venture ships. "web" is the fast lane: a static web app with web checkout, no store review. */
+export const StorePlatform = z.enum(["ios", "android", "web"]);
 export type StorePlatform = z.infer<typeof StorePlatform>;
 
 export const AdNetwork = z.enum(["meta", "tiktok", "apple", "google"]);
@@ -428,6 +429,8 @@ export type HumanTaskKind =
   | "store.manual_step"
   /** Per-venture analytics, subscription and build projects (PostHog, RevenueCat, EAS) the adapters write into. */
   | "integrations.bind_projects"
+  /** Web lane: the venture's PostHog and RevenueCat projects (RevenueCat with Stripe connected); no build project. */
+  | "integrations.bind_web_projects"
   /** Deploy the venture's tenant file (composed system prompt) and RevenueCat secret to the verdict backend. */
   | "backend.add_tenant"
   /** App Store metadata no API covers well: age rating questionnaire, category, copyright, content rights, price. */
@@ -494,7 +497,7 @@ export interface StageTransition {
   reason: string;
 }
 
-export type BakedBinding = "webBaseUrl" | "deepLinkDomain" | "easProjectId" | "ascAppId" | "backendUrl";
+export type BakedBinding = "webBaseUrl" | "deepLinkDomain" | "easProjectId" | "ascAppId" | "backendUrl" | "posthogPublicKey" | "checkoutLinks";
 
 export interface BuildRecord {
   projectDir: string;
@@ -558,6 +561,12 @@ export interface VentureBindings {
   revenueCatAppIds?: Partial<Record<StorePlatform, string>>;
   posthogProjectId?: string;
   webBaseUrl?: string;
+  /** Web lane: the deployed web app (https://<slug>.<web.appsDomain>). */
+  webAppUrl?: string;
+  /** Web lane: checkout links by price-ladder id (Stripe Payment Links; deactivated on remove_from_sale). */
+  checkoutLinks?: Record<string, { url: string; linkId: string; priceId: string; stripeProductId: string }>;
+  /** Web lane: the venture's public PostHog project key (phc_…), baked into the web app. Not a secret. */
+  posthogPublicKey?: string;
   privacyUrl?: string;
   termsUrl?: string;
   supportUrl?: string;
@@ -1229,6 +1238,8 @@ export const ActionKind = z.enum([
   "remote_config.set",
   "web.publish_site",
   "web.put_asset",
+  "web.setup_checkout",
+  "web.deploy_app",
   "content.publish",
   "creator.campaign_create",
   "creator.campaign_close",
@@ -1351,6 +1362,10 @@ export interface ActionPayloads {
   "remote_config.set": { key: "paywall" | "onboarding" | "share" | "core"; variants: { id: string; rolloutPct: number; payload: unknown }[]; experimentId?: string };
   "web.publish_site": { files: { path: string; localPath: string }[] };
   "web.put_asset": { localPath: string; contentType: string };
+  /** Web lane: one product, price and payment link per ladder entry. Prices come from config, never an LLM. */
+  "web.setup_checkout": { products: StoreProductDef[]; successUrl: string };
+  /** Web lane: deploy the rendered web app to its host, geofenced to `territories` (P4). */
+  "web.deploy_app": { host: string; files: { path: string; localPath: string }[]; territories: string[]; specVersion: number; version: string };
   "content.publish": { contentId: string; accountId: string; platform: Platform; mode: "direct" | "inbox_draft" | "trial_reel"; labels: PlatformLabels; mediaSha256: string[] };
   "creator.campaign_create": { campaignId: string };
   "creator.campaign_close": { campaignId: string };
@@ -1369,6 +1384,16 @@ export interface ActionPayloads {
   "support.reply": { ticketId: string; reply: string; aiDisclosed: boolean };
 }
 
+/** One web checkout link per price-ladder entry (Stripe product, recurring price and payment link). */
+export interface WebCheckoutLink {
+  productId: string;
+  ladderId: string;
+  url: string;
+  linkId: string;
+  priceId: string;
+  stripeProductId: string;
+}
+
 export interface ActionResults {
   "store.register_bundle": { bundleIdResourceId: string };
   "store.create_app": { appId: string };
@@ -1384,6 +1409,8 @@ export interface ActionResults {
   "remote_config.set": { flagKey: string };
   "web.publish_site": { baseUrl: string };
   "web.put_asset": { publicUrl: string; sha256: string };
+  "web.setup_checkout": { links: WebCheckoutLink[] };
+  "web.deploy_app": { url: string; deploymentId: string };
   "content.publish": { jobId: string };
   "creator.campaign_create": { externalId: string };
   "creator.campaign_close": { closed: boolean };

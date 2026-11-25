@@ -110,7 +110,7 @@ function storeRecord(ctx: ExecContext, v: Venture, platform: StorePlatform): Sto
     v.stores.find((s) => s.platform === platform) ?? {
       platform,
       publisherAccountId: v.bindings.publisherAccountIds[platform] ?? "",
-      bundleId: platform === "ios" ? v.bindings.bundleId : v.bindings.androidPackage,
+      bundleId: platform === "android" ? v.bindings.androidPackage : v.bindings.bundleId,
       status: "not_created",
       territories: [],
       rejectionReasons: [],
@@ -155,6 +155,32 @@ function legalUrls(baseUrl: string, files: { path: string }[]): Partial<Record<"
     if (file) out[key] = `${base}/${file.path.replace(/^\/+/, "").replace(/(\/index)?\.html$|\/$/i, "")}`;
   }
   return out;
+}
+
+/** The last executed web deploy of a venture: its files are redeployed when the territories change. */
+function lastWebDeploy(ctx: ExecContext, ventureId: string): Action<"web.deploy_app"> | undefined {
+  return ctx.store.actions
+    .list((x) => x.kind === "web.deploy_app" && x.ventureId === ventureId && x.status === "executed")
+    .sort((a, b) => ((a.executedAt ?? a.createdAt) < (b.executedAt ?? b.createdAt) ? -1 : 1))
+    .at(-1) as Action<"web.deploy_app"> | undefined;
+}
+
+/** Deploy a web app and record it as the venture's live "web" store listing. */
+async function deployWeb(ctx: ExecContext, v: Venture, p: Action<"web.deploy_app">["payload"]): Promise<{ url: string; deploymentId: string }> {
+  const r = await ctx.write.webApp.deployApp({ ventureId: v.id, host: p.host, files: p.files, territories: p.territories });
+  updateStore(ctx, v, "web", { status: "live", territories: [...p.territories], versionString: p.version, appId: p.host });
+  const inferred = legalUrls(r.url, p.files);
+  const current = ctx.store.ventures.require(v.id).bindings;
+  patchVenture(ctx, v, {
+    bindings: {
+      ...current,
+      webAppUrl: r.url,
+      privacyUrl: current.privacyUrl ?? inferred.privacyUrl,
+      termsUrl: current.termsUrl ?? inferred.termsUrl,
+      supportUrl: current.supportUrl ?? inferred.supportUrl,
+    },
+  });
+  return r;
 }
 
 // -- handlers -----------------------------------------------------------------------
@@ -215,6 +241,13 @@ export const HANDLERS: { [K in ActionKind]: Handler<K> } = {
 
   "store.set_territories": async (ctx, a) => {
     const v = venture(ctx, a);
+    if (a.payload.platform === "web") {
+      // A web app's territories live in its deployment: redeploy the last build with the new list.
+      const last = lastWebDeploy(ctx, v.id);
+      if (!last) throw new Error(`venture ${v.id} has no executed web.deploy_app to redeploy`);
+      await deployWeb(ctx, v, { ...last.payload, territories: [...a.payload.territories] });
+      return { result: { territories: [...a.payload.territories] } };
+    }
     await ctx.write.store.setTerritories({ bindings: v.bindings, platform: a.payload.platform, territories: a.payload.territories });
     updateStore(ctx, v, a.payload.platform, { territories: [...a.payload.territories] });
     return { result: { territories: [...a.payload.territories] } };
@@ -237,6 +270,13 @@ export const HANDLERS: { [K in ActionKind]: Handler<K> } = {
 
   "store.remove_from_sale": async (ctx, a) => {
     const v = venture(ctx, a);
+    if (a.payload.platform === "web") {
+      // Stop new purchases; the site itself stays up for existing subscribers and the legal pages.
+      const linkIds = Object.values(v.bindings.checkoutLinks ?? {}).map((l) => l.linkId);
+      if (linkIds.length) await ctx.write.checkout.deactivate({ linkIds });
+      updateStore(ctx, v, "web", { status: "removed" });
+      return { result: { removed: true } };
+    }
     await ctx.write.store.removeFromSale({ bindings: v.bindings, platform: a.payload.platform });
     updateStore(ctx, v, a.payload.platform, { status: "removed" });
     return { result: { removed: true } };
@@ -267,6 +307,35 @@ export const HANDLERS: { [K in ActionKind]: Handler<K> } = {
       },
     });
     return { result };
+  },
+
+  "web.setup_checkout": async (ctx, a) => {
+    const v = venture(ctx, a);
+    const { links } = await ctx.write.checkout.createPaymentLinks({
+      ventureId: v.id,
+      bindings: v.bindings,
+      products: a.payload.products,
+      successUrl: a.payload.successUrl,
+      currency: ctx.config.web.currency,
+    });
+    const current = ctx.store.ventures.require(v.id).bindings;
+    const products = [...current.products];
+    const checkoutLinks = { ...current.checkoutLinks };
+    for (const l of links) {
+      checkoutLinks[l.ladderId] = { url: l.url, linkId: l.linkId, priceId: l.priceId, stripeProductId: l.stripeProductId };
+      const i = products.findIndex((x) => x.productId === l.productId && x.platform === "web");
+      // Web prices need no store review: a created payment link is sellable.
+      const product = { productId: l.productId, ladderId: l.ladderId, platform: "web" as const, status: "approved" as const };
+      if (i < 0) products.push(product);
+      else products[i] = product;
+    }
+    patchVenture(ctx, v, { bindings: { ...current, products, checkoutLinks } });
+    return { result: { links } };
+  },
+
+  "web.deploy_app": async (ctx, a) => {
+    const v = venture(ctx, a);
+    return { result: await deployWeb(ctx, v, a.payload) };
   },
 
   "web.put_asset": async (ctx, a) => {

@@ -304,6 +304,7 @@ describe("setup checklist", () => {
     "legal.review",
     "store.manual_step",
     "integrations.bind_projects",
+    "integrations.bind_web_projects",
     "backend.add_tenant",
     "apple.app_info",
     "social.finish_draft",

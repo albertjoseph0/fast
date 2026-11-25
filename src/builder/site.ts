@@ -19,7 +19,7 @@ function safeColor(value: string, fallback: string): string {
   return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value) ? value : fallback;
 }
 
-function page(spec: AppSpec, title: string, body: string): string {
+export function page(spec: AppSpec, title: string, body: string): string {
   const bg = safeColor(spec.brand.backgroundColor, "#ffffff");
   const fg = safeColor(spec.brand.textColor, "#111111");
   const accent = safeColor(spec.brand.accentColor, "#3355ff");

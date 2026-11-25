@@ -12,7 +12,10 @@ import { isActive, slugify, transition } from "./lifecycle.ts";
 import { studioBindings } from "./tasks.ts";
 import { taskDraft } from "../playbook/setup.ts";
 
-const DEFAULT_PLATFORMS: StorePlatform[] = ["ios"];
+/** New ventures ship on iOS, or as a web app when config.web.defaultLane is "web". */
+function defaultPlatforms(ctx: TickContext): StorePlatform[] {
+  return ctx.config.web.defaultLane === "web" ? ["web"] : ["ios"];
+}
 
 /** How many ventures the bankroll supports right now (scales with free cash). */
 export function ventureCapacity(ctx: TickContext, freeCashCents: number): number {
@@ -60,7 +63,9 @@ export function createVenture(ctx: TickContext, record: IdeaRecord, screening: S
   const shared = studioBindings(ctx);
   const packageSlug = slug.replace(/-/g, "");
   const publisherAccountIds: Venture["bindings"]["publisherAccountIds"] = {};
-  for (const platform of DEFAULT_PLATFORMS) {
+  const platforms = defaultPlatforms(ctx);
+  for (const platform of platforms) {
+    if (platform === "web") continue; // no store publisher account on the web
     const publisher = ctx.store.publishers.list((p) => p.platform === platform && p.status === "active")[0];
     if (publisher) publisherAccountIds[platform] = publisher.id;
   }
@@ -88,7 +93,7 @@ export function createVenture(ctx: TickContext, record: IdeaRecord, screening: S
     baseline: { specVersion: 0, hookIds: [], paywallVariantId: null, onboardingVariantId: null },
     stores: [],
     bindings: {
-      platforms: DEFAULT_PLATFORMS,
+      platforms,
       publisherAccountIds,
       bundleId: `${ctx.config.company.bundleIdPrefix}.${packageSlug}`,
       androidPackage: `${ctx.config.company.bundleIdPrefix}.${packageSlug}`,

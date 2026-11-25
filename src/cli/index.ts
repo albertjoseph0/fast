@@ -1,7 +1,7 @@
 /**
  * factory — operate the studio.
  *
- *   factory sim [--days 120] [--seed 42] [--data DIR] [--llm stub|gateway|anthropic] [--quiet]
+ *   factory sim [--days 120] [--seed 42] [--lane ios|web] [--data DIR] [--llm stub|gateway|anthropic] [--quiet]
  *   factory init [--data .factory]            write a live config (dry-run on)
  *   factory tick                              run today's operating day (live)
  *   factory status | report                   portfolio, cash and queues
@@ -68,6 +68,7 @@ async function main(): Promise<void> {
       data: { type: "string" },
       llm: { type: "string" },
       media: { type: "string" },
+      lane: { type: "string" },
       quiet: { type: "boolean" },
       as: { type: "string" },
       note: { type: "string" },
@@ -85,6 +86,8 @@ async function main(): Promise<void> {
     const seed = Number(values.seed ?? 42);
     const llm = values.llm as "stub" | "gateway" | "anthropic" | undefined;
     const media = values.media as "stub" | "gateway" | undefined;
+    const lane = values.lane;
+    if (lane !== undefined && lane !== "ios" && lane !== "web") fail(`--lane must be ios or web, not ${lane}`);
     const simDir = values.data ? dataDir : resolve(".factory-sim", `seed-${seed}`);
     // A simulation replaces the directory's state: never let it touch a live studio's.
     if (values.data) {
@@ -97,7 +100,7 @@ async function main(): Promise<void> {
       days,
       seed,
       dataDir: simDir,
-      config: { ...(llm ? { llm: { provider: llm } } : {}), ...(media ? { media: { provider: media } } : {}) },
+      config: { ...(llm ? { llm: { provider: llm } } : {}), ...(media ? { media: { provider: media } } : {}), ...(lane ? { web: { defaultLane: lane } } : {}) },
       onTick: (s) => {
         if (!values.quiet) process.stdout.write(`day ${String(s.tick).padStart(3)} ${s.date} cash ${usd(s.cashCents).padStart(10)} · ${s.ventures.filter((v) => !["killed", "exited"].includes(v.stage)).length} active · ${s.awaitingApproval} approvals · ${s.openTasks} tasks${s.errors.length ? ` · ${s.errors.length} errors` : ""}\n`);
       },

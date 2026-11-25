@@ -26,6 +26,8 @@ import { ENV_VARS as YOUTUBE_ENV } from "./social/youtube.ts";
 import { createLiveStorePorts, ENV_VARS as STORES_ENV } from "./stores.ts";
 import { ENV_VARS as BLOB_ENV, VercelBlobWebWrite } from "./web/blob.ts";
 import { ENV_VARS as STATIC_ENV, LocalStaticWebWrite } from "./web/static.ts";
+import { ENV_VARS as VERCEL_ENV, VercelAppWrite } from "./web/vercel.ts";
+import { ENV_VARS as STRIPE_ENV, StripeCheckoutWrite } from "./payments/stripe.ts";
 
 type Env = Record<string, string | undefined>;
 export interface EnvVar {
@@ -59,6 +61,8 @@ export const LIVE_ENV_VARS: readonly { service: string; vars: readonly EnvVar[] 
   { service: "Apple Ads", vars: APPLE_ADS_ENV },
   { service: "Web host (static)", vars: STATIC_ENV },
   { service: "Web media (Vercel Blob, optional)", vars: BLOB_ENV },
+  { service: "Web apps (Vercel, web lane)", vars: VERCEL_ENV },
+  { service: "Stripe (web lane checkout)", vars: STRIPE_ENV },
 ];
 
 /**
@@ -112,6 +116,8 @@ export async function createLivePorts(opts: {
       social: social.write,
       ads: ads.write,
       web: webWrite({ ...base, dataDir: opts.dataDir }, env),
+      webApp: new VercelAppWrite({ env, dryRun, recorder }),
+      checkout: new StripeCheckoutWrite({ env, dryRun, recorder }),
     },
   };
 }

@@ -17,6 +17,8 @@ export const BOOTSTRAP_TASKS = ["apple.paid_apps_agreement", "backend.deploy", "
 export function openBootstrapTasks(ctx: TickContext): string[] {
   const opened: string[] = [];
   for (const kind of BOOTSTRAP_TASKS) {
+    // A web-lane studio sells through Stripe: Apple's agreement waits until an iOS venture needs it.
+    if (kind === "apple.paid_apps_agreement" && ctx.config.web.defaultLane === "web") continue;
     if (ctx.store.tasks.count((t) => t.kind === kind && !t.ventureId && t.status !== "cancelled") > 0) continue;
     opened.push(ctx.outbox.openTask(taskDraft(kind)).id);
   }

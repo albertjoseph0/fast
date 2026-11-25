@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, describe, expect, it } from "vitest";
-import { BoundedMap, createHandler, InstallTokens, moderate, RateLimiter, userContent, type MessagesClient, type Tenant } from "../../templates/expo-app/server/src/index.ts";
+import { allowedOrigin, BoundedMap, createHandler, InstallTokens, moderate, RateLimiter, userContent, type MessagesClient, type Tenant } from "../../templates/expo-app/server/src/index.ts";
 import { tempDir } from "./fixtures.ts";
 
 const TENANT = {
@@ -34,7 +34,7 @@ const GOOD = JSON.stringify({ sections: [{ title: "Moon", body: "Deep feelings."
 interface Harness {
   url: string;
   calls: Anthropic.MessageCreateParamsNonStreaming[];
-  rcCalls: { url: string; auth: string | null }[];
+  rcCalls: { url: string; auth: string | null; platform?: string | null; body?: string }[];
   logs: Record<string, unknown>[];
   reply: { value: Anthropic.Message };
   /** Replies used in order before `reply` (one per Claude call). */
@@ -48,7 +48,7 @@ interface Harness {
 
 let server: Server | null = null;
 
-async function start(opts: { secret?: string; tenant?: Record<string, unknown> } = {}): Promise<Harness> {
+async function start(opts: { secret?: string; tenant?: Record<string, unknown>; env?: Record<string, string>; receiptStatus?: number } = {}): Promise<Harness> {
   const dir = join(tempDir(), "tenants");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "astra.json"), JSON.stringify({ ...TENANT, ...opts.tenant }));
@@ -72,7 +72,10 @@ async function start(opts: { secret?: string; tenant?: Record<string, unknown> }
     },
   };
   const fakeFetch = (async (url: string | URL | Request, init?: RequestInit) => {
-    h.rcCalls.push({ url: String(url), auth: new Headers(init?.headers).get("authorization") });
+    const headers = new Headers(init?.headers);
+    const platform = headers.get("x-platform");
+    h.rcCalls.push({ url: String(url), auth: headers.get("authorization"), ...(platform ? { platform } : {}), ...(typeof init?.body === "string" ? { body: init.body } : {}) });
+    if (String(url).endsWith("/v1/receipts")) return new Response(JSON.stringify({ subscriber: {} }), { status: opts.receiptStatus ?? 200 });
     const entitlements = h.entitled.value ? { pro: { expires_date: "2026-11-01T00:00:00Z" } } : {};
     return new Response(JSON.stringify({ subscriber: { entitlements } }), { status: 200 });
   }) as typeof fetch;
@@ -80,7 +83,7 @@ async function start(opts: { secret?: string; tenant?: Record<string, unknown> }
     tenantsDir: dir,
     anthropic,
     fetch: fakeFetch,
-    env: { REVENUECAT_SECRET_KEY_ASTRA: opts.secret ?? "sk_test" },
+    env: { REVENUECAT_SECRET_KEY_ASTRA: opts.secret ?? "sk_test", ...opts.env },
     installSecret: "test-secret",
     now: () => h.clock.value,
     log: (line) => h.logs.push(line),
@@ -381,5 +384,49 @@ describe("server helpers", () => {
     expect(tokens.verify("astra", token)).toBe(token.split(".")[0]);
     expect(tokens.verify("nova", token)).toBeNull();
     expect(new InstallTokens("other").verify("astra", token)).toBeNull();
+  });
+});
+
+describe("web lane", () => {
+  const WEB = { tenant: { revenueCatStripeKeyEnv: "RC_STRIPE_ASTRA" }, env: { RC_STRIPE_ASTRA: "strp_pub", WEB_ORIGIN_SUFFIX: ".apps.example.com" } };
+
+  it("allows only https origins under the configured suffix", () => {
+    expect(allowedOrigin("https://astra.apps.example.com", ".apps.example.com")).toBe("https://astra.apps.example.com");
+    expect(allowedOrigin("http://astra.apps.example.com", ".apps.example.com")).toBeNull();
+    expect(allowedOrigin("https://evil-apps.example.com", ".apps.example.com")).toBeNull();
+    expect(allowedOrigin("https://astra.apps.example.com.evil.io", ".apps.example.com")).toBeNull();
+    expect(allowedOrigin("https://astra.apps.example.com", undefined)).toBeNull();
+    expect(allowedOrigin("https://astra.apps.example.com", "apps.example.com")).toBeNull();
+  });
+
+  it("answers CORS preflights from web-lane apps and refuses other origins", async () => {
+    const h = await start(WEB);
+    const ok = await fetch(`${h.url}/v1/verdict`, { method: "OPTIONS", headers: { origin: "https://astra.apps.example.com" } });
+    expect(ok.status).toBe(204);
+    expect(ok.headers.get("access-control-allow-origin")).toBe("https://astra.apps.example.com");
+    const bad = await fetch(`${h.url}/v1/verdict`, { method: "OPTIONS", headers: { origin: "https://evil.example.org" } });
+    expect(bad.status).toBe(403);
+    expect(bad.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
+  it("claims a Stripe checkout session through RevenueCat with the tenant's Stripe key", async () => {
+    const h = await start(WEB);
+    const res = await post(h, "/v1/web/claim", { slug: "astra", appUserId: "web_abc123", sessionId: "cs_test_a1b2c3d4e5f6" });
+    expect(res).toEqual({ status: 200, json: { ok: true } });
+    const call = h.rcCalls.find((c) => c.url.endsWith("/v1/receipts"));
+    expect(call).toMatchObject({ url: "https://api.revenuecat.com/v1/receipts", auth: "Bearer strp_pub", platform: "stripe" });
+    expect(JSON.parse(call?.body ?? "{}")).toEqual({ app_user_id: "web_abc123", fetch_token: "cs_test_a1b2c3d4e5f6" });
+  });
+
+  it("rejects malformed sessions and reports a missing Stripe key or a failed receipt", async () => {
+    const h = await start(WEB);
+    expect((await post(h, "/v1/web/claim", { slug: "astra", appUserId: "web_abc123", sessionId: "pi_123" })).status).toBe(400);
+    expect(h.rcCalls).toHaveLength(0);
+    await new Promise<void>((resolve) => server?.close(() => resolve()));
+    const noKey = await start({ tenant: WEB.tenant });
+    expect(await post(noKey, "/v1/web/claim", { slug: "astra", appUserId: "web_abc123", sessionId: "cs_test_a1b2c3d4e5f6" })).toMatchObject({ status: 503, json: { error: "billing_unavailable" } });
+    await new Promise<void>((resolve) => server?.close(() => resolve()));
+    const failing = await start({ ...WEB, receiptStatus: 400 });
+    expect(await post(failing, "/v1/web/claim", { slug: "astra", appUserId: "web_abc123", sessionId: "cs_test_a1b2c3d4e5f6" })).toMatchObject({ status: 400, json: { error: "claim_failed" } });
   });
 });

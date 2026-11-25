@@ -20,9 +20,13 @@ export type RenderApp = (input: {
   builtAt?: string;
 }) => BuildRecord & { files: string[] };
 
+/** The web lane's builder: same inputs, renders a deployable web app instead of an Expo project. */
+export type RenderWebApp = (input: Omit<Parameters<RenderApp>[0], "appleTeamId">) => BuildRecord & { files: string[] };
+
 export interface StudioDeps {
   agents: Agents;
   renderApp: RenderApp;
+  renderWebApp: RenderWebApp;
   /** Directory ventures are rendered into (one folder per slug). */
   outRoot: string;
   templateDir: string;
