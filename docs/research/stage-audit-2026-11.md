@@ -82,6 +82,11 @@ paywall came before any result, and a share link opened a page that showed nothi
   the privacy disclosures and policy say anyone with the link can see a shared result.
 - **Done:** single-player ladder is distribution + activation + sharing, then money; day-1 retention is
   required, not informational.
+- Simulator check (150 days, seeds 1–8, averages per seed; the simulator does not model paywall
+  placement, so this tests only the ladder): money first validated 2.4 ventures and killed 1.0; sharing
+  first validated 1.5 and killed 1.75. Validated ventures shared a bit more (true share rate 0.26 vs
+  0.23) and came back a bit more (day-1 0.43 vs 0.41). Net cash was +$27,000 vs +$13,000, but one seed
+  drives that. Harness re-runs rose (39 vs 28), so the extra step costs some test time.
 - **Next:** per-share link previews (needs a server-rendered share page); deferred deep links so an App
   Store install keeps the friend's result; warm-start links (the app reads the link only at launch).
 
