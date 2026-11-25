@@ -88,6 +88,19 @@ describe("ventureEconomics and planAllocation", () => {
     expect(badPlan.lanes[0]?.reason).toMatch(/below half the S4 bar/);
   });
 
+  it("stops spend on a profitable venture whose refunds trip the wire", () => {
+    const w = makeWorld();
+    withSpec(w);
+    w.store.ventures.put({ ...w.store.ventures.require(w.venture.id), stage: "scaling" });
+    w.clock.advanceDays(10);
+    w.store.upsertCohorts(w.venture.id, [cohort({ conversions: 80, cohortDate: "2026-02-25", refundsCents: 11_000 })]);
+    const econ = ventureEconomics(tickContext(w), w.store.ventures.require(w.venture.id));
+    expect(econ?.refundShare).toBeCloseTo(11_000 / 55_920, 6);
+    const lane = planAllocation(tickContext(w), w.ledger).lanes[0];
+    expect(lane?.proposedDailyCents).toBe(0);
+    expect(lane?.reason).toMatch(/refund tripwire/);
+  });
+
   it("keeps a cut and the ramp cool-down across processes: the last plan lives on the venture", () => {
     const bad = setup(2);
     planAllocation(tickContext(bad), bad.ledger);

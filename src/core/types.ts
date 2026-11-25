@@ -117,9 +117,14 @@ export type IdKind = keyof typeof ID;
 
 export type SignalSource = "app_store_chart" | "app_store_search" | "social_trend" | "search_trend" | "manual" | "portfolio";
 
+/** Platform behind a social_trend signal. */
+export type TrendSource = "youtube" | "instagram" | "meta_ads" | "google_trends";
+
 export interface Signal {
   id: string;
   source: SignalSource;
+  /** For social_trend signals: the platform the numbers came from. */
+  trend?: TrendSource;
   title: string;
   detail: string;
   url?: string;
@@ -215,7 +220,7 @@ export type GateVerdict = "pass" | "warn" | "fail" | "needs_human";
 
 export interface GateResult {
   /** A principle id, or a compliance gate id such as "compliance.minors". */
-  gate: PrincipleId | `compliance.${string}`;
+  gate: PrincipleId | `compliance.${string}` | `evidence.${string}`;
   verdict: GateVerdict;
   /** 0..1 contribution to the idea score. */
   score: number;
@@ -1526,6 +1531,8 @@ export type StudioEventType =
   | "signal.recorded"
   | "idea.created"
   | "idea.screened"
+  | "idea.family_prior"
+  | "venture.tripwire"
   | "venture.created"
   | "venture.stage_changed"
   | "venture.blocked"

@@ -320,6 +320,36 @@ describe("experiment decisions", () => {
     expect(decide(p, obs).decision).toBe("iterate");
   });
 
+  it("passes on the pooled read when every cell is above the floor but one alone falls short of confidence", () => {
+    const p = plan(["S1_activation"]);
+    const obs = new Map(p.cells.map((c, i) => [c.id, obsAt(p, c.id, { activationRate: [0.51, 0.5, 0.49][i] as number })]));
+    const perCell = verdicts(p, obs).map((v) => v.decision);
+    expect(perCell).toContain("fail");
+    expect(decide(p, obs).decision).toBe("pass");
+    const strict = { ...config, lab: { ...config.lab, decisionRule: "all_cells" as const } };
+    expect(decideExperiment({ plan: p, verdicts: verdicts(p, obs), observations: obs, ladder: venture().ladder, config: strict, now: LATER, previousOutcomes: [], rng: new Rng(7) }).decision).toBe("iterate");
+  });
+
+  it("re-runs a cell far below its peers before calling the variant futile", () => {
+    const p = plan(["S1_activation"]);
+    const [a, b, c] = p.cells.map((x) => x.id) as [string, string, string];
+    const obs = new Map([
+      [a, obsAt(p, a, { activationRate: 0.5 })],
+      [b, obsAt(p, b, { activationRate: 0.48 })],
+      [c, obsAt(p, c, { activationRate: 0.16 })], // a broken event in one storefront reads as futile
+    ]);
+    expect(verdicts(p, obs).find((v) => v.cellId === c)?.decision).toBe("futile");
+    const out = decide(p, obs);
+    expect(out.decision).toBe("fix_harness");
+    expect(out.rerunCellIds).toEqual([c]);
+  });
+
+  it("does not flag cells that are all low alike", () => {
+    const p = plan(["S1_activation"]);
+    const obs = new Map(p.cells.map((c) => [c.id, obsAt(p, c.id, { activationRate: 0.15 })]));
+    expect(decide(p, obs).decision).toBe("iterate");
+  });
+
   it("continues while any cell is pending", () => {
     const p = plan();
     const early = "2026-01-06T09:00:00.000Z";

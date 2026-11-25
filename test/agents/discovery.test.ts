@@ -97,14 +97,21 @@ describe("generateIdeas", () => {
   it("normalizes, drops invalid and avoided ideas, and assigns ids and source signals", async () => {
     const scaled = astra({ title: "Starling", wedge: { ...astra().wedge, discoverable: 9, obsessive: 9, coPresence: 1 } });
     const invalid = { ...astra({ title: "Broken" }), coreNeed: "fame" } as unknown as Idea;
-    const llm = new FakeLlm({ IdeaBatch: () => ({ ideas: [scaled, invalid, astra({ title: "Astra" }), astra({ title: "starling" }), astra({ title: "Third" })] }) });
+    const cite = (idea: Idea, evidenceRefs: string[] = ["signal_1"]) => ({ ...idea, evidenceRefs });
+    const llm = new FakeLlm({
+      IdeaBatch: () => ({
+        ideas: [cite(scaled, ["signal_2", " signal_2", "signal_9"]), cite(invalid), cite(astra({ title: "Astra" })), cite(astra({ title: "starling" })), cite(astra({ title: "Third" }), [])],
+      }),
+    });
     const ctx = agentContext({ llm });
     const records = await generateIdeas(ctx, { signals, count: 2, avoidTitles: ["Astra"] });
 
     expect(records.map((r) => r.idea.title)).toEqual(["Starling", "Third"]);
     expect(records.map((r) => r.id)).toEqual(["idea_000001", "idea_000002"]);
     expect(records[0]?.idea.wedge.discoverable).toBeLessThanOrEqual(1);
+    // Cited refs map to signal ids; unknown refs and duplicates drop, and nothing is cited for the model.
     expect(records[0]?.sourceSignalIds).toEqual(["sig_000001"]);
+    expect(records[1]?.sourceSignalIds).toEqual([]);
 
     const req = llm.calls("IdeaBatch")[0];
     expect(req?.role).toBe("ideator");
@@ -112,7 +119,7 @@ describe("generateIdeas", () => {
     expect(req?.input.avoidTitles).toEqual(["Astra"]);
     expect(req?.input.playbookNotes.length).toBeGreaterThan(5);
     // External signal text travels only in the untrusted block; the input keeps refs, metrics and tags.
-    expect(req?.input.signals[0]).toEqual({ ref: "signal_1", metrics: {}, tags: ["pattern", "play"] });
+    expect(req?.input.signals[0]).toEqual({ ref: "signal_1", source: "search_trend", metrics: {}, tags: ["pattern", "play"] });
     expect(JSON.stringify(req?.input)).not.toContain("Golf swing fixes");
     expect(req?.system).toContain(UNTRUSTED_RULE);
     expect(JSON.parse(req?.untrusted?.[0]?.text ?? "[]")).toEqual([

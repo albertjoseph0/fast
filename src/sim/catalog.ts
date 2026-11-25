@@ -101,7 +101,7 @@ function score(app: CatalogApp, country: string, week: string): number {
   return app.pull * (0.6 + 0.8 * drift);
 }
 
-function isoWeek(date: string): string {
+export function isoWeek(date: string): string {
   const d = new Date(`${date}T00:00:00.000Z`);
   const day = (d.getUTCDay() + 6) % 7;
   d.setUTCDate(d.getUTCDate() - day);

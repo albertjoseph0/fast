@@ -19,6 +19,7 @@ import type {
   PortSet,
   RemoteConfigWrite,
   SocialRead,
+  SocialTrendPort,
   SocialWrite,
   StoreRead,
   StoreWrite,
@@ -30,7 +31,12 @@ import type {
 import { hashString } from "../core/rng.ts";
 import type { StudioStore } from "../core/store.ts";
 import type { HumanTaskDraft, PlatformLabels, PostStats, StorePlatform, VentureBindings } from "../core/types.ts";
-import { chart, search } from "./catalog.ts";
+import { chart, isoWeek, search } from "./catalog.ts";
+import { simTrendObservations } from "./trends.ts";
+import type { TrendSource } from "../core/types.ts";
+
+/** The simulated market answers for every live trend source but Google Trends (not wired live). */
+const SIM_TREND_SOURCES: readonly TrendSource[] = ["youtube", "instagram", "meta_ads"];
 import type { SimWorld } from "./world.ts";
 
 const h32 = (text: string) => hashString(text) >>> 0;
@@ -66,6 +72,12 @@ export function createSimPorts(opts: { world: SimWorld; clock: Clock; store: Stu
     kind: "sim",
     topApps: async (req) => chart(req.country, req.chart, req.limit, clock.today()),
     searchApps: async (req) => search(req.term, req.country, req.limit),
+  };
+
+  const socialTrends: SocialTrendPort = {
+    kind: "sim",
+    sources: () => [...SIM_TREND_SOURCES],
+    scan: async (req) => req.terms.flatMap((term) => simTrendObservations(term, SIM_TREND_SOURCES, world.seed, isoWeek(clock.today()), req.sinceDays)),
   };
 
   const storeRead: StoreRead = {
@@ -289,7 +301,7 @@ export function createSimPorts(opts: { world: SimWorld; clock: Clock; store: Stu
   };
 
   return {
-    read: { clock, llm: opts.llm, media: opts.media, trends, store: storeRead, metrics, creators: creatorsRead, social: socialRead, ads: adsRead },
+    read: { clock, llm: opts.llm, media: opts.media, trends, socialTrends, store: storeRead, metrics, creators: creatorsRead, social: socialRead, ads: adsRead },
     write: { store: storeWrite, monetization, remoteConfig, creators: creatorsWrite, social: socialWrite, ads: adsWrite, web, webApp, checkout },
   };
 }

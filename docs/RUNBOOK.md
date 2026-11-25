@@ -167,6 +167,11 @@ call time. Keep them in your process manager or secret store, not in `.factory/`
 | Apple Ads | `APPLE_ADS_PRIVATE_KEY_PATH` | yes | Path to the EC P-256 private key PEM that signs the client secret |
 | Apple Ads | `APPLE_ADS_PRIVATE_KEY` | no | Inline private key PEM, an alternative to the path |
 | Apple Ads | `APPLE_ADS_API_BASE` | no | Override of the Platform API base URL (default https://api.ads.apple.com/v1) |
+| Trends: YouTube (optional) | `YOUTUBE_API_KEY` | no | YouTube Data API v3 key (Google Cloud project, API key restricted to YouTube Data API). A trend scan uses up to 20 terms at about 101 quota units each, inside the default 10,000 a day |
+| Trends: Instagram (optional) | `INSTAGRAM_TRENDS_TOKEN` | no | Access token of an Instagram professional account with instagram_basic, for hashtag search (Meta app with Instagram Public Content Access) |
+| Trends: Instagram (optional) | `INSTAGRAM_TRENDS_USER_ID` | no | That account's Instagram user id. Instagram allows 30 unique hashtags per 7 days, so scans use 25 sorted terms |
+| Trends: Meta Ad Library (optional) | `META_AD_LIBRARY_TOKEN` | no | User token from a Meta developer app whose owner confirmed their identity for the Ad Library API (read-only `ads_archive`) |
+| Trends: Meta Ad Library (optional) | `META_AD_LIBRARY_COUNTRIES` | no | EU country codes to search (default DE,FR,NL,SE,IE); commercial ads are only in the library for EU delivery |
 | Web host (static) | `WEB_BASE_URL` | yes | Public URL where <dataDir>/web is deployed, e.g. https://apps.example.com (no trailing slash) |
 | Web apps (Vercel, web lane) | `VERCEL_TOKEN` | yes | Vercel access token for the team that owns `web.appsDomain` |
 | Web apps (Vercel, web lane) | `VERCEL_TEAM_ID` | no | Team id (`team_…`) that owns `web.appsDomain` |

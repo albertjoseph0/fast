@@ -42,7 +42,11 @@ export type SchemaName = (typeof SCHEMA)[keyof typeof SCHEMA];
 // Output schemas
 // ---------------------------------------------------------------------------
 
-export const IdeaBatch = z.object({ ideas: z.array(Idea) });
+/** An idea plus the refs of the input signals that evidence its demand (at least one measured signal). */
+export const IdeaCandidate = Idea.extend({
+  evidenceRefs: z.array(z.string()).describe("Refs (signal_N) of the input signals showing demand for this idea; cite only signals that support it"),
+});
+export const IdeaBatch = z.object({ ideas: z.array(IdeaCandidate) });
 export type IdeaBatch = z.infer<typeof IdeaBatch>;
 
 export { Critique };
@@ -151,7 +155,7 @@ export interface SchemaInputs {
   IdeaBatch: {
     count: number;
     /** Title and detail only for studio-written signals; external ones carry a ref into the market_signals untrusted block. */
-    signals: { ref?: string; title?: string; detail?: string; metrics: Record<string, number>; tags: string[] }[];
+    signals: { ref: string; source: string; title?: string; detail?: string; metrics: Record<string, number>; tags: string[] }[];
     coreNeeds: CoreNeed[];
     avoidTitles: string[];
     playbookNotes: string[];
@@ -220,6 +224,8 @@ export interface SchemaInputs {
   SignalDigest: {
     charts: { name: string; genre: string; rank: number; chart: string; country: string }[];
     searches: { term: string; top: { name: string; ratingCount: number; priceCents: number }[] }[];
+    /** Social and ad-library numbers per term (YouTube, Instagram, Meta Ad Library). */
+    social?: { term: string; source: string; metrics: Record<string, number> }[];
   };
 }
 

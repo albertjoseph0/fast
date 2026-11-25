@@ -16,6 +16,7 @@ export function readPorts(w: World, stubs: Partial<ReadPorts> = {}): ReadPorts {
     llm: missing("llm"),
     media: missing("media"),
     trends: missing("trends"),
+    socialTrends: missing("socialTrends"),
     store: missing("store"),
     metrics: missing("metrics"),
     creators: missing("creators"),

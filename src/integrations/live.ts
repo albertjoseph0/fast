@@ -28,6 +28,7 @@ import { ENV_VARS as BLOB_ENV, VercelBlobWebWrite } from "./web/blob.ts";
 import { ENV_VARS as STATIC_ENV, LocalStaticWebWrite } from "./web/static.ts";
 import { ENV_VARS as VERCEL_ENV, VercelAppWrite } from "./web/vercel.ts";
 import { ENV_VARS as STRIPE_ENV, StripeCheckoutWrite } from "./payments/stripe.ts";
+import { LiveSocialTrendPort, liveTrendSources, TREND_ENV_VARS } from "./trends/index.ts";
 
 type Env = Record<string, string | undefined>;
 export interface EnvVar {
@@ -57,6 +58,9 @@ export const LIVE_ENV_VARS: readonly { service: string; vars: readonly EnvVar[] 
   { service: "TikTok", vars: TIKTOK_ENV },
   { service: "YouTube", vars: YOUTUBE_ENV },
   { service: "Meta Ads", vars: META_ADS_ENV },
+  { service: "Trends: YouTube (optional)", vars: TREND_ENV_VARS.youtube },
+  { service: "Trends: Instagram hashtags (optional)", vars: TREND_ENV_VARS.instagram },
+  { service: "Trends: Meta Ad Library (optional)", vars: TREND_ENV_VARS.metaAds },
   { service: "TikTok Ads", vars: TIKTOK_ADS_ENV },
   { service: "Apple Ads", vars: APPLE_ADS_ENV },
   { service: "Web host (static)", vars: STATIC_ENV },
@@ -102,6 +106,7 @@ export async function createLivePorts(opts: {
       llm: opts.llm,
       media: opts.media,
       trends: new AppleTrendPort(base),
+      socialTrends: new LiveSocialTrendPort(liveTrendSources({ env, clock })),
       store: stores.read,
       metrics: new LiveMetricsPort(base),
       creators: new LiveCreatorRead(base),

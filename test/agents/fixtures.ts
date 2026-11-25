@@ -73,6 +73,7 @@ export function agentContext(ports: Partial<ReadPorts> = {}): AgentContext {
       llm: missing("llm"),
       media: missing("media"),
       trends: missing("trends"),
+    socialTrends: missing("socialTrends"),
       store: missing("store"),
       metrics: missing("metrics"),
       creators: missing("creators"),

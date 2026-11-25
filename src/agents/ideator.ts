@@ -33,6 +33,8 @@ const SYSTEM = rolePrompt(
     "State a real differentiation from existing apps (Apple 4.3): a different input, verdict or voice, not a reskin.",
     "Hooks and copy carry no user counts, ratings, rankings, prices, income or health promises, and no testimonials.",
     "Never reuse a title from avoidTitles. Use the signals as evidence of demand, not as apps to clone.",
+    "Ground every idea in evidence: evidenceRefs lists the refs of the signals that show demand for it. Cite measured signals (app_store_search, app_store_chart, social_trend, manual), not only pattern summaries. Prefer ideas with paying evidence (long-running ads, paid apps, top-paid chart) over attention alone. An idea you cannot ground is not worth proposing.",
+    "Read the numbers: for app_store_search, ratings and ratingsPerDay; for social_trend youtube, viewsPerDay; instagram, medianEngagement; meta_ads, longRunningAdvertisers and longRunningAppAds (ads running 30+ days usually pay for themselves).",
     "Signals with a ref quote App Store and social text written outside the studio; their title and detail are in the market_signals untrusted block.",
   ],
   { playbook: true, untrusted: true },
@@ -52,25 +54,48 @@ function playbookNotes(): string[] {
   return notes;
 }
 
-/** Generate up to `count` schema-valid, normalized ideas with fresh titles. */
+/**
+ * At most `max` signals, shared across sources round-robin in priority order, so pattern summaries
+ * cannot crowd out the measured rows (store results, trend scans) the ideas must cite. A source
+ * with few signals leaves its share to the others; order within a source is kept.
+ */
+export function selectSignals(signals: readonly Signal[], max = MAX_SIGNALS): Signal[] {
+  const bySource = new Map<Signal["source"], Signal[]>();
+  for (const s of signals) bySource.set(s.source, [...(bySource.get(s.source) ?? []), s]);
+  const queues = [...bySource.entries()].sort((a, b) => SOURCE_PRIORITY[a[0]] - SOURCE_PRIORITY[b[0]]).map(([, q]) => q);
+  const out: Signal[] = [];
+  for (let i = 0; out.length < max && queues.some((q) => i < q.length); i++) {
+    for (const q of queues) {
+      if (out.length >= max) break;
+      const s = q[i];
+      if (s) out.push(s);
+    }
+  }
+  // Keep the prompt grouped by source, as before.
+  return out.sort((a, b) => SOURCE_PRIORITY[a.source] - SOURCE_PRIORITY[b.source]);
+}
+
+/** Generate up to `count` schema-valid, normalized ideas with fresh titles, each tied to the signals it cites. */
 export async function generateIdeas(
   ctx: AgentContext,
   opts: { signals: Signal[]; count: number; avoidTitles: string[] },
 ): Promise<IdeaRecord[]> {
-  const signals = [...opts.signals].sort((a, b) => SOURCE_PRIORITY[a.source] - SOURCE_PRIORITY[b.source]).slice(0, MAX_SIGNALS);
+  const signals = selectSignals(opts.signals);
   const trusted = (s: Signal) => TRUSTED_SOURCES.includes(s.source);
   const ref = (i: number) => `signal_${i + 1}`;
+  const byRef = new Map(signals.map((s, i) => [ref(i), s]));
   const external = signals.flatMap((s, i) => (trusted(s) ? [] : [{ ref: ref(i), title: s.title, detail: s.detail }]));
   const batch = await ctx.ports.llm.object({
     role: "ideator",
     schemaName: SCHEMA.ideaBatch,
     system: SYSTEM,
-    instructions: `Propose ${opts.count} distinct app ideas grounded in these signals. Spread them across the core needs.`,
+    instructions: `Propose ${opts.count} distinct app ideas grounded in these signals, each citing its evidence. Spread them across the core needs.`,
     input: {
       count: opts.count,
-      signals: signals.map((s, i) =>
-        trusted(s) ? { title: s.title, detail: s.detail, metrics: s.metrics, tags: s.tags } : { ref: ref(i), metrics: s.metrics, tags: s.tags },
-      ),
+      signals: signals.map((s, i) => {
+        const base = { ref: ref(i), source: signalKind(s), metrics: s.metrics, tags: s.tags };
+        return trusted(s) ? { ...base, title: s.title, detail: s.detail } : base;
+      }),
       coreNeeds: CORE_NEEDS,
       avoidTitles: opts.avoidTitles,
       playbookNotes: playbookNotes(),
@@ -84,14 +109,22 @@ export async function generateIdeas(
   const out: IdeaRecord[] = [];
   for (const raw of batch.ideas) {
     if (out.length >= opts.count) break;
-    const parsed = Idea.safeParse(safeNormalize(raw));
+    const { evidenceRefs, ...rest } = raw;
+    const parsed = Idea.safeParse(safeNormalize(rest));
     if (!parsed.success) continue;
     const key = normKey(parsed.data.title);
     if (!key || taken.has(key)) continue;
     taken.add(key);
-    out.push({ id: ctx.store.nextId("idea"), idea: parsed.data, sourceSignalIds: sourceSignalIds(parsed.data, signals), createdAt });
+    // Only refs that exist in this batch's input count; an idea that cites none fails the evidence gate.
+    const cited = [...new Set(evidenceRefs.map((r) => r.trim()))].flatMap((r) => byRef.get(r)?.id ?? []);
+    out.push({ id: ctx.store.nextId("idea"), idea: parsed.data, sourceSignalIds: cited, createdAt });
   }
   return out;
+}
+
+/** The source as the model sees it: social_trend signals name their platform. */
+function signalKind(s: Signal): string {
+  return s.source === "social_trend" && s.trend ? `social_trend:${s.trend}` : s.source;
 }
 
 function safeNormalize(raw: unknown): unknown {
@@ -100,12 +133,4 @@ function safeNormalize(raw: unknown): unknown {
   } catch {
     return raw;
   }
-}
-
-/** Signals whose title or a tag appears in the idea; all signals shown when none match. */
-function sourceSignalIds(idea: Idea, signals: Signal[]): string[] {
-  const text = ideaFreeText(idea).toLowerCase();
-  const terms = (s: Signal) => [s.title, ...s.tags.filter((t) => t !== "pattern")].map((t) => t.toLowerCase()).filter((t) => t.length >= 4);
-  const hits = signals.filter((s) => terms(s).some((t) => text.includes(t)));
-  return (hits.length > 0 ? hits : signals).map((s) => s.id);
 }
