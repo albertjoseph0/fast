@@ -3,7 +3,7 @@ import type { CreatorRead } from "../../src/core/ports.ts";
 import type { Action, ExternalSubmission, SubmissionVerification } from "../../src/core/types.ts";
 import type { StudioDeps } from "../../src/orchestrator/deps.ts";
 import { adultRecruitment, syncCreatorSubmissions } from "../../src/orchestrator/growth.ts";
-import { proposeKill, retryPrepareVariant, testExposureCents, VARIANT_TO_PREPARE } from "../../src/orchestrator/labPhase.ts";
+import { ensureExperiment, proposeKill, retryPrepareVariant, testExposureCents, testSpendCapCents, VARIANT_TO_PREPARE } from "../../src/orchestrator/labPhase.ts";
 import { applyTaskOutcomes } from "../../src/orchestrator/tasks.ts";
 import { campaign, creator, input, submission } from "../governance/fixtures.ts";
 import { astraSpec } from "../principles/fixtures.ts";
@@ -203,5 +203,64 @@ describe("18+ apps", () => {
     const draft = w.store.actions.list((a) => a.kind === "creator.review_draft")[0];
     expect(draft?.payload).toMatchObject({ approve: false });
     expect(String((draft?.payload as { note: string }).note)).toMatch(/45% of your audience is under 18/);
+  });
+});
+
+/** A decided full experiment whose cells did not pass. */
+function failedFullRead(w: World): void {
+  const v = w.store.ventures.require(w.venture.id);
+  w.store.experiments.put({ id: "exp_full", ventureId: v.id, stages: ["S1_activation"], status: "decided" } as never);
+  w.store.addOutcome({ experimentId: "exp_full", decision: "iterate", cells: [], rationale: "no cell passed", decidedAt: w.clock.iso() });
+  w.store.ventures.put({ ...v, ladder: { ...v.ladder, experimentIds: [...v.ladder.experimentIds, "exp_full"] } });
+}
+
+describe("cheap first reads", () => {
+  const deps = () => fakeDeps({ writeBrief: async () => ({ title: "t", productSummary: "p", audience: "a", formats: [], hooks: [], mustInclude: [], mustAvoid: [], deliverables: "d" }) });
+
+  it("registers a 50 USD smoke test before the first full experiment, then the full step once it passes", async () => {
+    const w = makeWorld();
+    w.store.ventures.put({ ...w.venture, stage: "live_test", spec: astraSpec() });
+    const ctx = tickContext(w);
+    expect(await ensureExperiment(ctx, deps(), w.store.ventures.require(w.venture.id))).toMatch(/registered/);
+    const v = w.store.ventures.require(w.venture.id);
+    const smoke = w.store.experiments.require(v.ladder.currentExperimentId as string);
+    expect(smoke.kind).toBe("smoke");
+    expect(smoke.cells).toHaveLength(1);
+    expect(w.store.campaigns.list((c) => c.experimentId === smoke.id).map((c) => c.budgetCents)).toEqual([5_000]);
+
+    // The smoke test passes: nothing validates, the time box does not count the screen, and the step's full experiment registers next.
+    w.store.addOutcome({ experimentId: smoke.id, decision: "pass", cells: [], rationale: "ok", decidedAt: w.clock.iso() });
+    w.store.experiments.put({ ...smoke, status: "decided" });
+    w.store.ventures.put({ ...v, ladder: { ...v.ladder, currentExperimentId: null } });
+    expect(await ensureExperiment(ctx, deps(), w.store.ventures.require(w.venture.id))).toMatch(/registered/);
+    const after = w.store.ventures.require(w.venture.id);
+    expect(after.ladder.validated).toEqual([]);
+    const full = w.store.experiments.require(after.ladder.currentExperimentId as string);
+    expect(full.kind).toBeUndefined();
+    expect(full.cells).toHaveLength(3);
+    expect(w.store.campaigns.list((c) => c.experimentId === full.id)).toHaveLength(3);
+  });
+
+  it("gives every idea one full read, then holds one with no passing cell to the lower cap", () => {
+    const w = makeWorld();
+    const ctx = tickContext(w);
+    const b = w.config.budgets;
+    expect(testSpendCapCents(ctx, w.venture)).toBe(b.maxTestSpendPerVentureCents);
+    failedFullRead(w);
+    expect(testSpendCapCents(ctx, w.store.ventures.require(w.venture.id))).toBe(b.maxTestSpendBeforeSignalCents);
+    const v = w.store.ventures.put({ ...w.store.ventures.require(w.venture.id), ladder: { ...w.store.ventures.require(w.venture.id).ladder, validated: ["S1_distribution"] } });
+    expect(testSpendCapCents(ctx, v)).toBe(b.maxTestSpendPerVentureCents);
+  });
+
+  it("proposes a stop instead of a second full read for an idea with no passing cell", async () => {
+    const w = makeWorld();
+    w.store.ventures.put({ ...w.venture, stage: "live_test", spec: astraSpec() });
+    failedFullRead(w);
+    w.store.campaigns.put(campaign({ id: "c_spent", ventureId: w.venture.id, budgetCents: 150_000, status: "open" }));
+    const ctx = tickContext(w);
+    expect(await ensureExperiment(ctx, deps(), w.store.ventures.require(w.venture.id))).toBe("test spend cap reached");
+    const kill = w.store.actions.list((a) => a.kind === "venture.kill")[0];
+    expect(kill?.payload).toMatchObject({ cause: "spend_cap" });
+    expect(String((kill?.payload as { reason: string }).reason)).toMatch(/no passing test cell/);
   });
 });

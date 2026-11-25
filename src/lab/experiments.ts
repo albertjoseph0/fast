@@ -195,9 +195,12 @@ export function designExperiment(input: DesignInput): DesignResult {
   const bindingMetric = required[costs.indexOf(binding)] ?? required[0];
 
   const assignment: CellAssignment = "geo";
+  // Primary first: the replication storefronts are pre-registered but only staffed (and paid for) after
+  // the primary passes on its own, so a variant that fails costs one storefront, not three.
+  const sequential = config.lab.primaryCellFirst && geos.length > 1;
   const cells: TestCell[] = geos.map((geo, i) => ({
     id: input.cellIds[i] as string,
-    phase: 1,
+    phase: sequential && i > 0 ? 2 : 1,
     role: i === 0 ? "primary" : "replication",
     platform: "app" as Platform | "app",
     channel,
@@ -237,7 +240,7 @@ export function designExperiment(input: DesignInput): DesignResult {
     baseline: venture.baseline,
     metrics,
     cells,
-    mode: "parallel",
+    mode: sequential ? "sequential" : "parallel",
     minSamplePerCell: sizes.perMetric,
     operatingCharacteristics: { powerAtTarget: sizes.powerAtTarget, falsePassAtFloor: sizes.falsePassAtFloor },
     readHours,
@@ -245,6 +248,106 @@ export function designExperiment(input: DesignInput): DesignResult {
     maxBudgetCents: cellBudgetCents * cells.length,
     expectedCostPerUnitCents: bindingMetric ? costPerUnitCents(bindingMetric, channel, config) : 0,
     validity,
+    deliveryMode: input.deliveryMode,
+    startNotBefore: addHours(input.now, LEAD_HOURS[input.deliveryMode]),
+    status: "registered",
+    registeredAt: input.now,
+    registrationHash: "",
+  };
+  if (input.parentExperimentId) plan.parentExperimentId = input.parentExperimentId;
+  plan.registrationHash = planHash(plan);
+  return { ok: true, plan };
+}
+
+/** Budget a plan commits when it registers: only phase-1 cells are staffed before a replicate decision. */
+export function committedBudgetCents(plan: ExperimentPlan): number {
+  return plan.cells.filter((c) => c.phase === 1).reduce((sum, c) => sum + c.budgetCents, 0);
+}
+
+/**
+ * Smoke test: one storefront, a small fixed budget (lab.smokeTest, 30 to 60 USD), run before the
+ * first full experiment. It reads the step's user-level metrics that the budget can buy at least
+ * lab.smokeTest.minSample units of (activation and next-day return at the planning CPI; share rate
+ * needs ~3x the budget), all as futility_only. Kill-only: a conclusively hopeless read stops the idea,
+ * anything else lets the full experiment run. At ~20-40 installs it stops most ideas sitting at the
+ * futility line and rarely a good one; it cannot validate a winner, and rare events (shares, trials,
+ * payments) are not read at all. Operating characteristics follow the S0 convention: powerAtTarget =
+ * P(not stopped | target), falsePassAtFloor = P(not stopped | floor), per metric worst case.
+ */
+export function designSmokeTest(input: Omit<DesignInput, "variableUnderTest" | "variant" | "hypothesis"> & { hypothesis?: string }): DesignResult {
+  const { config, venture, idea } = input;
+  const smoke = config.lab.smokeTest;
+  const channel = input.channel ?? "creator_ugc";
+  const geos =
+    input.geos?.slice(0, 1) ??
+    pickTestGeos({ wedge: idea.wedge.name, locale: idea.wedge.locale, channel, count: 1, ventureId: venture.id, config, exposures: input.exposures, now: input.now });
+  const geo = geos[0];
+  if (!geo) return { ok: false, reason: `no fresh test storefront for ${idea.wedge.locale}` };
+  const cellId = input.cellIds[0];
+  if (!cellId) return { ok: false, reason: "not enough cell ids" };
+  // 20% of the budget is headroom for creator fees and CPI variance, as in full plans.
+  const spendable = smoke.budgetCents / 1.25;
+  const minSamplePerCell: Partial<Record<MetricKey, number>> = {};
+  const metrics: MetricSpec[] = [];
+  for (const m of stageMetrics(input.stages, config)) {
+    if (m.role === "informational" || m.kind !== "proportion" || m.unit !== "user") continue;
+    if (!["install", "d1_eligible", "activated"].includes(m.denominator)) continue;
+    const n = Math.floor(spendable / Math.max(1, costPerUnitCents(m, channel, config)));
+    if (n < smoke.minSample) continue;
+    metrics.push({ ...m, role: "futility_only" });
+    minSamplePerCell[m.key] = n;
+  }
+  if (!metrics.length) return { ok: false, reason: `infeasible: a ${smoke.budgetCents}c smoke test buys under ${smoke.minSample} units of any metric` };
+  const confidence = config.lab.confidence;
+  const survives = (m: MetricSpec, p: number) => {
+    const n = minSamplePerCell[m.key] ?? 1;
+    return 1 - futilityStopProbability({ p, n, firstLook: Math.ceil(0.5 * n), floor: m.floor, futility: m.futility, confidence });
+  };
+  const maturity = Math.max(0, ...metrics.map((m) => m.maturityHours));
+  const postingWindow = channel === "creator_ugc" ? config.lab.creatorPostingWindowHours + maturity : 0;
+  const readHours = Math.max(postingWindow, ...input.stages.map((s) => config.lab.readHours[s] ?? 96));
+  const plan: ExperimentPlan = {
+    id: input.experimentId,
+    ventureId: venture.id,
+    stages: input.stages,
+    kind: "smoke",
+    hypothesis: input.hypothesis ?? `${venture.name} is not a dud: cold users from ${idea.wedge.creatorNiche} activate and come back next day above the futility lines`,
+    variableUnderTest: "smoke",
+    baseline: venture.baseline,
+    metrics,
+    cells: [
+      {
+        id: cellId,
+        phase: 1,
+        role: "primary",
+        platform: "app",
+        channel,
+        geo,
+        locale: idea.wedge.locale,
+        assignment: "geo",
+        attribution: "storefront_geo",
+        audienceUnits: [],
+        variant: { smoke: `spec_v${venture.specVersion}` },
+        budgetCents: smoke.budgetCents,
+      },
+    ],
+    mode: "parallel",
+    minSamplePerCell,
+    operatingCharacteristics: {
+      powerAtTarget: Math.min(...metrics.map((m) => survives(m, m.target))),
+      falsePassAtFloor: Math.max(...metrics.map((m) => survives(m, m.floor))),
+    },
+    readHours,
+    maxHoursToFirstExposure: config.lab.maxHoursToFirstExposure,
+    maxBudgetCents: smoke.budgetCents,
+    expectedCostPerUnitCents: Math.min(...metrics.map((m) => costPerUnitCents(m, channel, config))),
+    validity: [
+      { id: "exposure_delivered", description: "The cell starts receiving traffic within the exposure SLA", threshold: config.lab.maxHoursToFirstExposure },
+      { id: "min_sample", description: "Each read metric reaches half its sample before the smoke test can pass" },
+      { id: "instrumentation", description: "Numerators never exceed denominators; funnel events present" },
+      { id: "cold_traffic", description: "Internal/test sessions at most 5% of sessions", threshold: 0.05 },
+      { id: "budget_not_exceeded", description: "Cell spend at most 110% of its budget", threshold: 1.1 },
+    ],
     deliveryMode: input.deliveryMode,
     startNotBefore: addHours(input.now, LEAD_HOURS[input.deliveryMode]),
     status: "registered",

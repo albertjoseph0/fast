@@ -2,14 +2,16 @@ import { describe, expect, it } from "vitest";
 import { Rng } from "../../src/core/rng.ts";
 import type { CellObservation, CellVerdict, ExperimentPlan, MetricCounts, MetricKey } from "../../src/core/types.ts";
 import { decideExperiment, diagnose, evaluateCell, experimentEconomics } from "../../src/lab/decide.ts";
-import { designAttentionProbe, designExperiment, isFrozenIntact, planHash } from "../../src/lab/experiments.ts";
+import { committedBudgetCents, designAttentionProbe, designExperiment, designSmokeTest, isFrozenIntact, planHash } from "../../src/lab/experiments.ts";
 import { mixedNetPriceCents } from "../../src/lab/ltv.ts";
 import { astraIdea, config, counts, observation, venture } from "./fixtures.ts";
 
 const NOW = "2026-01-05T09:00:00.000Z";
 const LATER = "2026-01-12T09:00:00.000Z";
+/** The three-storefront decision rules are tested on parallel plans (the default); primary-first has its own test below. */
+const parallel = { ...config, lab: { ...config.lab, primaryCellFirst: false } };
 
-function plan(stages: ExperimentPlan["stages"] = ["S1_distribution", "S1_activation", "S4_monetization"]): ExperimentPlan {
+function plan(stages: ExperimentPlan["stages"] = ["S1_distribution", "S1_activation", "S4_monetization"], cfg = parallel): ExperimentPlan {
   const r = designExperiment({
     experimentId: "exp_000001",
     cellIds: ["cell_000001", "cell_000002", "cell_000003"],
@@ -20,7 +22,7 @@ function plan(stages: ExperimentPlan["stages"] = ["S1_distribution", "S1_activat
     variableUnderTest: "baseline",
     variant: { baseline: "v1" },
     deliveryMode: "native_build",
-    config,
+    config: cfg,
     now: NOW,
     exposures: [],
   });
@@ -434,5 +436,96 @@ describe("operating characteristics", () => {
   it("passes viral per-view cells at target and rarely at the floor", () => {
     expect(perViewPassRate(config.thresholds.installsPer1kViews.target, 300, 42)).toBeGreaterThanOrEqual(0.7);
     expect(perViewPassRate(config.thresholds.installsPer1kViews.floor, 300, 43)).toBeLessThanOrEqual(0.05);
+  });
+});
+
+describe("cheap first reads", () => {
+  const smokeInput = (cfg = config) => ({
+    experimentId: "exp_smoke", cellIds: ["cell_smoke", "x", "y"], venture: venture(), idea: astraIdea(),
+    stages: ["S1_distribution", "S1_activation", "S2_sharing"] as ExperimentPlan["stages"], deliveryMode: "native_build" as const, config: cfg, now: NOW, exposures: [],
+  });
+  function smoke(cfg = config): ExperimentPlan {
+    const r = designSmokeTest(smokeInput(cfg));
+    if (!r.ok) throw new Error(r.reason);
+    r.plan.cells[0]!.firstExposureAt = NOW;
+    return r.plan;
+  }
+  const read = (p: ExperimentPlan, rates: Partial<Record<MetricKey, number>>, fill = 1, now = LATER) => {
+    const metrics: CellObservation["metrics"] = {};
+    for (const m of p.metrics) {
+      const n = Math.round((p.minSamplePerCell[m.key] ?? 0) * fill);
+      metrics[m.key] = counts(Math.round(n * (rates[m.key] ?? m.target)), n, 4);
+    }
+    const obs = new Map([["cell_smoke", observation("cell_smoke", metrics)]]);
+    const v = evaluateCell({ plan: p, cell: p.cells[0]!, obs: obs.get("cell_smoke"), config, now, clockStart: NOW });
+    return decideExperiment({ plan: p, verdicts: [v], observations: obs, ladder: venture().ladder, config, now, previousOutcomes: [], rng: new Rng(3) });
+  };
+
+  it("sizes a 50 USD smoke test to one storefront and only the metrics it can buy", () => {
+    const p = smoke();
+    expect(p.kind).toBe("smoke");
+    expect(p.cells).toHaveLength(1);
+    expect(p.maxBudgetCents).toBe(5_000);
+    expect(p.metrics.map((m) => m.key).sort()).toEqual(["activationRate", "d1Retention"]);
+    expect(p.metrics.every((m) => m.role === "futility_only")).toBe(true);
+    // 40 USD spendable at the 1.20 USD planning CPI: 33 installs.
+    expect(p.minSamplePerCell.activationRate).toBe(33);
+    // It rarely stops a good idea; the price is that an idea at the floor often survives to the full read.
+    expect(p.operatingCharacteristics.powerAtTarget).toBeGreaterThan(0.95);
+    expect(isFrozenIntact(p)).toBe(true);
+  });
+
+  it("reads share rate only when the budget buys enough activated users", () => {
+    const rich = { ...config, lab: { ...config.lab, smokeTest: { ...config.lab.smokeTest, budgetCents: 15_000 } } };
+    expect(smoke(rich).metrics.map((m) => m.key)).toContain("shareRate");
+    const tiny = { ...config, lab: { ...config.lab, smokeTest: { ...config.lab.smokeTest, budgetCents: 1_000 } } };
+    expect(designSmokeTest(smokeInput(tiny)).ok).toBe(false);
+  });
+
+  it("kills a dud and lets anything else through, flagging a read too thin to have stopped one", () => {
+    const p = smoke();
+    expect(read(p, { activationRate: 0.08 }).decision).toBe("kill");
+    expect(read(p, { d1Retention: 0.02 }).decision).toBe("kill");
+    // Below the floor but not hopeless: the smoke test is not the place to fail it.
+    expect(read(p, { activationRate: 0.38 }).decision).toBe("pass");
+    expect(read(p, {}).decision).toBe("pass");
+    const thin = read(p, {}, 0.3);
+    expect(thin.decision).toBe("pass");
+    expect(thin.rationale).toMatch(/inconclusive/);
+  });
+
+  it("stops ideas at the futility line far more often than good ones", () => {
+    const p = smoke();
+    const n = p.minSamplePerCell.activationRate ?? 0;
+    const killRate = (rate: number) => {
+      const rng = new Rng(11);
+      let killed = 0;
+      for (let t = 0; t < 2_000; t++) {
+        const s = rng.binomial(n, rate);
+        const obs = new Map([["cell_smoke", observation("cell_smoke", { activationRate: counts(s, n, 4), d1Retention: counts(Math.round(n * 0.4), n, 4) })]]);
+        const v = evaluateCell({ plan: p, cell: p.cells[0]!, obs: obs.get("cell_smoke"), config, now: LATER, clockStart: NOW });
+        if (decideExperiment({ plan: p, verdicts: [v], observations: obs, ladder: venture().ladder, config, now: LATER, previousOutcomes: [], rng }).decision === "kill") killed++;
+      }
+      return killed / 2_000;
+    };
+    const t = config.thresholds.activationRate;
+    expect(killRate(t.target)).toBeLessThan(0.05);
+    expect(killRate(t.futility)).toBeGreaterThan(0.5);
+    expect(killRate(t.futility / 2)).toBeGreaterThan(0.95);
+  });
+
+  it("runs the primary storefront first and commits only its budget when lab.primaryCellFirst is on", () => {
+    const p = plan(["S1_distribution", "S1_activation", "S2_sharing"], { ...config, lab: { ...config.lab, primaryCellFirst: true } });
+    expect(p.mode).toBe("sequential");
+    expect(p.cells.map((c) => c.phase)).toEqual([1, 2, 2]);
+    expect(committedBudgetCents(p)).toBe(p.cells[0]!.budgetCents);
+    expect(committedBudgetCents(p) * 3).toBe(p.maxBudgetCents);
+    const primaryOnly = (rate: number) => {
+      const obs = new Map([[p.cells[0]!.id, obsAt(p, p.cells[0]!.id, { activationRate: rate })]]);
+      const vs = [evaluateCell({ plan: p, cell: p.cells[0]!, obs: obs.get(p.cells[0]!.id), config, now: LATER, clockStart: NOW })];
+      return decideExperiment({ plan: p, verdicts: vs, observations: obs, ladder: venture().ladder, config, now: LATER, previousOutcomes: [], rng: new Rng(5) }).decision;
+    };
+    expect(primaryOnly(0.62)).toBe("replicate");
+    expect(primaryOnly(0.3)).toBe("iterate");
   });
 });

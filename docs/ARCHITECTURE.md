@@ -110,8 +110,25 @@ Instagram Trial Reels during the build and kills concepts whose hooks get no att
 
 | Ladder | Steps |
 |---|---|
-| single-player (Vert archetype) | **[S1_distribution + S1_activation + S4_monetization]** in one experiment over the same cells |
+| single-player (Vert archetype) | [S1_distribution + S1_activation + S2_sharing] → [S4_monetization] |
 | social (tbh/Gas archetype, human-gated) | [S1_distribution + S1_activation] → [S2_sharing] → [S3_cross_cell, K ≥ 1.0] → [S4_monetization] |
+
+**Spend gates: cheap reads first** (config `lab.smokeTest`, `budgets`). Money is released in steps,
+each paid for only after the cheaper one before it found no reason to stop:
+
+| Gate | Cost | What it can do |
+|---|---|---|
+| S0 attention probe | $0 (owned posts) | kill concepts whose hooks get no views |
+| Smoke test | $50, one storefront | kill duds on activation or next-day return (~30 installs); never validates |
+| First full read | ~$1,500 (three storefronts) | the step's real read |
+| Anything after a full read with no passing cell | capped at `maxTestSpendBeforeSignalCents` ($1,600 total) | in practice the idea stops |
+| After a cell passes | up to `maxTestSpendPerVentureCents` ($4,000) | iterations, the money step |
+
+A smoke test reads only metrics its budget buys at least 20 units of, so rare events (shares, trials,
+payments) are never read for $50. It books no audience cooldown, the time box pauses while it runs, and a
+read too thin or invalid to have stopped a dud lets the full experiment run rather than being re-run.
+`lab.primaryCellFirst` (off) runs the primary storefront alone before paying for the other two; see the
+stage audit for why it is off.
 
 `principles/ladder.ts` assigns the ladder: an idea is social when it lacks single-player value, needs
 friends, or its primary channel is invites.

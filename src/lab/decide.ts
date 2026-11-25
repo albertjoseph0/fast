@@ -289,6 +289,10 @@ export function pooledRead(plan: ExperimentPlan, observations: Map<string, CellO
   return { pass, detail: parts.join("; ") };
 }
 
+function futileMetrics(verdicts: CellVerdict[]): string[] {
+  return [...new Set(verdicts.flatMap((v) => Object.entries(v.perMetric).filter(([, m]) => m?.decision === "futile").map(([k]) => k)))];
+}
+
 /** Look for confounds behind a mixed result: cells that differ from their peers for non-product reasons. */
 export function diagnose(plan: ExperimentPlan, verdicts: CellVerdict[], observations: Map<string, CellObservation>): { id: ValidityCheckId; cellId: string; detail: string }[] {
   const flags: { id: ValidityCheckId; cellId: string; detail: string }[] = [];
@@ -422,6 +426,19 @@ export function decideExperiment(i: DecideInput): ExperimentOutcome {
     if (futile.length) return outcome("kill", "hooks earned no attention from cold audiences (S0 futility)");
     if (invalid.length) return fixHarness(invalid.map((v) => v.cellId), "attention probe could not be read");
     return outcome("pass", "attention probe found no reason to stop");
+  }
+
+  // Smoke test: kill-only. A read that could not have stopped a dud (too little traffic, or an invalid
+  // cell) is inconclusive and lets the full experiment run: re-running a 50 USD screen costs a week and
+  // a second 50 USD to save nothing the full experiment would not catch anyway.
+  if (plan.kind === "smoke") {
+    if (futile.length) return outcome("kill", `smoke test: ${futileMetrics(futile).join(", ")} conclusively below the futility line in ${futile.map((v) => v.cellId).join(", ")}`);
+    const thin = verdicts.flatMap((v) =>
+      plan.metrics.filter((m) => (i.observations.get(v.cellId)?.metrics[m.key]?.trials ?? 0) < 0.5 * (plan.minSamplePerCell[m.key] ?? 1)).map((m) => `${m.key} in ${v.cellId}`),
+    );
+    if (invalid.length) return outcome("pass", "smoke test inconclusive (cell could not be read); the full experiment decides");
+    if (thin.length) return outcome("pass", `smoke test inconclusive (${thin.join(", ")} below half its sample); the full experiment decides`);
+    return outcome("pass", "smoke test found no reason to stop; the full experiment may run");
   }
 
   // Sequential plans: a phase-1 pass releases the pre-registered replication cells.

@@ -748,6 +748,8 @@ export interface ExperimentPlan {
   metrics: MetricSpec[];
   cells: TestCell[];
   mode: "parallel" | "sequential";
+  /** A smoke test is a cheap kill-only read before the step's full experiment; a pass validates nothing. */
+  kind?: "smoke";
   /** Denominator units each cell needs, per metric, from the power calculation. */
   minSamplePerCell: Partial<Record<MetricKey, number>>;
   operatingCharacteristics: { powerAtTarget: number; falsePassAtFloor: number };

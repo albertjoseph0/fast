@@ -114,10 +114,16 @@ diagnostics ran.
 - **Next:** re-run only the flagged cells and charge harness re-runs to an ops budget; CAC on attributed
   installs only, with the pre-exposure organic baseline subtracted; a sample-ratio check and whole-week
   read windows; a concurrent A/B lane for in-app variables.
-- **Your call:** the $4,000 test cap and 42-day time box allow about two $1,700 experiments, so the
-  four-iteration limit is never reached and the social ladder ($6,519) can never validate. Either raise
-  the cap to about $5,000 and 56 days (single-player) and $12,000 and 90 days (social), or cut iterations
-  to one and add a cheap activation-only read before the paywall test.
+- **Done (cheap first reads):** a $50 smoke test (`lab.smokeTest`) in one storefront before any full
+  experiment. At the planning CPI it buys about 33 installs and reads activation and next-day return as
+  kill-only: it stops about 70% of ideas sitting at the futility line, over 95% of clear duds, and under 5%
+  of ideas at target. It never validates anything; shares, trials and payments are too rare to read for
+  $50. The time box pauses while it runs. After the first full read, an idea with no passing cell may
+  only spend up to `maxTestSpendBeforeSignalCents` ($1,600), which in practice stops it; the $4,000 cap
+  applies only once a cell has passed.
+- **Tried and left off:** primary storefront first (`lab.primaryCellFirst`). It cut a failed read from
+  ~$1,500 to ~$500, but each step took an extra read cycle and one storefront had to carry the pass
+  alone; in the simulator winners fell from 1.5 to 1.2 per run (and to 0 under the 42-day box).
 
 ## 6. Scale and harvest
 
@@ -126,6 +132,20 @@ diagnostics ran.
 - **Next:** one-star tripwire (needs review data); sunset handling per store; settlement lag in the cash
   trough; a lane cut to zero can never recover; LTV from observed renewals rather than priors; rollout
   beyond the US; harvest levers and exit rules.
+
+## Simulator check: cheap first reads
+
+180 simulated days, seeds 1–8, averages per seed:
+
+| | Ideas tested | Winners validated | Test spend per stopped idea | Test spend per winner |
+|---|---|---|---|---|
+| Before ($4,000 cap) | 10.4 | 1.5 | $2,662 | $14,538 |
+| Smoke test + $1,600 pre-signal cap | 10.6 | 1.5 | $1,387 | $9,640 |
+
+Same number of winners at about half the spend per dead idea. The smoke test itself killed only 0.2
+ideas per run, because the simulator's ideas are rarely hopeless on activation; the saving comes from
+the pre-signal cap. Real ideas include more duds, which is where the $50 screen earns its keep. Revenue
+in this simulator is driven by one hit per run and differs by seed, not by rule.
 
 ## Simulator check
 

@@ -123,8 +123,13 @@ export const StudioConfig = z.object({
       dailySpendCapCents: Cents.default(150_000),
       dailySpendCapShareOfFreeCash: Rate.default(0.07),
       maxCellBudgetCents: Cents.default(75_000),
-      /** Disband rule in dollars: test spend before S4 passes. */
+      /** Disband rule in dollars: test spend before S4 passes, once some full test cell has passed (a clean winner costs about 3,250 USD). */
       maxTestSpendPerVentureCents: Cents.default(400_000),
+      /**
+       * Test spend allowed before any full test cell has passed: the smoke test plus one full read.
+       * Ideas that never show a real signal stop here, not at the full cap.
+       */
+      maxTestSpendBeforeSignalCents: Cents.default(160_000),
       /** Upper bound per scaling venture; the allocator's cash-trough constraint usually binds first. */
       scaleDailyCapCents: Cents.default(100_000),
       maxPaybackDays: z.number().int().min(1).default(30),
@@ -240,6 +245,20 @@ export const StudioConfig = z.object({
       attentionProbe: z
         .object({ enabled: z.boolean(), posts: z.number().int().min(1), hitViews: z.number().int().min(1) })
         .default({ enabled: true, posts: 12, hitViews: 5_000 }),
+      /**
+       * Smoke test: one cheap kill-only read in one storefront before any full experiment. It can stop a
+       * dud on activation or next-day return; it never validates anything (see designSmokeTest).
+       */
+      smokeTest: z
+        .object({ enabled: z.boolean(), budgetCents: z.number().int().min(1_000), minSample: z.number().int().min(5) })
+        .default({ enabled: true, budgetCents: 5_000, minSample: 20 }),
+      /**
+       * Full experiments run their primary storefront first and pay for the replication storefronts only
+       * after it passes. Off by default: in the simulator it cut the cost of a failed read by two thirds
+       * but added a read cycle per step and made one storefront carry the pass, losing about a third of
+       * winners. Worth revisiting once real CPIs show how often the primary alone is conclusive.
+       */
+      primaryCellFirst: z.boolean().default(false),
       creatorBatch: z
         .object({ creatorsPerCell: z.number().int().min(1), postsPerCreator: z.number().int().min(1) })
         .default({ creatorsPerCell: 6, postsPerCreator: 3 }),

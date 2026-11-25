@@ -9,7 +9,7 @@ import { OPEN_STATUSES } from "../governance/outbox.ts";
 import { computePayout } from "../governance/payouts.ts";
 import { exposuresForPlan } from "../lab/audiences.ts";
 import { activeCells, decideExperiment, evaluateCell } from "../lab/decide.ts";
-import { designExperiment } from "../lab/experiments.ts";
+import { committedBudgetCents, designExperiment, designSmokeTest } from "../lab/experiments.ts";
 import { ladderEntry } from "../playbook/product.ts";
 import type { StudioDeps } from "./deps.ts";
 import { ideaFor } from "./pipeline.ts";
@@ -61,6 +61,37 @@ export function testExposureCents(ctx: TickContext, v: Venture): number {
     exposure += a.dailyBudgetCents * days;
   }
   return exposure;
+}
+
+/** A full (non-smoke) experiment cell has passed for this venture: a replicate or pass decision. */
+export function hasRealSignal(ctx: TickContext, v: Venture): boolean {
+  return v.ladder.validated.length > 0 || v.ladder.experimentIds.some((id) => ctx.store.experiments.get(id)?.kind !== "smoke" && ctx.store.outcomes(id).some((o) => o.decision === "replicate" || o.decision === "pass"));
+}
+
+/**
+ * Test spend the venture may reach now. Every idea that survives its smoke test gets one full read at
+ * the full cap; once a full read has been decided without any cell passing, the low pre-signal cap
+ * applies, which in practice stops further reads. A passing cell restores the full cap.
+ */
+export function testSpendCapCents(ctx: TickContext, v: Venture): number {
+  const b = ctx.config.budgets;
+  const fullReadDecided = v.ladder.experimentIds.some((id) => {
+    const e = ctx.store.experiments.get(id);
+    return e !== undefined && e.kind !== "smoke" && !e.stages.includes("S0_attention") && ctx.store.outcomes(id).length > 0;
+  });
+  if (hasRealSignal(ctx, v) || !fullReadDecided) return b.maxTestSpendPerVentureCents;
+  return Math.min(b.maxTestSpendBeforeSignalCents, b.maxTestSpendPerVentureCents);
+}
+
+function smokePassed(ctx: TickContext, v: Venture): boolean {
+  return v.ladder.experimentIds.some((id) => ctx.store.experiments.get(id)?.kind === "smoke" && ctx.store.outcomes(id).some((o) => o.decision === "pass"));
+}
+
+/** The venture still owes its smoke test: enabled, nothing validated, and no full experiment run yet. */
+function needsSmokeTest(ctx: TickContext, v: Venture): boolean {
+  if (!ctx.config.lab.smokeTest.enabled || v.ladder.stepIndex > 0 || v.ladder.validated.length) return false;
+  if (smokePassed(ctx, v)) return false;
+  return !v.ladder.experimentIds.some((id) => ctx.store.experiments.get(id)?.kind !== "smoke" && !ctx.store.experiments.get(id)?.stages.includes("S0_attention"));
 }
 
 /** An open kill or sunset for the venture: no new test money goes out while the board decides. */
@@ -136,22 +167,28 @@ export async function ensureExperiment(ctx: TickContext, deps: StudioDeps, v: Ve
   const pending = v.pendingVariant;
   if (pending && !pending.readyAt) return `waiting for ${pending.variableUnderTest} variant to ship`;
   const now = ctx.ports.clock.iso();
-  const design = designExperiment({
+  const smoke = needsSmokeTest(ctx, v);
+  const common = {
     experimentId: ctx.store.nextId("experiment"),
     cellIds: [ctx.store.nextId("cell"), ctx.store.nextId("cell"), ctx.store.nextId("cell")],
     venture: v,
     idea,
     stages,
-    hypothesis: pending?.hypothesis ?? `${v.name} earns installs from ${idea.wedge.creatorNiche} creators that activate and start trials at or above the floors`,
-    variableUnderTest: pending?.variableUnderTest ?? "baseline",
-    variant: pending?.variant ?? { baseline: `spec_v${v.specVersion}` },
     deliveryMode: pending?.deliveryMode ?? "native_build",
     config: ctx.config,
     now,
     exposures: ctx.store.exposures(),
     ...(pending?.geos ? { geos: pending.geos } : {}),
     ...(pending?.parentExperimentId ? { parentExperimentId: pending.parentExperimentId } : {}),
-  });
+  };
+  const design = smoke
+    ? designSmokeTest(common)
+    : designExperiment({
+        ...common,
+        hypothesis: pending?.hypothesis ?? `${v.name} earns installs from ${idea.wedge.creatorNiche} creators that activate and start trials at or above the floors`,
+        variableUnderTest: pending?.variableUnderTest ?? "baseline",
+        variant: pending?.variant ?? { baseline: `spec_v${v.specVersion}` },
+      });
   if (!design.ok) {
     if (/infeasible/.test(design.reason)) {
       proposeKill(ctx, v, `no feasible experiment: ${design.reason}`);
@@ -160,17 +197,21 @@ export async function ensureExperiment(ctx: TickContext, deps: StudioDeps, v: Ve
     return `cannot register yet: ${design.reason}`;
   }
   // Bier's disband rule in dollars: the next test may not take the venture past its cap before S4.
+  // Only phase-1 cells commit money at registration; replication is checked when it is released.
   if (!v.ladder.validated.includes("S4_monetization")) {
     const exposure = testExposureCents(ctx, v);
-    const cap = ctx.config.budgets.maxTestSpendPerVentureCents;
-    if (exposure + design.plan.maxBudgetCents > cap) {
-      proposeKill(ctx, v, `the next test (${(design.plan.maxBudgetCents / 100).toFixed(0)} USD) would take test spend and commitments from ${(exposure / 100).toFixed(0)} USD past the ${(cap / 100).toFixed(0)} USD cap before monetization validated`, "spend_cap");
+    const cap = testSpendCapCents(ctx, v);
+    const next = committedBudgetCents(design.plan);
+    if (exposure + next > cap) {
+      proposeKill(ctx, v, `the next test (${(next / 100).toFixed(0)} USD) would take test spend and commitments from ${(exposure / 100).toFixed(0)} USD past the ${(cap / 100).toFixed(0)} USD cap${hasRealSignal(ctx, v) ? " before monetization validated" : " for an idea with no passing test cell yet"}`, "spend_cap");
       return "test spend cap reached";
     }
   }
   const plan: ExperimentPlan = { ...design.plan, status: "running", startedAt: now };
   ctx.store.experiments.put(plan);
-  for (const e of exposuresForPlan(plan, v.wedge, now)) ctx.store.recordExposure(e);
+  // A 50 USD smoke test barely touches a storefront's audience and tests the same build as the full step
+  // after it, so it books no cooldown (otherwise the full step would wait a week for its storefront).
+  if (plan.kind !== "smoke") for (const e of exposuresForPlan(plan, v.wedge, now)) ctx.store.recordExposure(e);
   const { pendingVariant: _done, ...rest } = ctx.store.ventures.require(v.id);
   ctx.store.ventures.put({
     ...rest,
@@ -182,7 +223,7 @@ export async function ensureExperiment(ctx: TickContext, deps: StudioDeps, v: Ve
     },
     updatedAt: now,
   });
-  ctx.log("experiment.registered", { experimentId: plan.id, stages, variable: plan.variableUnderTest, cells: plan.cells.map((c) => c.geo), budgetCents: plan.maxBudgetCents, minSample: plan.minSamplePerCell }, v.id);
+  ctx.log("experiment.registered", { experimentId: plan.id, stages, kind: plan.kind ?? "full", variable: plan.variableUnderTest, cells: plan.cells.map((c) => c.geo), budgetCents: plan.maxBudgetCents, minSample: plan.minSamplePerCell }, v.id);
   const registered = ctx.store.ventures.require(v.id);
   if (registered.stage === "iterating") transition(ctx.store, ctx.ports.clock, registered, "live_test", `${plan.variableUnderTest} variant under test in ${plan.id}`);
   await staffCells(ctx, deps, plan, plan.cells.filter((c) => c.phase === 1).map((c) => c.id));
@@ -369,7 +410,26 @@ async function applyOutcome(ctx: TickContext, deps: StudioDeps, plan: Experiment
   const clock = ctx.ports.clock;
   let v = ctx.store.ventures.require(plan.ventureId);
   if (outcome.decision === "replicate") {
-    await staffCells(ctx, deps, plan, plan.cells.filter((c) => c.phase === 2).map((c) => c.id));
+    const phase2 = plan.cells.filter((c) => c.phase === 2);
+    if (!v.ladder.validated.includes("S4_monetization")) {
+      const exposure = testExposureCents(ctx, v);
+      const cap = testSpendCapCents(ctx, v);
+      const next = phase2.reduce((sum, c) => sum + c.budgetCents, 0);
+      if (exposure + next > cap) {
+        proposeKill(ctx, v, `replicating ${plan.id} (${(next / 100).toFixed(0)} USD) would take test spend and commitments from ${(exposure / 100).toFixed(0)} USD past the ${(cap / 100).toFixed(0)} USD cap before monetization validated`, "spend_cap");
+        return;
+      }
+    }
+    await staffCells(ctx, deps, plan, phase2.map((c) => c.id));
+    return;
+  }
+  if (plan.kind === "smoke" && outcome.decision === "pass") {
+    // A smoke pass validates nothing: it only releases the step's full experiment. The time box does not
+    // run during the screen, so a 50 USD check never costs a winner its time to validate.
+    ctx.store.experiments.put({ ...ctx.store.experiments.require(plan.id), status: "decided", decidedAt: outcome.decidedAt });
+    closeCampaigns(ctx, plan);
+    const screenMs = Math.max(0, Date.parse(outcome.decidedAt) - Date.parse(plan.startedAt ?? plan.registeredAt));
+    patch(ctx.store, clock, v, { ladder: { ...v.ladder, currentExperimentId: null }, blockedMs: v.blockedMs + screenMs });
     return;
   }
   ctx.store.experiments.put({ ...ctx.store.experiments.require(plan.id), status: "decided", decidedAt: outcome.decidedAt });

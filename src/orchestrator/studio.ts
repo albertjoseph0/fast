@@ -20,7 +20,7 @@ import type { StudioDeps } from "./deps.ts";
 import { promoteScreened, runDiscovery } from "./discovery.ts";
 import { publishOwnedContent, runAttentionProbe, runCreativeLoop, syncContentStats, syncCreatorSubmissions } from "./growth.ts";
 import { pollDueJobs } from "./jobs.ts";
-import { ensureExperiment, proposeKill, retryPrepareVariant, runExperiments, settleVariants, testExposureCents, VARIANT_TO_PREPARE } from "./labPhase.ts";
+import { ensureExperiment, proposeKill, retryPrepareVariant, runExperiments, settleVariants, testExposureCents, testSpendCapCents, VARIANT_TO_PREPARE } from "./labPhase.ts";
 import { blockingTasks, isActive, isLiveOnStore, isWebLane, ladderComplete, patch, timeboxExpired } from "./lifecycle.ts";
 import { advanceBuilding, advanceInReview } from "./pipeline.ts";
 import { advanceBuildingWeb } from "./webPipeline.ts";
@@ -355,7 +355,7 @@ export class Studio {
         }
         if (!v.ladder.validated.includes("S4_monetization") && ["live_test", "iterating", "building", "in_review"].includes(v.stage)) {
           const exposure = testExposureCents(ctx, v);
-          if (exposure > this.config.budgets.maxTestSpendPerVentureCents) {
+          if (exposure > testSpendCapCents(ctx, v)) {
             proposeKill(ctx, v, `test spend and commitments of ${(exposure / 100).toFixed(0)} USD exceeded the cap before monetization validated`, "spend_cap");
             return "test spend cap reached";
           }
