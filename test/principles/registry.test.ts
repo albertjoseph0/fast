@@ -1,3 +1,4 @@
+import { STAGE_METRICS } from "../../src/lab/metrics.ts";
 import { describe, expect, it } from "vitest";
 import { EXTRA_THREAD_RULES, principle, PRINCIPLES } from "../../src/principles/bier.ts";
 import { ladderFor, ladderSteps } from "../../src/principles/ladder.ts";
@@ -53,10 +54,18 @@ describe("ladderFor", () => {
 
   it("returns copies of the configured steps", () => {
     const steps = ladderSteps("single_player", config);
-    expect(steps).toEqual([["S1_distribution", "S1_activation", "S4_monetization"]]);
-    steps[0]?.push("S2_sharing");
+    expect(steps).toEqual([["S1_distribution", "S1_activation", "S2_sharing"], ["S4_monetization"]]);
+    steps[0]?.push("S3_cross_cell");
     expect(config.lab.ladders.single_player[0]).toHaveLength(3);
     expect(ladderSteps("social", config)).toHaveLength(4);
+  });
+
+  it("makes sharing and next-day return pass marks before money is read in single-player apps", () => {
+    expect(STAGE_METRICS.S1_activation).toContainEqual({ key: "d1Retention", role: "required" });
+    expect(STAGE_METRICS.S2_sharing).toContainEqual({ key: "shareRate", role: "required" });
+    const [first, second] = ladderSteps("single_player", config);
+    expect(first).toContain("S2_sharing");
+    expect(second).toEqual(["S4_monetization"]);
   });
 });
 

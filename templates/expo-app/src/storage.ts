@@ -15,6 +15,8 @@ export const KEYS = {
   notificationsEnabled: "notifications_enabled",
   promoOptIn: "promo_opt_in",
   lastResult: "last_result",
+  /** The friend's share this launch arrived from, shown on home until they make their own. */
+  arrivedShare: "arrived_share",
   appUserId: "app_user_id",
   installToken: "install_token",
   ageGate: "age_gate",

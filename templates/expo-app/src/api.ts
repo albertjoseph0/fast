@@ -59,6 +59,18 @@ export function requestVerdict(appUserId: string, input: VerdictInput, consent: 
   return postAsInstall("/v1/verdict", { slug: studio.slug, appUserId, input, consent });
 }
 
+/** Publish this install's result so the share link shows it to the friend who opens it. */
+export function createShare(resultId: string): Promise<{ shareId: string }> {
+  return postAsInstall("/v1/share", { slug: studio.slug, resultId });
+}
+
+/** A friend's shared result, when they arrived by a share link. Null when it is gone. */
+export async function fetchShared(shareId: string): Promise<{ appName: string; title: string; body: string } | null> {
+  const res = await fetch(`${studio.backendUrl}/v1/shared?slug=${encodeURIComponent(studio.slug)}&id=${encodeURIComponent(shareId)}`).catch(() => null);
+  if (!res?.ok) return null;
+  return (await res.json().catch(() => null)) as { appName: string; title: string; body: string } | null;
+}
+
 export function reportResult(appUserId: string, resultId: string, reason: string): Promise<{ ok: true }> {
   return post("/v1/report", { slug: studio.slug, appUserId, resultId, reason });
 }

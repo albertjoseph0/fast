@@ -303,7 +303,7 @@ export function buildAppSpec(input: SchemaInputs["AppSpec"], rng: Rng): AppSpec 
         "Be specific to what the user shared, keep a playful tone, never claim certainty, and refuse anything unsafe.",
       outputSections: ["Verdict", "Why", "What to try next"],
       loadingMessages: ["Reading what you shared", "Looking for patterns", "Writing your verdict"],
-      freeUsesBeforePaywall: defaults.paywall.style === "hard" ? 0 : 1,
+      freeUsesBeforePaywall: defaults.paywall.placement === "after_onboarding" && defaults.paywall.style === "hard" ? 0 : 1,
     },
     paywall: defaults.paywall,
     share: {

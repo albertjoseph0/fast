@@ -106,7 +106,10 @@ export function privacyPolicy(input: LegalInput): LegalDoc {
     },
     {
       heading: "How long we keep information",
-      paragraphs: ["We keep each kind of information only for the period listed above, then delete it or keep it only in aggregate form that does not identify you."],
+      paragraphs: [
+        "We keep each kind of information only for the period listed above, then delete it or keep it only in aggregate form that does not identify you.",
+        "A result is kept on our servers for one day after it is made, so that you can share it. When you tap Share, the first part of that result is published under a link that anyone who has the link can open, for 30 days or until you delete your data.",
+      ],
     },
     {
       heading: "Your choices and rights",

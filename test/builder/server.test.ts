@@ -48,7 +48,7 @@ interface Harness {
 
 let server: Server | null = null;
 
-async function start(opts: { secret?: string; tenant?: Record<string, unknown>; env?: Record<string, string>; receiptStatus?: number } = {}): Promise<Harness> {
+async function start(opts: { secret?: string; tenant?: Record<string, unknown>; env?: Record<string, string>; receiptStatus?: number; sharesDir?: string } = {}): Promise<Harness> {
   const dir = join(tempDir(), "tenants");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "astra.json"), JSON.stringify({ ...TENANT, ...opts.tenant }));
@@ -87,6 +87,7 @@ async function start(opts: { secret?: string; tenant?: Record<string, unknown>; 
     installSecret: "test-secret",
     now: () => h.clock.value,
     log: (line) => h.logs.push(line),
+    ...(opts.sharesDir ? { sharesDir: opts.sharesDir } : {}),
   });
   server = createServer((req, res) => void handler(req, res));
   await new Promise<void>((resolve) => server?.listen(0, "127.0.0.1", resolve));
@@ -428,5 +429,63 @@ describe("web lane", () => {
     await new Promise<void>((resolve) => server?.close(() => resolve()));
     const failing = await start({ ...WEB, receiptStatus: 400 });
     expect(await post(failing, "/v1/web/claim", { slug: "astra", appUserId: "web_abc123", sessionId: "cs_test_a1b2c3d4e5f6" })).toMatchObject({ status: 400, json: { error: "claim_failed" } });
+  });
+});
+
+describe("share loop", () => {
+  async function shareOf(h: Harness, appUserId = "user_1") {
+    const made = await ask(h, appUserId);
+    expect(made.status).toBe(200);
+    return post(h, "/v1/share", { slug: "astra", installToken: h.tokens.get(appUserId), resultId: made.json.id });
+  }
+
+  it("publishes only the lead section of the sharer's own result and serves it to anyone with the link", async () => {
+    const h = await start();
+    const shared = await shareOf(h);
+    expect(shared.status).toBe(200);
+    const shareId = shared.json.shareId as string;
+    expect(shareId).toMatch(/^[A-Za-z0-9_-]{16}$/);
+    const res = await fetch(`${h.url}/v1/shared?slug=astra&id=${shareId}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toEqual({ appName: "Astra", title: "Sun", body: "Bold energy.", createdAt: "2026-10-18T10:00:00.000Z" });
+    expect(JSON.stringify(body)).not.toContain("user_1");
+    expect(h.logs).toContainEqual({ event: "share", slug: "astra" });
+    expect(h.logs).toContainEqual({ event: "share_view", slug: "astra" });
+  });
+
+  it("refuses to share another install's result, a stale result or an unknown id", async () => {
+    const h = await start();
+    const made = await ask(h, "user_1");
+    const other = await installToken(h, "user_2");
+    expect((await post(h, "/v1/share", { slug: "astra", installToken: other, resultId: made.json.id })).status).toBe(404);
+    expect((await post(h, "/v1/share", { slug: "astra", installToken: h.tokens.get("user_1"), resultId: "nope" })).status).toBe(404);
+    expect((await post(h, "/v1/share", { slug: "astra", resultId: made.json.id })).status).toBe(401);
+    h.clock.value += 86_400_001;
+    expect((await post(h, "/v1/share", { slug: "astra", installToken: h.tokens.get("user_1"), resultId: made.json.id })).status).toBe(404);
+    expect((await fetch(`${h.url}/v1/shared?slug=astra&id=AAAAAAAAAAAAAAAA`)).status).toBe(404);
+    expect((await fetch(`${h.url}/v1/shared?slug=astra&id=../../etc`)).status).toBe(404);
+  });
+
+  it("expires shares after 30 days", async () => {
+    const h = await start();
+    const shareId = (await shareOf(h)).json.shareId as string;
+    h.clock.value += 31 * 86_400_000;
+    expect((await fetch(`${h.url}/v1/shared?slug=astra&id=${shareId}`)).status).toBe(404);
+  });
+
+  it("keeps shares on disk across restarts and removes them on Delete my data", async () => {
+    const sharesDir = join(tempDir(), "shares");
+    const first = await start({ sharesDir });
+    const shareId = (await shareOf(first)).json.shareId as string;
+    const token = first.tokens.get("user_1");
+    await new Promise<void>((resolve) => (server ? server.close(() => resolve()) : resolve()));
+    const second = await start({ sharesDir });
+    second.clock.value = first.clock.value;
+    expect((await fetch(`${second.url}/v1/shared?slug=astra&id=${shareId}`)).status).toBe(200);
+    expect((await post(second, "/v1/delete", { slug: "astra", installToken: token, appUserId: "user_1" })).status).toBe(200);
+    expect((await fetch(`${second.url}/v1/shared?slug=astra&id=${shareId}`)).status).toBe(404);
+    expect(second.logs).toContainEqual({ event: "delete", slug: "astra", appUserId: "user_1", sharesRemoved: 1 });
   });
 });

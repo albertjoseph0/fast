@@ -3,7 +3,7 @@ import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Image, Pressable, Text, TextInput, View } from "react-native";
-import { ApiError, requestVerdict, type VerdictInput } from "../src/api";
+import { ApiError, fetchShared, requestVerdict, type VerdictInput } from "../src/api";
 import { appUserId, hasAiConsent, markActivated, usesLeft } from "../src/session";
 import { useSpec } from "../src/spec";
 import { getJson, KEYS, setJson, type Profile, type StoredResult } from "../src/storage";
@@ -20,8 +20,14 @@ export default function Home() {
   const [message, setMessage] = useState(0);
   const [consent, setConsent] = useState(true);
 
+  /** The friend's result this person arrived from: the reason they are here, shown first. */
+  const [friend, setFriend] = useState<{ title: string; body: string } | null>(null);
+
   useEffect(() => {
     void hasAiConsent().then(setConsent);
+    void getJson<string | null>(KEYS.arrivedShare, null).then(async (id) => {
+      if (id) setFriend(await fetchShared(id));
+    });
   }, []);
 
   useEffect(() => {
@@ -64,6 +70,7 @@ export default function Home() {
       const verdict = await requestVerdict(appUserId(), input, true);
       const stored: StoredResult = { id: verdict.id, sections: verdict.sections, createdAt: new Date().toISOString() };
       await setJson(KEYS.lastResult, stored);
+      await setJson(KEYS.arrivedShare, null);
       await setJson(KEYS.usesConsumed, (await getJson<number>(KEYS.usesConsumed, 0)) + 1);
       await markActivated("first_verdict");
       router.push("/result");
@@ -88,6 +95,14 @@ export default function Home() {
           <Text style={{ color: t.text, fontSize: 22 }}>⚙︎</Text>
         </Pressable>
       </View>
+      {friend ? (
+        <Card>
+          <Body muted>Your friend's result</Body>
+          <Body>{friend.title}</Body>
+          <Body muted>{friend.body}</Body>
+          <Body>Now make yours.</Body>
+        </Card>
+      ) : null}
       <Title>{spec.core.inputLabel}</Title>
       {!consent ? (
         <Card>

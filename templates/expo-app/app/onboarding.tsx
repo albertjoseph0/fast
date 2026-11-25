@@ -11,7 +11,6 @@ import { APP_EVENTS } from "../src/events";
 import { requestPermission, scheduleReminders } from "../src/notifications";
 import { isEntitled } from "../src/purchases";
 import { afterOnboardingRoute } from "../src/routing";
-import { markActivated } from "../src/session";
 import { studio, useSpec } from "../src/spec";
 import { getJson, KEYS, setJson, type Profile } from "../src/storage";
 import type { OnboardingStep } from "../src/types";
@@ -47,7 +46,6 @@ export default function Onboarding() {
   useEffect(() => {
     if (!step) return;
     track(APP_EVENTS.onboardingStep, { step_id: step.id, kind: step.kind, index });
-    if (step.kind === "value_preview") void markActivated("value_preview");
     if (step.kind === "loading_personalization") {
       const timer = setTimeout(() => void next(), 2_500);
       return () => clearTimeout(timer);

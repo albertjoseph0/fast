@@ -145,8 +145,8 @@ redeploy with more territories, and removal from sale deactivates the payment li
 | P5 | Works in one → all; fails in three → all | lab/decide | Three matched cells, read as replications. A cell far below its peers (< 0.6× their median or z < −3) is re-run as a harness problem before anything fails. Default `lab.decisionRule: "pooled"`: pass when the pooled read clears every floor at `pooledConfidence`, still clears it at `confidence` without the best cell, and no cell is conclusively below a floor. `"all_cells"` keeps the old rule (every cell passes alone), whose joint power was about 0.65, not the planned 0.8. Never scale on one strong geo carrying two weak ones. |
 | P6 | Inconclusive tests are the biggest slowdown | lab/stats + decide | Binary read at the deadline: pass iff P(p ≥ floor) ≥ confidence, otherwise a valid failure. Early stops are futility-only. Invalid cells are harness bugs. Sample sizes come from an exact power search at the target value. |
 | P7 | Distribution first | gates | An organic primary channel, a share artifact, ≥ 3 hooks and a creator niche are required. Paid-only ideas are rejected. |
-| P8 | Long signup is fine if activation rises | principles/onboarding | 8-16 steps. AI-data consent before any data is collected. A value preview before the paywall. Paywall terms are rendered from store prices, never LLM copy. |
-| P9 | Exposure on other networks | principles/product | A share artifact with watermark and deep link. Creators supply most external exposure for utilities. |
+| P8 | Long signup is fine if activation rises | principles/onboarding | 8-16 steps. AI-data consent before any data is collected. A value preview before the paywall. The default paywall comes after the first real result (`after_first_value`, one free use), and activation counts only a real result, never the onboarding preview. Paywall terms are rendered from store prices, never LLM copy. |
+| P9 | Exposure on other networks | principles/product | A share artifact with watermark and deep link, which opens on the sharer's result. Single-player ventures must pass share rate and day-1 retention before money is read. Creators supply most external exposure for utilities. |
 | P10 | Toilet test | gates | ≤ 5 taps and ≤ 15s to first value (3s target). Sustained attention is a hard fail. |
 | P11 | Love, money, play | gates | Classified into one of the three. `self_improvement` is penalized unless it maps to one of them. Meetup apps are rejected. |
 
@@ -244,8 +244,15 @@ Meta Ad Library, at most 20 terms a cycle. When that finds anything, those signa
    least 1.5× its effective creator CPM, with ≥ 50 attributed installs. Step 2: a capped 3-day probe.
    The creative scales only if the probe's p20 ROAS_D60 ≥ 1. A fatigue rule pauses it. Apple Ads
    brand-defense search is exempt but capped.
-5. **Share loop and SEO.** Result cards carry a watermark and deep link. Programmatic pages run through
-   `WebPort`.
+5. **Share loop and SEO.** Tapping Share publishes the lead section of that result (`POST /v1/share`,
+   only the sharer's own result from the last day) under an unguessable id for 30 days. The card and
+   the message carry `?s=<id>&i=<sharer>&ch=share_loop`. A friend without the app lands on the site's
+   share page, which shows the friend's result first (`GET /v1/shared`) and then "Now make yours"; with
+   the app installed, or in the web lane, home shows it above the input. The first result is free, so
+   the friend gets a real one before any paywall. Known gaps: link previews are generic (the static site
+   cannot render per-share Open Graph tags), and an install through the App Store loses the link, so
+   only the inviter attribution survives (deferred deep links need a provider). Programmatic pages run
+   through `WebPort`.
 
 ## 8. Portfolio and money
 
@@ -344,7 +351,9 @@ stored per install (never a shared fallback), and the backend authenticates requ
 HMAC-signed install token it mints per install, so a reinstalled or rotated id gets no extra free uses
 and deleting data does not reset limits. User input is JSON-encoded inside its prompt tags. Each tenant
 file sets the app's rate limits, daily verdict cap and a token budget with room for every output
-section; the backend re-reads changed tenant files without a restart.
+section; the backend re-reads changed tenant files without a restart. Results are kept in memory for a
+day so they can be shared; shared ones live in memory or under `SHARES_DIR`, and Delete my data removes
+them.
 
 ## 11. Design-review decisions
 

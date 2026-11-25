@@ -10,6 +10,8 @@ export interface Attribution {
   channel?: string;
   /** PostHog distinct id of the user whose link this install came from. */
   inviter?: string;
+  /** A friend's published result the link points at (share links only). */
+  shareId?: string;
 }
 
 /** ChannelKind values (src/core/types.ts) a link may name. */
@@ -47,7 +49,8 @@ export function parseAttribution(url: string | null | undefined): Attribution {
   const channel = named && CHANNELS.has(named) ? named : inviter ? "invite_loop" : undefined;
   const code = clean(q.get("c"));
   const sourceId = clean(q.get("src")) ?? (code ? `code:${code.toLowerCase()}` : inviter && channel ? `${channel}:${inviter}` : undefined);
-  return { ...(sourceId ? { sourceId } : {}), ...(channel ? { channel } : {}), ...(inviter ? { inviter } : {}) };
+  const shareId = clean(q.get("s"));
+  return { ...(sourceId ? { sourceId } : {}), ...(channel ? { channel } : {}), ...(inviter ? { inviter } : {}), ...(shareId ? { shareId } : {}) };
 }
 
 /** The attribution survey answer as a source (and a channel when the answer names one). */

@@ -15,11 +15,13 @@ function appLink(deepLinkPath: string): string {
 }
 
 /**
- * The public URL printed on share cards; opens the app where installed (Universal / App
- * Links). `i` names the sharer so an install from it counts as theirs (invite_install).
+ * The public URL printed on share cards and sent with them; opens the app where installed
+ * (Universal / App Links), and otherwise the share page, which shows the sharer's result when
+ * `s` names a published share. `i` names the sharer so an install from it counts as theirs
+ * (invite_install).
  */
-export function shareUrl(deepLinkPath: string, resultId: string, sharerId: string | null): string {
-  return withParams(appLink(deepLinkPath), { r: resultId, i: sharerId, ch: sharerId ? "share_loop" : null });
+export function shareUrl(deepLinkPath: string, resultId: string, sharerId: string | null, shareId: string | null = null): string {
+  return withParams(appLink(deepLinkPath), { s: shareId, r: shareId ? null : resultId, i: sharerId, ch: sharerId ? "share_loop" : null });
 }
 
 /** The link in a one-to-one invite (spec.invite). */

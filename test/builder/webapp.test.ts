@@ -5,7 +5,7 @@ import { renderWebApp, webDeployFiles, webTermsLine } from "../../src/builder/in
 import type { AppSpec, VentureBindings } from "../../src/core/types.ts";
 import { astra, astraSpec, config, tempDir, TEMPLATE_DIR, venture } from "./fixtures.ts";
 // @ts-expect-error plain JS module shipped to browsers
-import { allowedGeo, attributionFrom, checkoutSessionFrom, checkoutUrl, newUserId } from "../../templates/web-app/app.js";
+import { allowedGeo, attributionFrom, checkoutSessionFrom, checkoutUrl, newUserId, shareIdFrom, shareLink } from "../../templates/web-app/app.js";
 // @ts-expect-error plain JS module shipped to browsers
 import geo from "../../templates/web-app/api/geo.js";
 
@@ -70,6 +70,11 @@ describe("web app runtime helpers", () => {
     expect(allowedGeo(null, ["NZ"])).toBe(false);
     expect(attributionFrom("?utm_source=tiktok&ref=maya&x=1", "https://www.tiktok.com/@maya")).toEqual({ utm_source: "tiktok", ref: "maya", referrer_host: "www.tiktok.com" });
     expect(newUserId(() => new Uint8Array(16).fill(171))).toBe(`web_${"ab".repeat(16)}`);
+    expect(attributionFrom("?s=AbCdEfGhIjKlMnOp&i=web_1&ch=share_loop", "")).toEqual({ i: "web_1", ch: "share_loop" });
+    expect(shareIdFrom("?s=AbCdEfGhIjKlMnOp&i=web_1")).toBe("AbCdEfGhIjKlMnOp");
+    expect(shareIdFrom("?s=<script>")).toBeNull();
+    expect(shareLink("https://astra.apps.example", "AbCdEfGhIjKlMnOp", "web_1")).toBe("https://astra.apps.example/?s=AbCdEfGhIjKlMnOp&i=web_1&ch=share_loop");
+    expect(shareLink("https://astra.apps.example", undefined, "web_1")).toBe("https://astra.apps.example/?i=web_1&ch=share_loop");
   });
 
   it("answers the visitor's country from the edge header without storing it", () => {
