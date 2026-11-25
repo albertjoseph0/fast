@@ -36,6 +36,7 @@ import type {
   StoreRecord,
   SubmissionVerification,
   VentureBindings,
+  WebCheckoutLink,
 } from "./types.ts";
 import type { EventName } from "./events.ts";
 import type { SchemaInputs, SchemaName, SchemaOutputs } from "../agents/schemas.ts";
@@ -331,6 +332,36 @@ export interface WebWrite {
   publishSite(req: { ventureId: string; files: { path: string; localPath: string }[] }): Promise<{ baseUrl: string }>;
 }
 
+/** One file of a web app deployment: its path in the app and where the builder wrote it. */
+export interface WebAppFile {
+  path: string;
+  localPath: string;
+}
+
+/**
+ * Web-lane app hosting: deploys a rendered web app to `<host>` and serves it only in
+ * `territories` (written into the deployment, enforced at the edge). Redeploying the same
+ * files with new territories is how a web app "scales" to new geos.
+ */
+export interface WebAppWrite {
+  readonly kind: "live" | "sim";
+  deployApp(req: { ventureId: string; host: string; files: WebAppFile[]; territories: string[] }): Promise<{ url: string; deploymentId: string }>;
+}
+
+/** Web checkout: one product, recurring price and hosted payment link per ladder entry. */
+export interface CheckoutWrite {
+  readonly kind: "live" | "sim";
+  createPaymentLinks(req: {
+    ventureId: string;
+    bindings: VentureBindings;
+    products: StoreProductDef[];
+    successUrl: string;
+    currency: string;
+  }): Promise<{ links: WebCheckoutLink[] }>;
+  /** Stops new purchases (existing subscriptions keep running until cancelled). */
+  deactivate(req: { linkIds: string[] }): Promise<void>;
+}
+
 // ---------------------------------------------------------------------------
 // Bundles
 // ---------------------------------------------------------------------------
@@ -356,6 +387,8 @@ export interface WritePorts {
   social: SocialWrite;
   ads: AdsWrite;
   web: WebWrite;
+  webApp: WebAppWrite;
+  checkout: CheckoutWrite;
 }
 
 export interface PortSet {

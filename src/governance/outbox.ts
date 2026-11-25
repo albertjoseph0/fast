@@ -30,6 +30,7 @@ const BINDING_KEYS = [
   "easProjectId",
   "revenueCatProjectId",
   "posthogProjectId",
+  "posthogPublicKey",
   "webBaseUrl",
   "privacyUrl",
   "termsUrl",

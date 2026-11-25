@@ -86,7 +86,8 @@ export interface RevenueCatOptions {
   baseUrl?: string;
 }
 
-const APP_TYPE: Record<StorePlatform, "app_store" | "play_store"> = { ios: "app_store", android: "play_store" };
+/** Web-lane purchases go through Stripe; RevenueCat calls such an app "stripe". */
+const APP_TYPE: Record<StorePlatform, "app_store" | "play_store" | "stripe"> = { ios: "app_store", android: "play_store", web: "stripe" };
 
 /** Synthetic RevenueCat object for a dry-run write: the request body echoed back with a "dry_" id. */
 export function rcDryRunResponse(req: HttpRequest): unknown {
@@ -102,7 +103,13 @@ export function playBasePlanId(ladderId: string): string {
 }
 
 /** RevenueCat store_identifier: the App Store product id, or Play's `productId:basePlanId`. */
-export function storeIdentifier(product: StoreProduct): string {
+export function storeIdentifier(product: StoreProduct, bindings?: VentureBindings): string {
+  if (product.platform === "web") {
+    // RevenueCat identifies a Stripe product by its Stripe product id.
+    const id = bindings?.checkoutLinks?.[product.ladderId]?.stripeProductId;
+    if (!id) throw new Error(`revenuecat: no Stripe product for ${product.productId} (run web.setup_checkout first)`);
+    return id;
+  }
   return product.platform === "ios" ? product.productId : `${product.productId}:${playBasePlanId(product.ladderId)}`;
 }
 
@@ -270,7 +277,7 @@ export class LiveMonetizationWrite implements MonetizationWrite {
       const app = await this.ensureApp(projectId, bindings, platform, apps);
       const existing = await c.listProducts(projectId, app.id);
       for (const p of mine) {
-        const ident = storeIdentifier(p);
+        const ident = storeIdentifier(p, bindings);
         const found = existing.find((x) => x.store_identifier === ident && x.app_id === app.id);
         const product = found ?? (await c.createProduct(projectId, { appId: app.id, storeIdentifier: ident, displayName: p.ladderId }));
         rcProductIds.set(p, product.id);
@@ -317,6 +324,12 @@ export class LiveMonetizationWrite implements MonetizationWrite {
     );
     if (found) return found;
     if (bound) return { id: bound, name: storeId, type: APP_TYPE[platform] };
+    if (platform === "web") {
+      // A Stripe app needs the Stripe account connected in the dashboard (integrations.bind_web_projects).
+      const stripe = apps.find((a) => a.type === "stripe");
+      if (stripe) return stripe;
+      throw new Error(`revenuecat: project ${projectId} has no Stripe app; connect Stripe in RevenueCat (integrations.bind_web_projects)`);
+    }
     const app = await this.client.createApp(projectId, { name: `${storeId} (${platform})`, platform, storeId });
     apps.push(app);
     return app;

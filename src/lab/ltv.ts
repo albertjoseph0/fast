@@ -15,7 +15,7 @@ import { proportionPosterior } from "./stats.ts";
 
 export function netPriceCents(usdCents: Cents, geo: string, platform: StorePlatform, config: StudioConfig): number {
   const vat = config.economics.vatInclusiveRateByGeo[geo] ?? 0;
-  const fee = platform === "android" ? config.economics.storeFeeRate.android : config.economics.storeFeeRate.ios;
+  const fee = config.economics.storeFeeRate[platform];
   return (usdCents / (1 + vat)) * (1 - fee);
 }
 

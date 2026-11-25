@@ -372,5 +372,16 @@ export function fakeWrite(): WritePorts {
       putAsset: vi.fn(async () => ({ publicUrl: "https://cdn.example.com/a.png", sha256: "sha_a" })),
       publishSite: vi.fn(async () => ({ baseUrl: "https://astra.example.com" })),
     },
+    webApp: {
+      kind: "sim",
+      deployApp: vi.fn(async (req: { host: string }) => ({ url: `https://${req.host}`, deploymentId: "dpl_1" })),
+    },
+    checkout: {
+      kind: "sim",
+      createPaymentLinks: vi.fn(async (req: { products: { productId: string; ladderId: string }[] }) => ({
+        links: req.products.map((p, i) => ({ productId: p.productId, ladderId: p.ladderId, url: `https://buy.stripe.com/test_${i}`, linkId: `plink_${i}`, priceId: `price_${i}`, stripeProductId: `prod_${i}` })),
+      })),
+      deactivate: vi.fn(async () => undefined),
+    },
   };
 }

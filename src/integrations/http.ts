@@ -20,6 +20,8 @@ export interface HttpRequest {
   json?: unknown;
   /** Raw body for uploads or form posts. */
   body?: Uint8Array | string;
+  /** Form fields, sent as application/x-www-form-urlencoded (Stripe's request format); recorded like `json` in dry-run. */
+  form?: Record<string, string>;
   /** Sent as the Idempotency-Key header when present. */
   idempotencyKey?: string;
   /** Defaults to true for anything but GET/HEAD. Non-mutating POSTs (token refresh, queries) set false. */
@@ -132,6 +134,7 @@ export class DryRunRecorder {
     for (const [k, v] of Object.entries(req.headers ?? {})) headers[k] = SECRET_HEADER.test(k) ? "<redacted>" : v;
     const rec: DryRunRecord = { seq: ++this.seq, service, method: req.method, url: redactUrl(req.url), headers };
     if (req.json !== undefined) rec.json = redact(req.json);
+    else if (req.form !== undefined) rec.json = redact(req.form);
     if (req.context) rec.context = req.context;
     if (req.body !== undefined) rec.bodyBytes = typeof req.body === "string" ? req.body.length : req.body.byteLength;
     this.records.push(rec);
@@ -185,6 +188,7 @@ export class HttpClient {
   async request<T = unknown>(req: HttpRequest): Promise<HttpResponse<T>> {
     const headers: Record<string, string> = { ...(await this.opts.defaultHeaders?.()), ...req.headers };
     if (req.json !== undefined) headers["content-type"] ??= "application/json";
+    if (req.form !== undefined) headers["content-type"] ??= "application/x-www-form-urlencoded";
     if (req.idempotencyKey) headers["idempotency-key"] = req.idempotencyKey;
     const full: HttpRequest = { ...req, headers };
 
@@ -206,7 +210,12 @@ export class HttpClient {
         res = await this.fetchImpl(req.url, {
           method: req.method,
           headers,
-          body: req.json !== undefined ? JSON.stringify(req.json) : (req.body as RequestInit["body"]),
+          body:
+            req.json !== undefined
+              ? JSON.stringify(req.json)
+              : req.form !== undefined
+                ? new URLSearchParams(req.form).toString()
+                : (req.body as RequestInit["body"]),
           signal: controller.signal,
         });
       } catch (err) {

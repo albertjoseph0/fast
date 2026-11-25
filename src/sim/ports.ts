@@ -24,6 +24,8 @@ import type {
   StoreWrite,
   TrendPort,
   WebWrite,
+  WebAppWrite,
+  CheckoutWrite,
 } from "../core/ports.ts";
 import { hashString } from "../core/rng.ts";
 import type { StudioStore } from "../core/store.ts";
@@ -254,8 +256,40 @@ export function createSimPorts(opts: { world: SimWorld; clock: Clock; store: Stu
     publishSite: async (req) => ({ baseUrl: `https://${req.ventureId}.sim.example` }),
   };
 
+  /** Web lane: a deploy is live at once (no store review); geofenced to the deployed territories. */
+  const webApp: WebAppWrite = {
+    kind: "sim",
+    deployApp: async (req) => {
+      const v = opts.store.ventures.get(req.ventureId);
+      if (!v) throw new Error(`no venture ${req.ventureId}`);
+      const app = world.app(v.bindings.bundleId, "web");
+      if (app.status !== "live") app.liveSince = clock.iso();
+      app.status = "live";
+      app.territories = [...req.territories];
+      app.updatedAt = clock.iso();
+      return { url: `https://${req.host}`, deploymentId: `dpl_sim_${(h32(`${world.seed}:${req.ventureId}:${clock.iso()}:${req.territories.join(",")}`) % 1e8).toString(36)}` };
+    },
+  };
+
+  const checkout: CheckoutWrite = {
+    kind: "sim",
+    createPaymentLinks: async (req) => ({
+      links: req.products.map((p) => {
+        const id = (h32(`${world.seed}:${req.ventureId}:${p.productId}`) % 1e8).toString(36);
+        return { productId: p.productId, ladderId: p.ladderId, url: `https://buy.sim.example/${id}`, linkId: `plink_sim_${id}`, priceId: `price_sim_${id}`, stripeProductId: `prod_sim_${id}` };
+      }),
+    }),
+    deactivate: async (req) => {
+      for (const v of opts.store.ventures.list((x) => Object.values(x.bindings.checkoutLinks ?? {}).some((l) => req.linkIds.includes(l.linkId)))) {
+        const app = world.app(v.bindings.bundleId, "web");
+        app.status = "removed";
+        app.updatedAt = clock.iso();
+      }
+    },
+  };
+
   return {
     read: { clock, llm: opts.llm, media: opts.media, trends, store: storeRead, metrics, creators: creatorsRead, social: socialRead, ads: adsRead },
-    write: { store: storeWrite, monetization, remoteConfig, creators: creatorsWrite, social: socialWrite, ads: adsWrite, web },
+    write: { store: storeWrite, monetization, remoteConfig, creators: creatorsWrite, social: socialWrite, ads: adsWrite, web, webApp, checkout },
   };
 }

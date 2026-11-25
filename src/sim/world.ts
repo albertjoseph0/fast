@@ -94,6 +94,17 @@ function dateOf(idx: number): string {
 // Market state
 // ---------------------------------------------------------------------------
 
+/** Every platform a sim venture can be live on; web-lane ventures ship only "web". */
+const SIM_PLATFORMS: readonly StorePlatform[] = ["ios", "android", "web"];
+
+/** Install split across the platforms a geo is live on (iOS-heavy, as in the test geos). */
+function platformShares(platforms: readonly StorePlatform[]): number[] {
+  const weight: Record<StorePlatform, number> = { ios: 0.72, android: 0.28, web: 0.2 };
+  const w = platforms.map((p) => weight[p]);
+  const total = w.reduce((a, b) => a + b, 0);
+  return w.map((x) => x / total);
+}
+
 export interface SimApp {
   ventureId?: string;
   platform: StorePlatform;
@@ -353,7 +364,7 @@ export class SimWorld {
     const v = this.store.ventures.get(ventureId);
     if (!v) return undefined;
     let first: number | undefined;
-    for (const platform of ["ios", "android"] as const) {
+    for (const platform of SIM_PLATFORMS) {
       const app = this.apps.get(this.appKey(v.bindings.bundleId, platform));
       const rec = v.stores.find((s) => s.platform === platform);
       const live = app ? app.status === "live" && app.territories.includes(geo) : rec?.status === "live" && rec.territories.includes(geo);
@@ -455,7 +466,8 @@ export class SimWorld {
   setOffering(bundleId: string, productIds: string[]): Record<string, string> {
     const offerings = { default: `ofrng_${(h32(`${this.seed}:${bundleId}`) % 1e8).toString(36)}` };
     this.offerings.set(bundleId, offerings);
-    this.app(bundleId, "ios").productIds = [...productIds];
+    const v = this.ventureByBundle(bundleId);
+    for (const platform of v?.bindings.platforms.length ? v.bindings.platforms : (["ios"] as const)) this.app(bundleId, platform).productIds = [...productIds];
     return offerings;
   }
 
@@ -958,7 +970,7 @@ export class SimWorld {
     const truth = this.truth(post.ventureId);
     if (!truth || views <= 0) return;
     const r = this.rng.fork(`${dateOf(day)}:post-installs:${post.id}`);
-    const live = new Set([...this.liveGeos(post.ventureId, "ios", day), ...this.liveGeos(post.ventureId, "android", day)]);
+    const live = new Set(SIM_PLATFORMS.flatMap((p) => this.liveGeos(post.ventureId, p, day)));
     for (const [geo, share] of Object.entries(post.geo)) {
       const inGeo = views * share;
       this.count(post.ventureId, day, geo, EV.view, Math.round(inGeo));
@@ -1025,7 +1037,7 @@ export class SimWorld {
     for (const v of this.store.ventures.list().sort((a, b) => (a.id < b.id ? -1 : 1))) {
       const truth = this.truth(v.id);
       if (!truth) continue;
-      const live = [...new Set([...this.liveGeos(v.id, "ios", day), ...this.liveGeos(v.id, "android", day)])].sort();
+      const live = [...new Set(SIM_PLATFORMS.flatMap((p) => this.liveGeos(v.id, p, day)))].sort();
       const r = this.rng.fork(`${date}:organic:${v.id}`);
       for (const geo of live) {
         const since = this.liveSinceDay(v.id, geo) ?? day;
@@ -1041,7 +1053,7 @@ export class SimWorld {
     if (!due) return;
     this.pending.delete(day);
     for (const b of due.values()) {
-      if (this.liveGeos(b.ventureId, "ios", day).includes(b.geo) || this.liveGeos(b.ventureId, "android", day).includes(b.geo)) this.addBatch(b);
+      if (SIM_PLATFORMS.some((p) => this.liveGeos(b.ventureId, p, day).includes(b.geo))) this.addBatch(b);
     }
   }
 
@@ -1137,7 +1149,7 @@ export class SimWorld {
   }
 
   private platformsFor(ventureId: string, geo: string, day: number): StorePlatform[] {
-    return (["ios", "android"] as const).filter((p) => this.liveGeos(ventureId, p, day).includes(geo));
+    return SIM_PLATFORMS.filter((p) => this.liveGeos(ventureId, p, day).includes(geo));
   }
 
   private flushInstalls(day: number): void {
@@ -1149,7 +1161,7 @@ export class SimWorld {
       if (!v || !truth) continue;
       const r = this.rng.fork(`${date}:cohort:${key}`);
       const platforms = this.platformsFor(b.ventureId, b.geo, day);
-      const perPlatform = platforms.length > 1 ? multinomial(b.installs, [0.72, 0.28], r) : [b.installs];
+      const perPlatform = platforms.length > 1 ? multinomial(b.installs, platformShares(platforms), r) : [b.installs];
       const sat = this.saturation(b.ventureId, b.geo, truth.appeal);
       platforms.forEach((platform, pi) => {
         const n = perPlatform[pi] as number;
