@@ -143,7 +143,12 @@ export interface VentureUnitEconomics {
   roasD60P20: number;
   marginalRoasD60P20: number;
   paybackDaysPred: number | null;
+  /** Refunds over gross revenue in the window's mature cohorts; null until there is enough revenue to read. */
+  refundShare: number | null;
 }
+
+/** Gross revenue a refund share needs before it counts as observed (smaller samples use the prior). */
+export const REFUND_READ_MIN_GROSS_CENTS = 20_000;
 
 /** Latest (oldest-age) row per cohort lane, restricted to cohorts old enough to have converted. */
 function matureCohorts(rows: CohortMetrics[], minAgeDays: number, since: string): CohortMetrics[] {
@@ -178,7 +183,10 @@ export function ventureEconomics(ctx: TickContext, v: Venture): VentureUnitEcono
   const cohortSpend = rows.reduce((s, r) => s + r.spendCents, 0);
   const ledgerSpend = -ctx.store.net({ ventureId: v.id, categories: ["creators", "ads"], since: `${since}T00:00:00.000Z` });
   const spendCents = Math.max(cohortSpend, ledgerSpend);
-  if (installs === 0) return { installs, conversions, spendCents, cacCents: 0, predNetRpiD60P20Cents: 0, roasD60P20: 0, marginalRoasD60P20: 0, paybackDaysPred: null };
+  const gross = rows.reduce((s, r) => s + r.grossRevenueCents, 0);
+  const refunds = rows.reduce((s, r) => s + r.refundsCents, 0);
+  const refundShare = gross >= REFUND_READ_MIN_GROSS_CENTS ? refunds / gross : null;
+  if (installs === 0) return { installs, conversions, spendCents, cacCents: 0, predNetRpiD60P20Cents: 0, roasD60P20: 0, marginalRoasD60P20: 0, paybackDaysPred: null, refundShare };
   const t = ctx.config.thresholds;
   const priorConv = t.trialStartRate.floor * 0.5;
   const post = proportionPosterior(conversions, installs, priorConv);
@@ -186,12 +194,13 @@ export function ventureEconomics(ctx: TickContext, v: Venture): VentureUnitEcono
   const geos = [...new Set(rows.map((r) => r.geo))];
   const geo = geos.length === 1 ? (geos[0] as string) : "US";
   const net = netPriceCents(entry.usdCents, geo, "ios", ctx.config);
-  const haircut = ctx.config.economics.refundHaircutPrior;
+  // Observed refunds replace the prior once there is enough revenue, but never lower it below the prior.
+  const haircut = Math.max(ctx.config.economics.refundHaircutPrior, refundShare ?? 0);
   const predNetRpiD60P20Cents = Math.round(convP20 * chargesWithin(entry, 60, ctx.config) * net * (1 - haircut));
   const cacCents = Math.round(spendCents / installs);
   const roasD60P20 = cacCents > 0 ? predNetRpiD60P20Cents / cacCents : 0;
   const marginalRoasD60P20 = cacCents > 0 ? predNetRpiD60P20Cents / (cacCents * MARGINAL_CAC_PENALTY) : 0;
-  return { installs, conversions, spendCents, cacCents, predNetRpiD60P20Cents, roasD60P20, marginalRoasD60P20, paybackDaysPred: paybackDays(cacCents * MARGINAL_CAC_PENALTY, convP20, entry, net, haircut, ctx.config) };
+  return { installs, conversions, spendCents, cacCents, predNetRpiD60P20Cents, roasD60P20, marginalRoasD60P20, paybackDaysPred: paybackDays(cacCents * MARGINAL_CAC_PENALTY, convP20, entry, net, haircut, ctx.config), refundShare };
 }
 
 // ---------------------------------------------------------------------------
@@ -230,7 +239,13 @@ export function planAllocation(ctx: TickContext, ledger: LedgerSync): Allocation
     const lastChange = before?.changedAt ?? now;
     let proposed = current;
     let reason = "hold";
-    if (!econ || econ.installs < 50) {
+    const refundMax = ctx.config.thresholds.refundShareMax;
+    if (econ?.refundShare != null && econ.refundShare > refundMax) {
+      // Tripwire: heavy refunds mean buyers feel misled or the product breaks; no spend until fixed.
+      proposed = 0;
+      reason = `refund tripwire: ${(econ.refundShare * 100).toFixed(0)}% of revenue refunded (max ${(refundMax * 100).toFixed(0)}%)`;
+      if (current > 0) ctx.log("venture.tripwire", { ventureId: v.id, tripwire: "refund_share", refundShare: econ.refundShare, max: refundMax }, v.id);
+    } else if (!econ || econ.installs < 50) {
       reason = "not enough mature installs to move the budget";
     } else if (econ.marginalRoasD60P20 >= 1 && econ.paybackDaysPred !== null && econ.paybackDaysPred <= maxPayback) {
       if (daysBetween(lastChange, now) >= b.scaleRampMinDaysBetweenSteps || !before) {

@@ -228,7 +228,7 @@ describe("daily and cohorts", () => {
     const total8 = rows.find((r) => r.date === "2026-10-08" && r.geo === null)!;
     expect(total8.counts).toEqual({ install: 10, conversion: 1, session: 4 });
     expect(total8.grossRevenueCents).toBe(699);
-    expect(total8.proceedsCents).toBe(Math.round((699 / 1.13) * 0.85));
+    expect(total8.proceedsCents).toBe(Math.round(699 * 0.85)); // CA prices exclude sales tax
     expect(total8.activeSubscribers).toBe(1);
     expect(total8.complete).toBe(false); // within revenueLagDays (3) of 2026-10-10
     const ca8 = rows.find((r) => r.date === "2026-10-08" && r.geo === "CA")!;

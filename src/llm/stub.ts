@@ -85,7 +85,21 @@ function ideaBatch(input: SchemaInputs["IdeaBatch"], rng: Rng): IdeaBatch {
     picked.push({ archetype: a, title });
   }
 
-  return { ideas: rng.shuffle(picked.slice(0, count)).map((p) => ideaFromArchetype(p.archetype, rng, p.title)) };
+  return {
+    ideas: rng.shuffle(picked.slice(0, count)).map((p) => ({ ...ideaFromArchetype(p.archetype, rng, p.title), evidenceRefs: citedRefs(p.archetype, input.signals), demandTerms: p.archetype.tags.slice(0, 2) })),
+  };
+}
+
+const MAX_CITED = 6;
+
+/** Signals that share a tag with the archetype, measured sources before pattern summaries. */
+function citedRefs(a: IdeaArchetype, signals: SchemaInputs["IdeaBatch"]["signals"]): string[] {
+  const matches = signals.filter((s) => {
+    const text = `${s.title ?? ""} ${s.detail ?? ""} ${s.tags.join(" ")}`.toLowerCase();
+    return a.tags.some((t) => text.includes(t));
+  });
+  const measured = (s: { source: string }) => (s.source === "search_trend" ? 1 : 0);
+  return [...matches].sort((x, y) => measured(x) - measured(y)).slice(0, MAX_CITED).map((s) => s.ref);
 }
 
 // ---------------------------------------------------------------------------

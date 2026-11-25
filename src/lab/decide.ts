@@ -10,6 +10,9 @@
  * Experiment table over active cells:
  *   any pending                         -> continue
  *   all pass (and S4 economics hold)    -> pass
+ *   a cell far below its peers          -> fix_harness on that cell (checked before any fail)
+ *   pooled read clears every floor and no cell is conclusively below one (lab.decisionRule
+ *   "pooled", S4 economics hold)        -> pass
  *   none pass, and >= 2 fail or any futile -> variant failed
  *   mixed pass/fail(or futile)          -> fix_harness on flagged cells, else variant failed
  *   invalid cells, outcome undetermined -> fix_harness on those cells
@@ -215,6 +218,77 @@ export function evaluateCell(i: CellEvalInput): CellVerdict {
   return verdict("fail", perMetric);
 }
 
+/** A cell this far below the median of its peers, or this many standard errors below them, reads as broken. */
+const OUTLIER_RATIO = 0.6;
+const OUTLIER_Z = -3;
+
+/** Two-proportion z of one cell against its peers pooled (negative = the cell is lower). */
+function zAgainstPeers(m: MetricSpec, observations: Map<string, CellObservation>, cellId: string, cells: string[]): number {
+  const k = observations.get(cellId)?.metrics[m.key];
+  const peers = cells.filter((c) => c !== cellId).map((c) => observations.get(c)?.metrics[m.key] ?? EMPTY);
+  const ps = peers.reduce((s, x) => s + x.successes, 0);
+  const pn = peers.reduce((s, x) => s + x.trials, 0);
+  if (!k || k.trials === 0 || pn === 0) return 0;
+  const p1 = Math.min(1, k.successes / k.trials);
+  const p2 = Math.min(1, ps / pn);
+  const pooled = Math.min(1, (k.successes + ps) / (k.trials + pn));
+  const se = Math.sqrt(pooled * (1 - pooled) * (1 / k.trials + 1 / pn));
+  return se > 0 ? (p1 - p2) / se : 0;
+}
+
+/** Counts summed across cells; traffic sources stay separate (prefixed by cell) so clustering still counts. */
+function pooledCounts(m: MetricSpec, observations: Map<string, CellObservation>, cellIds: string[]): MetricCounts {
+  const out: MetricCounts = { successes: 0, trials: 0, bySource: {} };
+  for (const id of cellIds) {
+    const k = observations.get(id)?.metrics[m.key];
+    if (!k) continue;
+    out.successes += k.successes;
+    out.trials += k.trials;
+    for (const [src, v] of Object.entries(k.bySource)) out.bySource[`${id}:${src}`] = v;
+  }
+  return out;
+}
+
+/**
+ * The pooled read: every required metric clears its floor on the cells' combined counts, and no
+ * cell on its own is conclusively below a floor (a geo where it clearly does not work is a stop,
+ * not noise to average away). With three or more cells the read must also survive dropping the
+ * best cell at lab.confidence, so one strong geo cannot carry two weak ones. Futility-only metrics
+ * must not read futile when pooled.
+ */
+export function pooledRead(plan: ExperimentPlan, observations: Map<string, CellObservation>, cellIds: string[], config: StudioConfig): { pass: boolean; detail: string } {
+  const c = config.lab.pooledConfidence;
+  const parts: string[] = [];
+  let pass = cellIds.length > 0;
+  for (const m of plan.metrics.filter((x) => x.role !== "informational")) {
+    const { post } = posteriorFor(m, pooledCounts(m, observations, cellIds));
+    if (m.role === "futility_only") {
+      if (isFutileRead(post, m.floor, m.futility, c)) {
+        pass = false;
+        parts.push(`${m.key} futile pooled`);
+      }
+      continue;
+    }
+    const p = probAtLeast(post, m.floor);
+    if (p < c) pass = false;
+    const below = cellIds.filter((id) => probBelow(posteriorFor(m, observations.get(id)?.metrics[m.key] ?? EMPTY).post, m.floor) >= c);
+    if (below.length) pass = false;
+    let carried = false;
+    if (cellIds.length >= 3) {
+      const rateOf = (id: string) => {
+        const k = observations.get(id)?.metrics[m.key];
+        return k && k.trials > 0 ? k.successes / k.trials : 0;
+      };
+      const best = [...cellIds].sort((a, b) => rateOf(b) - rateOf(a))[0];
+      const rest = cellIds.filter((id) => id !== best);
+      carried = probAtLeast(posteriorFor(m, pooledCounts(m, observations, rest)).post, m.floor) < config.lab.confidence;
+      if (carried) pass = false;
+    }
+    parts.push(`${m.key} P=${p.toFixed(2)}${below.length ? ` (below floor in ${below.join(", ")})` : ""}${carried ? " (carried by one cell)" : ""}`);
+  }
+  return { pass, detail: parts.join("; ") };
+}
+
 /** Look for confounds behind a mixed result: cells that differ from their peers for non-product reasons. */
 export function diagnose(plan: ExperimentPlan, verdicts: CellVerdict[], observations: Map<string, CellObservation>): { id: ValidityCheckId; cellId: string; detail: string }[] {
   const flags: { id: ValidityCheckId; cellId: string; detail: string }[] = [];
@@ -232,8 +306,10 @@ export function diagnose(plan: ExperimentPlan, verdicts: CellVerdict[], observat
     cells.forEach((id, idx) => {
       const others = rates.filter((_, j) => j !== idx);
       const ref = median(others);
-      if (ref > 0 && (rates[idx] as number) < 0.3 * ref) {
-        flags.push({ id: "instrumentation", cellId: id, detail: `${m.key} ${(rates[idx] as number).toFixed(3)} vs peers ${ref.toFixed(3)}` });
+      const rate = rates[idx] as number;
+      const z = zAgainstPeers(m, observations, id, cells);
+      if (ref > 0 && (rate < OUTLIER_RATIO * ref || z < OUTLIER_Z)) {
+        flags.push({ id: "instrumentation", cellId: id, detail: `${m.key} ${rate.toFixed(3)} vs peers ${ref.toFixed(3)} (z ${z.toFixed(1)})` });
       }
     });
     const trials = cells.map((id) => observations.get(id)?.metrics[m.key]?.trials ?? 0);
@@ -356,20 +432,35 @@ export function decideExperiment(i: DecideInput): ExperimentOutcome {
     return failVariant("primary cell did not pass");
   }
 
-  if (invalid.length === 0 && passed.length === verdicts.length && verdicts.length > 0) {
-    if (plan.stages.includes("S4_monetization")) {
-      if (!i.pricing) return outcome("pass", "all cells passed (economics not evaluated: no pricing given)");
-      const econ = experimentEconomics({ plan, observations: i.observations, cellIds: [...active], pricing: i.pricing, config, rng: i.rng });
-      const unitEconomics = { predNetRpiD60P20Cents: econ.predNetRpiD60P20Cents, cacCents: econ.cacCents, roasD60P20: econ.roasD60P20 };
-      if (econ.roasD60P20 < config.lab.s4MinRoasD60P20) {
-        return failVariant(
-          `conversion passed but unit economics did not: p20 D60 ROAS ${econ.roasD60P20.toFixed(2)} < ${config.lab.s4MinRoasD60P20}`,
-          { unitEconomics },
-        );
-      }
-      return outcome("pass", `all ${verdicts.length} cells passed; p20 D60 ROAS ${econ.roasD60P20.toFixed(2)}`, { unitEconomics });
+  const passWithEconomics = (why: string, cellIds: string[]): ExperimentOutcome => {
+    if (!plan.stages.includes("S4_monetization")) return outcome("pass", why);
+    if (!i.pricing) return outcome("pass", `${why} (economics not evaluated: no pricing given)`);
+    const econ = experimentEconomics({ plan, observations: i.observations, cellIds, pricing: i.pricing, config, rng: i.rng });
+    const unitEconomics = { predNetRpiD60P20Cents: econ.predNetRpiD60P20Cents, cacCents: econ.cacCents, roasD60P20: econ.roasD60P20 };
+    if (econ.roasD60P20 < config.lab.s4MinRoasD60P20) {
+      return failVariant(`conversion passed but unit economics did not: p20 D60 ROAS ${econ.roasD60P20.toFixed(2)} < ${config.lab.s4MinRoasD60P20}`, {
+        unitEconomics,
+      });
     }
-    return outcome("pass", `all ${verdicts.length} cells passed`);
+    return outcome("pass", `${why}; p20 D60 ROAS ${econ.roasD60P20.toFixed(2)}`, { unitEconomics });
+  };
+
+  if (invalid.length === 0 && passed.length === verdicts.length && verdicts.length > 0) {
+    return passWithEconomics(`all ${verdicts.length} cells passed`, [...active]);
+  }
+
+  // A cell far below its peers is checked before any fail: a broken install or warm traffic in one
+  // geo must not sink (or carry) the variant. Peers that are all low look alike and are not flagged.
+  if (failed.length > 0 && valid.length >= 3) {
+    const flags = diagnose(plan, valid, i.observations).filter((f) => f.id === "instrumentation" || f.id === "cold_traffic");
+    if (flags.length) {
+      return fixHarness([...new Set(flags.map((f) => f.cellId))], "a cell differs sharply from its peers; re-running it", flags.map((f) => ({ id: f.id, detail: `${f.cellId}: ${f.detail}` })));
+    }
+  }
+
+  if (config.lab.decisionRule === "pooled" && invalid.length === 0 && valid.length >= 2) {
+    const read = pooledRead(plan, i.observations, valid.map((v) => v.cellId), config);
+    if (read.pass) return passWithEconomics(`pooled read across ${valid.length} cells cleared every floor (${read.detail})`, valid.map((v) => v.cellId));
   }
 
   // Futility only fails fast when no peer passed; futility next to a pass is a confound signal.

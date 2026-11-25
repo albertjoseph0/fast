@@ -117,7 +117,7 @@ describe("IdeaBatch", () => {
   });
 
   it("biases toward archetypes matching the signals", async () => {
-    const signals = [{ title: "Golf swing apps rising", detail: "golf coach and swing analysis", metrics: {}, tags: ["golf", "sports"] }];
+    const signals = [{ ref: "signal_1", source: "app_store_search", title: "Golf swing apps rising", detail: "golf coach and swing analysis", metrics: {}, tags: ["golf", "sports"] }];
     let hits = 0;
     for (let seed = 0; seed < 20; seed++) {
       const { ideas } = await new StubLlm({ seed }).object(objectRequest("IdeaBatch", { ...base, count: 4, signals, coreNeeds: [], avoidTitles: [] }));

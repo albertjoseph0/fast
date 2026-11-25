@@ -7,6 +7,7 @@ import type { AudienceExposure } from "../core/store.ts";
 import type { AgentContext } from "../core/context.ts";
 import type { Critique, Idea, IdeaRecord, Screening } from "../core/types.ts";
 import { screenIdea } from "../principles/gates.ts";
+import { evidenceFor } from "../principles/evidence.ts";
 import { keywordDomains } from "../principles/sensitivity.ts";
 import { COMPLIANCE_SYSTEM } from "./compliance.ts";
 import { SCHEMA, type SchemaInputs, type SensitivityReview } from "./schemas.ts";
@@ -129,5 +130,6 @@ export async function screen(
     classifierDomains,
     classifierMinimumAge: Number(classifier.minimumAge),
     existingTitles: opts.existingTitles,
+    ...(ctx.config.portfolio.requireEvidence ? { evidence: evidenceFor((record.verifiedSignalIds?.length ? record.verifiedSignalIds : record.sourceSignalIds).flatMap((id) => ctx.store.signals.get(id) ?? [])) } : {}),
   });
 }

@@ -34,6 +34,7 @@ import type {
   StorePlatform,
   StoreProductDef,
   StoreRecord,
+  TrendSource,
   SubmissionVerification,
   VentureBindings,
   WebCheckoutLink,
@@ -166,6 +167,30 @@ export interface TrendPort {
   readonly kind: "apple_public" | "sim";
   topApps(req: { country: string; chart: "top-free" | "top-paid"; limit: number }): Promise<ChartApp[]>;
   searchApps(req: { term: string; country: string; limit: number }): Promise<AppLookup[]>;
+}
+
+/**
+ * What one source says about one search term over the last `sinceDays`. Metrics are raw counts;
+ * principles/evidence.ts turns them into a demand score. `samples` quote third-party text
+ * (video titles, captions, ad copy) and are untrusted.
+ */
+export interface TrendObservation {
+  source: TrendSource;
+  term: string;
+  url?: string;
+  metrics: Record<string, number>;
+  samples: string[];
+}
+
+/**
+ * Social and ad-library demand: YouTube video traction, Instagram hashtag engagement and the
+ * Meta Ad Library (who keeps paying to advertise against a term). Read-only. A source that is
+ * not configured is absent from `sources()`; one that fails is skipped for that scan.
+ */
+export interface SocialTrendPort {
+  readonly kind: "live" | "sim";
+  sources(): TrendSource[];
+  scan(req: { terms: string[]; country: string; sinceDays: number }): Promise<TrendObservation[]>;
 }
 
 // ---------------------------------------------------------------------------
@@ -371,6 +396,7 @@ export interface ReadPorts {
   llm: LlmPort;
   media: MediaPort;
   trends: TrendPort;
+  socialTrends: SocialTrendPort;
   store: StoreRead;
   metrics: MetricsPort;
   creators: CreatorRead;

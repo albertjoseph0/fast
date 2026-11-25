@@ -1,11 +1,12 @@
 /**
- * Scout: reads public App Store charts and searches into Signals, then asks Claude for the
- * demand patterns behind them. Port failures on one chart or term are skipped so a single
- * flaky request cannot empty a discovery cycle.
+ * Scout: reads public App Store charts and searches, social trends (YouTube, Instagram hashtags)
+ * and the Meta Ad Library into Signals, adds momentum against the previous scans, then asks
+ * Claude for the demand patterns behind them. Port failures on one chart, term or source are
+ * skipped so a single flaky request cannot empty a discovery cycle.
  */
 import type { AgentContext } from "../core/context.ts";
-import type { AppLookup, ChartApp } from "../core/ports.ts";
-import type { Signal, SignalSource } from "../core/types.ts";
+import type { AppLookup, ChartApp, TrendObservation } from "../core/ports.ts";
+import type { IdeaRecord, Signal, SignalSource, TrendSource } from "../core/types.ts";
 import { SCHEMA, type SchemaInputs } from "./schemas.ts";
 import { normKey, rolePrompt } from "./shared.ts";
 
@@ -33,6 +34,12 @@ const CHARTS = ["top-free", "top-paid"] as const;
 const CHART_LIMIT = 50;
 const SEARCH_LIMIT = 10;
 const DIGEST_TOP_PER_TERM = 5;
+/** Window social and ad-library scans look back over. */
+export const TREND_WINDOW_DAYS = 14;
+/** A previous scan must be at least this old to measure momentum against. */
+const MIN_MOMENTUM_DAYS = 1;
+const DAY_MS = 86_400_000;
+const TREND_LABEL: Record<TrendSource, string> = { youtube: "YouTube", instagram: "Instagram", meta_ads: "Meta ads", google_trends: "Google Trends" };
 
 const SYSTEM = rolePrompt(
   "You are the market scout of an app studio that builds single-player AI verdict apps for love, money and play.",
@@ -40,6 +47,7 @@ const SYSTEM = rolePrompt(
     "You receive App Store chart positions and search results. Find the demand patterns behind them: recurring jobs-to-be-done, formats and audiences, not individual apps.",
     "A good pattern names a narrow audience and the verdict they want, e.g. 'screenshot-to-reply help for people texting a new match'.",
     "Prefer patterns with several example apps, high rating counts or paid-chart presence, and a verdict that films well in a short video.",
+    "social lists per-term numbers from YouTube (viewsPerDay), Instagram hashtags (medianEngagement) and the Meta Ad Library (longRunningAdvertisers: advertisers with an ad running 30+ days). Paying advertisers are stronger evidence than views; views without advertisers or apps may be a fad.",
     "Apps appear in the input only as refs like app_1; their names, written by third-party developers, are in the app_store untrusted block. exampleApps must be refs that appear in the input. Never invent apps, numbers or rankings.",
     "Return between 3 and 8 patterns, each mapped to one core need.",
   ],
@@ -56,13 +64,14 @@ export async function scanMarket(ctx: AgentContext, opts: { countries?: string[]
   const trends = ctx.ports.trends;
 
   const chartJobs = countries.flatMap((country) => CHARTS.map((chart) => ({ country, chart })));
-  const [charts, searches] = await Promise.all([
+  const [charts, searches, social] = await Promise.all([
     Promise.all(chartJobs.map((j) => settle(trends.topApps({ country: j.country, chart: j.chart, limit: CHART_LIMIT })))),
     Promise.all(terms.map((term) => settle(trends.searchApps({ term, country: searchCountry, limit: SEARCH_LIMIT })))),
+    settle(Promise.resolve().then(() => ctx.ports.socialTrends.scan({ terms, country: searchCountry, sinceDays: TREND_WINDOW_DAYS }))),
   ]);
 
   const drafts: Draft[] = [];
-  const digestInput: SchemaInputs["SignalDigest"] = { charts: [], searches: [] };
+  const digestInput: SchemaInputs["SignalDigest"] = { charts: [], searches: [], social: [] };
   // Third-party app names reach the model only inside an untrusted block, keyed by ref.
   const refs = new Map<string, string>();
   const names = new Map<string, string>();
@@ -91,12 +100,17 @@ export async function scanMarket(ctx: AgentContext, opts: { countries?: string[]
     }
   });
 
-  if (digestInput.charts.length > 0 || digestInput.searches.length > 0) {
+  for (const obs of social) {
+    drafts.push(trendDraft(obs));
+    digestInput.social?.push({ term: obs.term, source: obs.source, metrics: obs.metrics });
+  }
+
+  if (digestInput.charts.length > 0 || digestInput.searches.length > 0 || social.length > 0) {
     const digest = await ctx.ports.llm.object({
       role: "scout",
       schemaName: SCHEMA.signalDigest,
       system: SYSTEM,
-      instructions: "Summarize the demand patterns in these App Store charts and searches.",
+      instructions: "Summarize the demand patterns in these App Store charts and searches and the social and ad-library numbers.",
       input: digestInput,
       untrusted: [{ label: "app_store", text: JSON.stringify(Object.fromEntries(names)) }],
       purpose: "signal_digest",
@@ -114,7 +128,82 @@ export async function scanMarket(ctx: AgentContext, opts: { countries?: string[]
   }
 
   const observedAt = ctx.ports.clock.iso();
-  return dedupe(drafts).map((d) => ({ ...d, id: ctx.store.nextId("signal"), observedAt }));
+  const withMomentum = addMomentum(dedupe(drafts), ctx.store.signals.list(), ctx.ports.clock.now());
+  return withMomentum.map((d) => ({ ...d, id: ctx.store.nextId("signal"), observedAt }));
+}
+
+function trendDraft(obs: TrendObservation): Draft {
+  const label = TREND_LABEL[obs.source];
+  const quoted = obs.samples.length > 0 ? ` Top posts: ${obs.samples.map((t) => `"${t}"`).join("; ")}.` : "";
+  return {
+    source: "social_trend",
+    trend: obs.source,
+    title: `${obs.term} on ${label}`,
+    detail: `${label}, last ${TREND_WINDOW_DAYS} days: ${describeMetrics(obs)}.${quoted}`,
+    ...(obs.url ? { url: obs.url } : {}),
+    metrics: obs.metrics,
+    tags: unique([obs.term.toLowerCase(), obs.source, "social"]),
+  };
+}
+
+function describeMetrics(obs: TrendObservation): string {
+  const m = obs.metrics;
+  const n = (k: string) => Math.round(m[k] ?? 0).toLocaleString("en-US");
+  if (obs.source === "youtube") return `${n("videos")} top videos from ${n("channels")} channels, ${n("views")} views (${n("viewsPerDay")} a day)`;
+  if (obs.source === "instagram") return `${n("posts")} top posts, ${n("recentPosts")} of them recent, median engagement ${n("medianEngagement")}`;
+  if (obs.source === "meta_ads") {
+    return `${n("activeAds")} active ads from ${n("advertisers")} advertisers; ${n("longRunningAds")} running 30+ days from ${n("longRunningAdvertisers")} advertisers; ${n("appAds")} link to an app store`;
+  }
+  return Object.entries(m)
+    .map(([k, v]) => `${k} ${v}`)
+    .join(", ");
+}
+
+/** Metrics whose daily change is worth knowing, and the name the change is stored under. */
+const RATE_METRICS: readonly [string, string][] = [
+  ["ratings", "ratingsPerDay"],
+  ["views", "viewsGrowthPerDay"],
+  ["activeAds", "activeAdsPerDay"],
+  ["longRunningAdvertisers", "longRunningAdvertisersPerDay"],
+];
+
+/**
+ * Momentum against the most recent earlier scan of the same thing (same source, platform and
+ * title, at least a day old): daily change in ratings, views and ads, rank movement on charts
+ * (positive rankDelta = climbing), and newEntry for an app on a chart for the first time.
+ */
+export function addMomentum(drafts: Draft[], prior: Signal[], now: Date): Draft[] {
+  const latest = new Map<string, Signal>();
+  const chartsSeen = prior.some((s) => s.source === "app_store_chart");
+  const cutoff = now.getTime() - MIN_MOMENTUM_DAYS * DAY_MS;
+  for (const s of prior) {
+    if (Date.parse(s.observedAt) > cutoff) continue;
+    const key = momentumKey(s);
+    const seen = latest.get(key);
+    if (!seen || seen.observedAt < s.observedAt) latest.set(key, s);
+  }
+  return drafts.map((d) => {
+    const prev = latest.get(momentumKey(d));
+    const metrics = { ...d.metrics };
+    if (prev) {
+      const days = Math.max(MIN_MOMENTUM_DAYS, (now.getTime() - Date.parse(prev.observedAt)) / DAY_MS);
+      for (const [key, rate] of RATE_METRICS) {
+        const cur = d.metrics[key];
+        const before = prev.metrics[key];
+        if (cur !== undefined && before !== undefined) metrics[rate] = Math.round(((cur - before) / days) * 100) / 100;
+      }
+      if (d.metrics.rank !== undefined && prev.metrics.rank !== undefined) metrics.rankDelta = prev.metrics.rank - d.metrics.rank;
+    } else if (d.source === "app_store_chart" && chartsSeen) {
+      metrics.newEntry = 1;
+    }
+    return { ...d, metrics };
+  });
+}
+
+function momentumKey(s: Pick<Signal, "source" | "trend" | "title" | "tags">): string {
+  // A chart signal is one app on one chart in one storefront.
+  const where = s.source === "app_store_chart" ? s.tags.slice(1, 3).join("/") : "";
+  return `${s.source}|${s.trend ?? ""}|${where}|${normKey(s.title)}`;
 }
 
 function chartDraft(app: ChartApp, chart: (typeof CHARTS)[number], country: string): Draft {
@@ -154,8 +243,10 @@ function dedupe(drafts: Draft[]): Draft[] {
 }
 
 async function settle<T>(p: Promise<T[]>): Promise<T[]> {
+  // A port that is not wired (a test double) may answer with something other than an array.
   try {
-    return await p;
+    const out = await p;
+    return Array.isArray(out) ? out : [];
   } catch {
     return [];
   }
@@ -163,4 +254,57 @@ async function settle<T>(p: Promise<T[]>): Promise<T[]> {
 
 function unique<T>(items: T[]): T[] {
   return [...new Set(items)];
+}
+
+/** At most this many distinct terms are measured per discovery cycle (YouTube search costs 100 quota units a call). */
+export const MAX_VERIFY_TERMS = 20;
+/** Search results kept per verified term: the leaders show whether the market is real. */
+const VERIFY_SEARCH_LIMIT = 5;
+
+export interface DemandCheck {
+  /** New signals, ready to store. */
+  signals: Signal[];
+  /** Idea id -> the ids of the signals measured for that idea's own demand terms. */
+  byIdea: Map<string, string[]>;
+}
+
+/**
+ * Measure each idea's own demand. The ideator cites whatever signals it was shown, which often
+ * describe the market at large rather than this idea; here the idea's demandTerms are searched in
+ * the App Store and scanned on YouTube, Instagram and the Meta Ad Library, so its evidence is
+ * about what it actually does. Terms are shared across ideas and capped per cycle.
+ */
+export async function verifyDemand(ctx: AgentContext, records: IdeaRecord[], opts: { country?: string } = {}): Promise<DemandCheck> {
+  const country = opts.country ?? ctx.config.lab.testGeos[0] ?? "US";
+  const terms = unique(records.flatMap((r) => r.demandTerms ?? [])).slice(0, MAX_VERIFY_TERMS);
+  const byIdea = new Map<string, string[]>();
+  if (terms.length === 0) return { signals: [], byIdea };
+
+  const [searches, social] = await Promise.all([
+    Promise.all(terms.map((term) => settle(ctx.ports.trends.searchApps({ term, country, limit: VERIFY_SEARCH_LIMIT })))),
+    settle(Promise.resolve().then(() => ctx.ports.socialTrends.scan({ terms, country, sinceDays: TREND_WINDOW_DAYS }))),
+  ]);
+  const drafts: { term: string; draft: Draft }[] = [];
+  terms.forEach((term, i) => {
+    for (const app of searches[i] ?? []) drafts.push({ term, draft: searchDraft(app, term, country) });
+  });
+  for (const obs of social) if (terms.includes(obs.term)) drafts.push({ term: obs.term, draft: trendDraft(obs) });
+
+  const observedAt = ctx.ports.clock.iso();
+  const withMomentum = addMomentum(
+    drafts.map((d) => d.draft),
+    ctx.store.signals.list(),
+    ctx.ports.clock.now(),
+  );
+  const signals = withMomentum.map((d) => ({ ...d, id: ctx.store.nextId("signal"), observedAt }));
+  const idsByTerm = new Map<string, string[]>();
+  signals.forEach((s, i) => {
+    const term = drafts[i]!.term;
+    idsByTerm.set(term, [...(idsByTerm.get(term) ?? []), s.id]);
+  });
+  for (const r of records) {
+    const ids = unique((r.demandTerms ?? []).flatMap((t) => idsByTerm.get(t) ?? []));
+    if (ids.length > 0) byIdea.set(r.id, ids);
+  }
+  return { signals, byIdea };
 }

@@ -142,13 +142,34 @@ redeploy with more territories, and removal from sale deactivates the payment li
 | P2 | Most ideas are DOA | principles/gates | Reject if there are > 4 value conditions, a partnership dependency, or ≥ 7 friends needed without single-player value. |
 | P3 | Narrow wedges | gates | Six-factor wedge score. Single-player ideas need a discoverable creator niche with ≥ 20 in-wedge creators. |
 | P4 | No nationwide tests | lab/audiences, governance | Store territories = the active test-cell storefronts (CA, AU, NZ) and never the scale market until `venture.scale`. Exposure registry keyed `wedge\|channel\|platform\|unit` with an 8-week cooldown. |
-| P5 | Works in one → all; fails in three → all | lab/decide | Three matched cells. All valid cells pass → pass. Zero pass → the variant failed. Mixed → diagnostics: a flagged confound → `fix_harness` on those cells only; otherwise the variant failed. Never scale on a mixed result. |
+| P5 | Works in one → all; fails in three → all | lab/decide | Three matched cells, read as replications. A cell far below its peers (< 0.6× their median or z < −3) is re-run as a harness problem before anything fails. Default `lab.decisionRule: "pooled"`: pass when the pooled read clears every floor at `pooledConfidence`, still clears it at `confidence` without the best cell, and no cell is conclusively below a floor. `"all_cells"` keeps the old rule (every cell passes alone), whose joint power was about 0.65, not the planned 0.8. Never scale on one strong geo carrying two weak ones. |
 | P6 | Inconclusive tests are the biggest slowdown | lab/stats + decide | Binary read at the deadline: pass iff P(p ≥ floor) ≥ confidence, otherwise a valid failure. Early stops are futility-only. Invalid cells are harness bugs. Sample sizes come from an exact power search at the target value. |
 | P7 | Distribution first | gates | An organic primary channel, a share artifact, ≥ 3 hooks and a creator niche are required. Paid-only ideas are rejected. |
 | P8 | Long signup is fine if activation rises | principles/onboarding | 8-16 steps. AI-data consent before any data is collected. A value preview before the paywall. Paywall terms are rendered from store prices, never LLM copy. |
 | P9 | Exposure on other networks | principles/product | A share artifact with watermark and deep link. Creators supply most external exposure for utilities. |
 | P10 | Toilet test | gates | ≤ 5 taps and ≤ 15s to first value (3s target). Sustained attention is a hard fail. |
 | P11 | Love, money, play | gates | Classified into one of the three. `self_improvement` is penalized unless it maps to one of them. Meetup apps are rejected. |
+
+### Discovery evidence
+
+Ideas must cite the signals behind them (`evidenceRefs`), and only measured signals count
+(`principles/evidence.ts`): App Store search and chart rows with momentum (store demand), YouTube and
+Instagram trend scans (attention), and long-running Meta Ad Library ads, ads that link to app stores and
+paid apps (money). Attention without money or store demand is capped as possible hype. LLM-written
+pattern summaries never count. The `evidence.demand` gate fails ideas with no measured evidence or a
+score below `portfolio.minEvidenceScore`, and takes 20% of the gate score. Screened ideas are ranked by
+evidence × a Thompson draw of how their family (core need × wedge kind) has done, shrunk toward the
+studio's base rate and discounted 10% a month (`orchestrator/ideaPrior.ts`); screening score only breaks
+ties, because survivors' scores bunch at 85–90. `portfolio.requireEvidence: false` restores the old
+ranking for A/B runs. Meta's library returns commercial ads for EU delivery only, so ad money is an EU
+cross-check, not a US measurement. The ideator's 60-signal prompt is shared across sources round-robin,
+so pattern summaries cannot crowd out measured rows.
+
+Cited signals often describe the market at large (a chart leader) rather than the idea, so each idea
+also names 1–3 `demandTerms`, the phrases a buyer would search. Before screening, `verifyDemand`
+(`agents/scout.ts`) searches those terms in the App Store and scans them on YouTube, Instagram and the
+Meta Ad Library, at most 20 terms a cycle. When that finds anything, those signals
+(`verifiedSignalIds`), not the cited ones, are the idea's evidence.
 
 ## 6. Lab
 
@@ -189,6 +210,9 @@ redeploy with more territories, and removal from sale deactivates the payment li
   (leave-one-out). A cell short of its planned sample at the deadline still decides when the posterior
   is conclusive. A fail can be conclusive at any sample; a pass needs at least half the planned sample.
   Only an open answer is a harness failure. The leave-one-out read uses the full cell's clustering.
+* **Scaling tripwires.** A scaling venture whose mature cohorts refund more than
+  `thresholds.refundShareMax` of revenue gets no spend until fixed; observed refunds also replace the
+  refund prior in its economics when they are higher.
 * **S4 unit economics.** The 20th percentile of predicted net D60 revenue per install (`lab/ltv.ts`:
   install → trial → keep-proxy → renewal survival, net of store fee and VAT) divided by the cell's CAC
   must reach `s4MinRoasD60P20`.

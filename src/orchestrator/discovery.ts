@@ -11,6 +11,7 @@ import { overlap } from "./differentiation.ts";
 import { isActive, slugify, transition } from "./lifecycle.ts";
 import { studioBindings } from "./tasks.ts";
 import { taskDraft } from "../playbook/setup.ts";
+import { baseRate, familyPosterior, ideaFamily, sampleFamilyLift, ventureOutcomes, type FamilyOutcome } from "./ideaPrior.ts";
 
 /** New ventures ship on iOS, or as a web app when config.web.defaultLane is "web". */
 function defaultPlatforms(ctx: TickContext): StorePlatform[] {
@@ -129,6 +130,15 @@ export async function runDiscovery(ctx: TickContext, deps: StudioDeps, freeCashC
   const signals = await deps.agents.scanMarket(ctx);
   for (const s of signals) ctx.store.signals.put(s);
   const records = await deps.agents.generateIdeas(ctx, { signals, count: p.ideasPerCycle, avoidTitles: takenTitles(ctx) });
+  if (p.requireEvidence && deps.agents.verifyDemand) {
+    // Measure each idea's own search terms, so its evidence is about what it does, not the market at large.
+    const check = await deps.agents.verifyDemand(ctx, records);
+    for (const s of check.signals) ctx.store.signals.put(s);
+    for (const r of records) {
+      const ids = check.byIdea.get(r.id);
+      if (ids) r.verifiedSignalIds = ids;
+    }
+  }
   const screened: { record: IdeaRecord; screening: Screening }[] = [];
   for (const record of records) {
     ctx.store.ideas.put(record);
@@ -144,9 +154,9 @@ export async function runDiscovery(ctx: TickContext, deps: StudioDeps, freeCashC
     ctx.log("idea.screened", { ideaId: record.id, verdict: screening.verdict, score: screening.score, reasons: screening.reasons.slice(0, 6) });
     if (screening.verdict !== "reject") screened.push({ record, screening });
   }
-  screened.sort((a, b) => b.screening.score - a.screening.score || (a.record.id < b.record.id ? -1 : 1));
+  const ranked = rankScreened(ctx, screened);
   const created: string[] = [];
-  for (const { record, screening } of screened.slice(0, slots)) {
+  for (const { record, screening } of ranked.slice(0, slots)) {
     const v = createVenture(ctx, record, screening);
     if (screening.verdict === "needs_human") {
       const why = screening.reasons.filter((r) => /compliance|needs_human/i.test(r)).join("; ") || screening.reasons.join("; ");
@@ -163,15 +173,69 @@ export async function runDiscovery(ctx: TickContext, deps: StudioDeps, freeCashC
   return `${signals.length} signals, ${records.length} ideas, ${screened.length} advanced, created ${created.join(", ") || "none"}`;
 }
 
-/** Move screened ventures into building while build slots are free, best screening score first. */
+/** The evidence.demand gate's score, or null when the screening had no evidence gate. */
+export function evidenceScore(screening: Screening | undefined): number | null {
+  const g = screening?.gates.find((x) => x.gate === "evidence.demand");
+  return g ? g.score : null;
+}
+
+/** Finished ventures as family outcomes (success = validated), for the family prior. */
+export function studioOutcomes(ctx: TickContext): FamilyOutcome[] {
+  return ventureOutcomes(ctx.store.ventures.list(), (v) => {
+    const idea = ctx.store.ideas.get(v.ideaId)?.idea;
+    return idea ? ideaFamily(idea) : undefined;
+  });
+}
+
+/**
+ * Order the ideas that passed screening. With portfolio.requireEvidence the principle gates are
+ * pass/fail and the order is measured demand x how the idea's family has done (one Thompson draw
+ * per family, so untested families still get tried); screening score only breaks ties, because
+ * survivors' scores bunch together. Without it, screening score alone (the old behaviour).
+ */
+export function rankScreened<T extends { record: IdeaRecord; screening: Screening }>(ctx: TickContext, items: T[]): T[] {
+  const byScore = (a: T, b: T) => b.screening.score - a.screening.score || (a.record.id < b.record.id ? -1 : 1);
+  if (!ctx.config.portfolio.requireEvidence || items.length === 0) return [...items].sort(byScore);
+  const now = ctx.ports.clock.now();
+  const outcomes = studioOutcomes(ctx);
+  const rate = baseRate(outcomes, now);
+  const lifts = new Map<string, number>();
+  const keyed = items.map((item) => {
+    const family = ideaFamily(item.record.idea);
+    let lift = lifts.get(family);
+    if (lift === undefined) {
+      const post = familyPosterior(family, outcomes, now, rate);
+      lift = sampleFamilyLift(post, rate, ctx.rng);
+      lifts.set(family, lift);
+      ctx.log("idea.family_prior", { family, lift: Math.round(lift * 100) / 100, successes: round2(post.successes), failures: round2(post.failures), baseRate: round2(rate) });
+    }
+    const evidence = evidenceScore(item.screening) ?? 0;
+    return { item, rank: evidence * lift };
+  });
+  keyed.sort((a, b) => b.rank - a.rank || byScore(a.item, b.item));
+  return keyed.map((k) => k.item);
+}
+
+function round2(x: number): number {
+  return Math.round(x * 100) / 100;
+}
+
+/**
+ * Move screened ventures into building while build slots are free. With requireEvidence the
+ * best measured demand goes first (screening score breaks ties); otherwise best screening score.
+ */
 export function promoteScreened(ctx: TickContext): string[] {
   const inFlight = ctx.store.ventures.list((v) => v.stage === "building").length;
   let free = ctx.config.portfolio.maxBuildsInFlight - inFlight;
   const promoted: string[] = [];
   const waiting = ctx.store.ventures
     .list((v) => v.stage === "screened")
-    .map((v) => ({ v, score: ctx.store.screenings.get(v.screeningId)?.score ?? 0 }))
-    .sort((a, b) => b.score - a.score || (a.v.id < b.v.id ? -1 : 1));
+    .map((v) => {
+      const screening = ctx.store.screenings.get(v.screeningId);
+      const evidence = ctx.config.portfolio.requireEvidence ? (evidenceScore(screening) ?? 0) : 0;
+      return { v, evidence, score: screening?.score ?? 0 };
+    })
+    .sort((a, b) => b.evidence - a.evidence || b.score - a.score || (a.v.id < b.v.id ? -1 : 1));
   for (const { v } of waiting) {
     const review = ctx.store.tasks.list((t) => t.ventureId === v.id && t.kind === "legal.review").sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))[0];
     if (review && (review.status !== "done" || review.outputs?.["decision"] !== "approved")) continue; // tasks.ts acts on rejections

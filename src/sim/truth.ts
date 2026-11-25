@@ -86,10 +86,14 @@ function activationBase(idea: Idea): number {
   return 0.56 * (idea.singlePlayerValue ? 1 : 0.7) * conditions * friends * sustained * audio * taps;
 }
 
-/** Draw a venture's ground truth. Pass a forked Rng (e.g. rng.fork(`truth:${ventureId}`)). */
-export function truthFor(idea: Idea, rng: Rng): VentureTruth {
+/**
+ * Draw a venture's ground truth. Pass a forked Rng (e.g. rng.fork(`truth:${ventureId}`)) and the
+ * hidden demand for the idea's topic (sim/trends.ts ideaDemand; 1 = average).
+ */
+export function truthFor(idea: Idea, rng: Rng, demand = 1): VentureTruth {
   const luck = rng.lognormal(1, 0.85);
-  const appeal = attention(idea) * luck;
+  // Market demand for the idea's topic (sim/trends.ts): a real but partial effect next to luck.
+  const appeal = attention(idea) * luck * Math.sqrt(Math.max(0.05, demand));
   const hard = idea.monetization.model === "hard_paywall";
   const sensitive = idea.sensitiveDomains.some((d) => REFUND_PRONE.has(d));
   const channels = [idea.primaryChannel, ...idea.secondaryChannels];

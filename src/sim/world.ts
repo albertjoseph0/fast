@@ -41,6 +41,7 @@ import type {
 import { type Cohort, countPair, cumulativeAt, type FunnelRates, multinomial, sampleCohort } from "./cohort.ts";
 import { creatorPool, type SimCreator } from "./creators.ts";
 import { truthFor, variantMultiplier, type VentureTruth } from "./truth.ts";
+import { ideaDemand } from "./trends.ts";
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
@@ -298,7 +299,7 @@ export class SimWorld {
     if (cached) return cached;
     const idea = this.idea(ventureId);
     if (!idea) return undefined;
-    const t = truthFor(idea, this.rng.fork(`truth:${ventureId}`));
+    const t = truthFor(idea, this.rng.fork(`truth:${ventureId}`), ideaDemand(idea, this.seed));
     this.truths.set(ventureId, t);
     return t;
   }

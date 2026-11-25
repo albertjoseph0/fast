@@ -7,6 +7,7 @@ import type { StudioConfig } from "../config/schema.ts";
 import type { AudienceExposure } from "../core/store.ts";
 import type { ChannelKind, Critique, GateResult, Idea, Iso, Screening, SensitiveDomain, Wedge } from "../core/types.ts";
 import { ladderFor } from "./ladder.ts";
+import { EVIDENCE_GATE_WEIGHT, gateEvidence, type EvidenceSummary } from "./evidence.ts";
 import { effectiveDomains, minimumAgeFor } from "./sensitivity.ts";
 
 export interface ScreenInput {
@@ -21,6 +22,11 @@ export interface ScreenInput {
   /** The classifier's minimum user age; the younger of it and the wedge's minAge decides the minors gate. */
   classifierMinimumAge?: number;
   existingTitles: string[];
+  /**
+   * Demand evidence from the signals the idea cites (principles/evidence.ts). When present the
+   * evidence.demand gate runs and takes EVIDENCE_GATE_WEIGHT of the gate score.
+   */
+  evidence?: EvidenceSummary;
 }
 
 const WEDGE_FACTORS = ["coPresence", "discoverable", "inflectionPoint", "obsessive", "urgency", "ownedReach"] as const;
@@ -251,7 +257,8 @@ export function gateDifferentiation(idea: Idea, existingTitles: string[]): GateR
 }
 
 /**
- * Screen an idea. Gate score = 100 x the weighted gate scores (GATE_WEIGHTS). With critiques,
+ * Screen an idea. Gate score = 100 x the weighted gate scores (GATE_WEIGHTS); with demand
+ * evidence, 80% of that plus 20% x the evidence score. With critiques,
  * the final score is 0.7 x gate score + 0.3 x mean critique score (0..10) x 10. Verdict order:
  * any failed gate or two funding vetoes with fatal flaws reject; any needs_human gate waits for
  * a human; a score below portfolio.minScreenScore rejects; otherwise the idea advances.
@@ -269,7 +276,13 @@ export function screenIdea(input: ScreenInput): Screening {
     ...gateCompliance(idea, input.config, input.classifierDomains, input.classifierMinimumAge),
     gateDifferentiation(idea, input.existingTitles),
   ];
-  const gateScore = 100 * gates.reduce((s, g) => s + (GATE_WEIGHTS[g.gate] ?? 0) * clamp01(g.score), 0);
+  const principleScore = 100 * gates.reduce((s, g) => s + (GATE_WEIGHTS[g.gate] ?? 0) * clamp01(g.score), 0);
+  let gateScore = principleScore;
+  if (input.evidence) {
+    const evidence = gateEvidence(input.evidence, input.config.portfolio.minEvidenceScore);
+    gates.push(evidence);
+    gateScore = (1 - EVIDENCE_GATE_WEIGHT) * principleScore + EVIDENCE_GATE_WEIGHT * 100 * clamp01(evidence.score);
+  }
   const critiqueMean =
     input.critiques.length > 0 ? input.critiques.reduce((s, c) => s + critiqueScore(c.score), 0) / input.critiques.length : null;
   const score = round1(critiqueMean === null ? gateScore : GATE_SHARE * gateScore + CRITIQUE_SHARE * critiqueMean * 10);

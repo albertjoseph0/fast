@@ -42,7 +42,9 @@ describe("benchmarks", () => {
   });
 
   it("backs the config priors it is cited for", () => {
-    expect(benchmark("rc.trial_3d_day1_cancel_share").value).toBe(config.economics.trialCancelWithin24hShare);
+    // A 24h window sits between the Day 0 share and the Day 0 + Day 1 share.
+    expect(config.economics.trialCancelWithin24hShare).toBeGreaterThanOrEqual(benchmark("rc.trial_3d_day0_cancel_share").value);
+    expect(config.economics.trialCancelWithin24hShare).toBeLessThan(benchmark("rc.trial_3d_day1_cancel_share").value);
     expect(benchmark("adapty.refund_share").value).toBe(config.economics.refundHaircutPrior);
   });
 });

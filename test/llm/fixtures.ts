@@ -46,8 +46,8 @@ export function inputsFor(idea: Idea, spec: AppSpec): { [N in SchemaName]: Schem
     IdeaBatch: {
       count: 8,
       signals: [
-        { title: "Astrology apps charting in CA", detail: "Co-Star and Nebula in the top 50 lifestyle", metrics: { rank: 12 }, tags: ["astrology", "lifestyle"] },
-        { title: "Dating reply generators trending", detail: "rizz app hooks on TikTok", metrics: { views: 1_200_000 }, tags: ["dating", "rizz"] },
+        { ref: "signal_1", source: "app_store_chart", title: "Astrology apps charting in CA", detail: "Co-Star and Nebula in the top 50 lifestyle", metrics: { rank: 12 }, tags: ["astrology", "lifestyle"] },
+        { ref: "signal_2", source: "social_trend:youtube", title: "Dating reply generators trending", detail: "rizz app hooks on TikTok", metrics: { views: 1_200_000 }, tags: ["dating", "rizz"] },
       ],
       coreNeeds: ["love", "money", "play"],
       avoidTitles: ["Starmatch"],

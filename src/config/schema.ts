@@ -100,6 +100,13 @@ export const StudioConfig = z.object({
       maxBuildsInFlight: z.number().int().min(1).default(2),
       maxAttentionProbesInFlight: z.number().int().min(0).default(3),
       minScreenScore: z.number().min(0).max(100).default(62),
+      /**
+       * Rank screened ideas by measured demand evidence and how their family has done, and screen
+       * evidence as a gate. Off reproduces the old ranking by screening score (for A/B runs).
+       */
+      requireEvidence: z.boolean().default(true),
+      /** Ideas whose cited evidence scores below this are not built (0..1; only with requireEvidence). */
+      minEvidenceScore: z.number().min(0).max(1).default(0.15),
       /** Bier's disband rule, compressed for AI speed. Time blocked on humans does not count. */
       maxDaysToValidate: z.number().int().min(7).default(42),
     })
@@ -136,19 +143,23 @@ export const StudioConfig = z.object({
       iosFeeAboveSmallBusiness: Rate.default(0.3),
       smallBusinessCapCents: Cents.default(100_000_000),
       /** VAT/GST included in storefront prices (US prices exclude tax). */
-      vatInclusiveRateByGeo: z.record(z.string(), Rate).default({ GB: 0.2, IE: 0.23, SE: 0.25, NL: 0.21, AU: 0.1, NZ: 0.15, CA: 0.13, US: 0 }),
+      vatInclusiveRateByGeo: z.record(z.string(), Rate).default({ GB: 0.2, IE: 0.23, SE: 0.25, NL: 0.21, AU: 0.1, NZ: 0.15, CA: 0, US: 0 }),
       refundHaircutPrior: Rate.default(0.083),
       /** Verdict-backend inference cost per app session (Opus at low effort, ~1.5K in / 600 out tokens). */
       inferenceCentsPerSession: z.number().min(0).default(2),
       refundLagDays: z.number().int().default(90),
       settlementLagDays: z.object({ ios: z.number().int(), android: z.number().int(), web: z.number().int() }).default({ ios: 45, android: 30, web: 3 }),
       /** Subscription survival priors (RevenueCat SOSA 2026). */
-      weeklyFirstRenewalPrior: Rate.default(0.65),
+      weeklyFirstRenewalPrior: Rate.default(0.59),
       weeklyRenewalPrior: Rate.default(0.88),
       monthlyRenewalPrior: Rate.default(0.8),
       annualRenewalPrior: Rate.default(0.28),
-      /** Share of trial cancellations that happen within 24h; maps trialKeep24h to trial-to-paid. */
-      trialCancelWithin24hShare: Rate.default(0.84),
+      /**
+       * Share of trial cancellations that happen within 24h; maps trialKeep24h to trial-to-paid.
+       * RevenueCat's 84% for 3-day trials is Day 0 and Day 1 together; Day 0 alone is 55.4%, so a
+       * 24h window sits between them. Too high a share overstates trial-to-paid.
+       */
+      trialCancelWithin24hShare: Rate.default(0.65),
       billingFailureRate: Rate.default(0.05),
       monthlyDiscountRate: Rate.default(0.03),
       /** Prior cost per install by channel, used for budgeting cells before data exists. */
@@ -174,6 +185,15 @@ export const StudioConfig = z.object({
     .object({
       /** pass iff P(p >= floor) >= confidence at the read deadline. */
       confidence: z.number().min(0.5).max(0.999).default(0.9),
+      /**
+       * How an experiment's cells combine. "pooled": pass when the pooled read across valid cells
+       * clears every required floor at `confidence` and no single cell is conclusively below it
+       * (geos are replications, not separate hurdles). "all_cells": every cell must pass on its own
+       * (the old rule; its joint power is far below the per-metric power it is planned for).
+       */
+      decisionRule: z.enum(["pooled", "all_cells"]).default("pooled"),
+      /** Confidence the pooled read needs: one read over more data, so it is held stricter than a single cell. */
+      pooledConfidence: z.number().min(0.5).max(0.999).default(0.95),
       /** Power at the target value, for all cells passing together. */
       power: z.number().min(0.5).max(0.99).default(0.8),
       readHours: z.record(ValidationStage, z.number().int().min(12)).default({

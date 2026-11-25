@@ -14,8 +14,8 @@ describe("ltv", () => {
   });
 
   it("counts weekly charges with first-renewal and steady-state survival", () => {
-    // days 3, 10, 17 within 20 days: 1 + 0.65 + 0.65*0.88
-    expect(chargesWithin(weekly, 20, config)).toBeCloseTo(1 + 0.65 + 0.65 * 0.88, 6);
+    // days 3, 10, 17 within 20 days: 1 + 0.59 + 0.59*0.88 (Adapty SOIS 2026 weekly first renewal)
+    expect(chargesWithin(weekly, 20, config)).toBeCloseTo(1 + 0.59 + 0.59 * 0.88, 6);
     expect(chargesWithin({ ...weekly, period: "year", trialDays: 0 }, 60, config)).toBe(1);
   });
 
@@ -26,8 +26,9 @@ describe("ltv", () => {
   });
 
   it("produces a sensible D60 RPI for a median hard-paywall app", () => {
-    // RevenueCat SOSA 2026 puts the median hard-paywall D60 RPI around $3 gross.
-    const rpi = predictNetRpiCents({ trialStartRate: 0.12, keep24: 0.45, entry: weekly, geo: "US", platform: "ios", horizonDays: 60, config });
+    // RevenueCat SOSA 2026 puts the median hard-paywall D60 RPI around $3 gross. A median short trial
+    // converts ~25.5%, which with 65% of cancellations inside 24h keeps ~52% of trials past a day.
+    const rpi = predictNetRpiCents({ trialStartRate: 0.12, keep24: 0.52, entry: weekly, geo: "US", platform: "ios", horizonDays: 60, config });
     expect(rpi).toBeGreaterThan(50);
     expect(rpi).toBeLessThan(400);
   });
