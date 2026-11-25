@@ -69,6 +69,27 @@ past ventures did.
   a lag) and budget steps exceed Meta and TikTok guidance. Disclosure accepts `#ad` alone.
 - **Owner:** check SideShift plan limits against the planned creator volume.
 
+## 4b. Share loop
+
+What was wrong (from the adversarial review): single-player ventures never measured sharing, the
+onboarding "value preview" counted as activation though the person had seen nothing real, the default
+paywall came before any result, and a share link opened a page that showed nothing of what was shared.
+
+- **Done:** the first result is free (`after_first_value`, one free use) and activation counts only a
+  real result.
+- **Done:** Share publishes the lead section of that result for 30 days; the link opens a page showing
+  it, then "Now make yours". Web-lane and in-app arrivals see it too. Delete my data removes shares, and
+  the privacy disclosures and policy say anyone with the link can see a shared result.
+- **Done:** single-player ladder is distribution + activation + sharing, then money; day-1 retention is
+  required, not informational.
+- Simulator check (150 days, seeds 1–8, averages per seed; the simulator does not model paywall
+  placement, so this tests only the ladder): money first validated 2.4 ventures and killed 1.0; sharing
+  first validated 1.5 and killed 1.75. Validated ventures shared a bit more (true share rate 0.26 vs
+  0.23) and came back a bit more (day-1 0.43 vs 0.41). Net cash was +$27,000 vs +$13,000, but one seed
+  drives that. Harness re-runs rose (39 vs 28), so the extra step costs some test time.
+- **Next:** per-share link previews (needs a server-rendered share page); deferred deep links so an App
+  Store install keeps the friend's result; warm-start links (the app reads the link only at launch).
+
 ## 5. Decide
 
 What was wrong: every metric had to pass in every one of three geo cells. At planned samples a metric

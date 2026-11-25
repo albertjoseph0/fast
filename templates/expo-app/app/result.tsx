@@ -10,7 +10,7 @@ import * as Sharing from "expo-sharing";
 import { useEffect, useRef, useState } from "react";
 import { Alert, Platform, Share, Text, View, type HostInstance } from "react-native";
 import { captureRef } from "react-native-view-shot";
-import { reportResult } from "../src/api";
+import { createShare, reportResult } from "../src/api";
 import { distinctId, track } from "../src/analytics";
 import { APP_EVENTS } from "../src/events";
 import { shareOutcome } from "../src/growth";
@@ -23,6 +23,8 @@ import { Body, Button, Card, LinkText, Notice, Screen, Title, useTheme } from ".
 
 const REPORT_REASONS = ["Harmful or offensive", "Inaccurate", "Something else"];
 
+const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
 export default function Result() {
   const spec = useSpec();
   const t = useTheme();
@@ -30,6 +32,8 @@ export default function Result() {
   const [result, setResult] = useState<StoredResult | null>(null);
   const [entitled, setEntitled] = useState(true);
   const [sharing, setSharing] = useState(false);
+  /** The link to the published result, once Share has published it. */
+  const [sharedLink, setSharedLink] = useState<string | null>(null);
 
   useEffect(() => {
     void getJson<StoredResult | null>(KEYS.lastResult, null).then(setResult);
@@ -37,13 +41,13 @@ export default function Result() {
   }, []);
 
   if (!result) return null;
-  const link = shareUrl(spec.share.deepLinkPath, result.id, distinctId());
+  const link = sharedLink ?? shareUrl(spec.share.deepLinkPath, result.id, distinctId());
   const lead = result.sections[0];
   const invite = spec.invite;
 
   /** iOS: React Native Share reports completion; Android: expo-sharing (files), which cannot. */
-  async function openSheet(uri: string): Promise<string | null> {
-    if (Platform.OS === "ios") return (await Share.share({ url: uri, message: spec.share.caption })).action;
+  async function openSheet(uri: string, url: string): Promise<string | null> {
+    if (Platform.OS === "ios") return (await Share.share({ url: uri, message: `${spec.share.caption} ${url}` })).action;
     if (!(await Sharing.isAvailableAsync())) throw new Error("Sharing is not available on this device.");
     await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: spec.share.caption, UTI: "public.png" });
     return null;
@@ -53,8 +57,19 @@ export default function Result() {
     if (!card.current) return;
     setSharing(true);
     try {
+      // Publish the lead section so the link opens on this result for the friend; if that fails
+      // (offline, or the result is over a day old), share the plain link rather than nothing.
+      let url = link;
+      if (!sharedLink) {
+        const published = await createShare(result.id).catch(() => null);
+        if (published) {
+          url = shareUrl(spec.share.deepLinkPath, result.id, distinctId(), published.shareId);
+          setSharedLink(url);
+          await nextFrame(); // the card prints the link, so let it render before capturing
+        }
+      }
       const uri = await captureRef(card, { format: "png", quality: 1, result: "tmpfile" });
-      const { counted, confirmed } = shareOutcome(Platform.OS, await openSheet(uri));
+      const { counted, confirmed } = shareOutcome(Platform.OS, await openSheet(uri, url));
       if (!counted) return;
       track(APP_EVENTS.share, { artifact: spec.share.artifact, method: "system_share_sheet", confirmed });
       if (await once(KEYS.shareFirst)) track(APP_EVENTS.shareFirst, { artifact: spec.share.artifact, confirmed });

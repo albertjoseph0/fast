@@ -137,10 +137,10 @@ describe("product defaults", () => {
     expect(s).toContain("notification_preprompt");
   });
 
-  it("builds a hard two-page paywall that parses and uses ladder products", () => {
+  it("builds a hard two-page paywall after the first free result that parses and uses ladder products", () => {
     const paywall = defaultPaywall(config);
     expect(PaywallConfig.parse(paywall)).toEqual(paywall);
-    expect(paywall).toMatchObject({ style: "hard", placement: "after_onboarding", pages: 2, showCloseAfterSeconds: 3 });
+    expect(paywall).toMatchObject({ style: "hard", placement: "after_first_value", pages: 2, showCloseAfterSeconds: 3 });
     expect(paywall.productIds).toEqual(config.monetization.defaultProductIds);
     expect(paywall.highlightedProductId).toBe(config.monetization.defaultHighlightedProductId);
     const ladderIds = config.monetization.ladder.map((e) => e.id);

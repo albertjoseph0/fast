@@ -9,14 +9,22 @@
  *   POST /v1/report   { slug, appUserId, resultId, reason }             → { ok }
  *   POST /v1/delete   { slug, installToken, appUserId }                 → { ok }
  *   POST /v1/web/claim { slug, appUserId, sessionId }                   → { ok }   (web lane)
+ *   POST /v1/share    { slug, installToken, resultId }                  → { shareId }
+ *   GET  /v1/shared?slug=&id=                                           → { appName, title, body, createdAt }
  *   GET  /v1/config?slug=&variant=                                      → { config }
  *   GET  /healthz
+ *
+ * Sharing: a result is kept in memory for a day after it is made, and is published only when
+ * its own install taps Share (POST /v1/share). Only the lead section is published, under an
+ * unguessable id, for SHARE_TTL_DAYS; the share page fetches it from /v1/shared so the friend
+ * who opens the link sees the sharer's result before anything else. Shares live in memory, or
+ * as one JSON file each under SHARES_DIR when it is set, and Delete my data removes them.
  *
  * Abuse controls never trust a client-chosen id: free uses and per-install limits are keyed
  * on a server-signed install token (minted per IP at a limited rate), subscribers are also
  * limited per RevenueCat app user id, and each tenant has a daily verdict ceiling.
  *
- * Env: ANTHROPIC_API_KEY, PORT (8080), TENANTS_DIR (./tenants), INSTALL_TOKEN_SECRET (random
+ * Env: ANTHROPIC_API_KEY, PORT (8080), TENANTS_DIR (./tenants), SHARES_DIR (optional), INSTALL_TOKEN_SECRET (random
  * per process when unset, so tokens then reset on restart), TRUST_PROXY=1 behind a load
  * balancer that sets X-Forwarded-For, and one RevenueCat secret key per tenant under the env
  * var name its tenant file lists.
@@ -28,7 +36,7 @@
  * revenueCatStripeKeyEnv), so the purchase grants the entitlement /v1/verdict already checks.
  */
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -86,6 +94,18 @@ export interface ServerDeps {
   trustProxy?: boolean;
   now?: () => number;
   log?: (line: Record<string, unknown>) => void;
+  /** Directory that keeps published shares across restarts; memory only when absent. */
+  sharesDir?: string;
+}
+
+/** A published result: the lead section only. */
+export interface SharedResult {
+  slug: string;
+  title: string;
+  body: string;
+  createdAt: number;
+  /** The install that published it, so Delete my data can remove it. Never returned to readers. */
+  install: string;
 }
 
 const DEFAULT_MODEL = "claude-opus-5-5";
@@ -103,6 +123,15 @@ const INSTALLS_PER_IP = { perMinute: 10, perDay: 200 };
 const VERDICTS_PER_IP = { perMinute: 30, perDay: 1_000 };
 const CLAIMS_PER_IP = { perMinute: 10, perDay: 100 };
 const CHECKOUT_SESSION = /^cs_(test_|live_)?[A-Za-z0-9]{8,200}$/;
+/** How long a made result can still be shared, and how long a shared one stays readable. */
+const RESULT_TTL_MS = 86_400_000;
+export const SHARE_TTL_DAYS = 30;
+const SHARE_TTL_MS = SHARE_TTL_DAYS * 86_400_000;
+const SHARE_ID = /^[A-Za-z0-9_-]{16,32}$/;
+const SHARES_PER_IP = { perMinute: 20, perDay: 300 };
+const SHARE_READS_PER_IP = { perMinute: 120, perDay: 5_000 };
+/** A shared body longer than this is cut: the page shows a result, not a document. */
+const MAX_SHARED_BODY = 600;
 
 /** The request's Origin when it is an https web-lane app origin under `suffix`, else null. */
 export function allowedOrigin(origin: string | undefined, suffix: string | undefined): string | null {
@@ -165,8 +194,16 @@ export class BoundedMap<K, V> {
     if (this.map.size > this.max) this.map.delete(this.map.keys().next().value as K);
   }
 
+  delete(key: K): void {
+    this.map.delete(key);
+  }
+
   get size(): number {
     return this.map.size;
+  }
+
+  entries(): [K, V][] {
+    return [...this.map.entries()];
   }
 }
 
@@ -369,6 +406,10 @@ export function createHandler(deps: ServerDeps): (req: IncomingMessage, res: Ser
   const entitlements = new BoundedMap<string, number>(MAX_KEYS);
   const daily = new Map<string, { day: number; count: number }>();
   const limiter = new RateLimiter();
+  const results = new BoundedMap<string, { slug: string; install: string; sections: Section[]; at: number }>(MAX_KEYS);
+  const shares = new BoundedMap<string, SharedResult>(MAX_KEYS);
+  const sharesDir = deps.sharesDir;
+  if (sharesDir) mkdirSync(sharesDir, { recursive: true });
 
   /** Cached per file version: a replaced tenant file takes effect on the next request. */
   function tenantFor(slug: string): Tenant {
@@ -471,7 +512,85 @@ export function createHandler(deps: ServerDeps): (req: IncomingMessage, res: Ser
       throw new HttpError(422, "moderated", "We couldn't create a result for that. Try something different.");
     }
     if (free) usage.set(key, used + 1);
-    return { id: randomUUID(), sections };
+    const id = randomUUID();
+    results.set(id, { slug: tenant.slug, install, sections, at: now() });
+    return { id, sections };
+  }
+
+  function readShare(id: string): SharedResult | null {
+    if (!SHARE_ID.test(id)) return null;
+    let share = shares.get(id) ?? null;
+    if (!share && sharesDir) {
+      const path = join(sharesDir, `${id}.json`);
+      if (existsSync(path)) {
+        try {
+          share = JSON.parse(readFileSync(path, "utf8")) as SharedResult;
+          shares.set(id, share);
+        } catch {
+          return null;
+        }
+      }
+    }
+    if (share && now() - share.createdAt > SHARE_TTL_MS) {
+      removeShare(id);
+      return null;
+    }
+    return share;
+  }
+
+  function removeShare(id: string): void {
+    shares.delete(id);
+    if (sharesDir) rmSync(join(sharesDir, `${id}.json`), { force: true });
+  }
+
+  /** Publish the lead section of a result this install made in the last day. */
+  function share(body: Record<string, unknown>, ip: string): { shareId: string } {
+    const tenant = tenantFor(str(body.slug, "slug", 64));
+    const install = installId(tenant, body.installToken);
+    if (!limiter.allow(`share|${tenant.slug}|${ip}`, SHARES_PER_IP, now())) throw new HttpError(429, "rate_limited", "You're going a bit fast. Try again in a minute.");
+    const result = results.get(str(body.resultId, "resultId", 64));
+    if (!result || result.slug !== tenant.slug || result.install !== install || now() - result.at > RESULT_TTL_MS) {
+      throw new HttpError(404, "result_expired", "This result can no longer be shared. Make a new one to share it.");
+    }
+    const lead = result.sections[0] as Section;
+    const shareId = randomBytes(12).toString("base64url");
+    const shared: SharedResult = { slug: tenant.slug, title: lead.title, body: clip(lead.body, MAX_SHARED_BODY), createdAt: now(), install };
+    shares.set(shareId, shared);
+    if (sharesDir) writeFileSync(join(sharesDir, `${shareId}.json`), JSON.stringify(shared));
+    log({ event: "share", slug: tenant.slug });
+    return { shareId };
+  }
+
+  function shared(slug: string, id: string, ip: string): { appName: string; title: string; body: string; createdAt: string } {
+    const tenant = tenantFor(slug);
+    if (!limiter.allow(`read|${ip}`, SHARE_READS_PER_IP, now())) throw new HttpError(429, "rate_limited", "Too many requests. Try again in a minute.");
+    const s = readShare(id);
+    if (!s || s.slug !== tenant.slug) throw new HttpError(404, "not_found", "This result is no longer available.");
+    log({ event: "share_view", slug: tenant.slug });
+    return { appName: tenant.appName, title: s.title, body: s.body, createdAt: new Date(s.createdAt).toISOString() };
+  }
+
+  /** Delete my data: every share this install published, in memory and on disk. */
+  function deleteShares(slug: string, install: string): number {
+    let removed = 0;
+    if (sharesDir && existsSync(sharesDir)) {
+      for (const f of readdirSync(sharesDir)) {
+        if (!f.endsWith(".json")) continue;
+        const id = f.slice(0, -5);
+        const s = readShare(id);
+        if (s && s.slug === slug && s.install === install) {
+          removeShare(id);
+          removed += 1;
+        }
+      }
+    }
+    for (const [id, s] of shares.entries()) {
+      if (s && s.slug === slug && s.install === install) {
+        removeShare(id);
+        removed += 1;
+      }
+    }
+    return removed;
   }
 
   /** Attach a Stripe Checkout Session to the user in RevenueCat (web lane). */
@@ -519,6 +638,11 @@ export function createHandler(deps: ServerDeps): (req: IncomingMessage, res: Ser
         const config = (variant && tenant.remoteConfig[variant]) || tenant.remoteConfig.default || {};
         return send(res, 200, { config });
       }
+      if (req.method === "GET" && url.pathname === "/v1/shared") {
+        // Anyone with the link may read a shared result, so the app's share page on any domain can fetch it.
+        res.setHeader("access-control-allow-origin", "*");
+        return send(res, 200, shared(str(url.searchParams.get("slug"), "slug", 64), str(url.searchParams.get("id"), "id", 64), clientIp(req, deps.trustProxy ?? false)));
+      }
       if (req.method !== "POST") return send(res, 404, { error: "not_found", message: "Not found." });
       const ip = clientIp(req, deps.trustProxy ?? false);
       const body = await readJson(req);
@@ -529,17 +653,21 @@ export function createHandler(deps: ServerDeps): (req: IncomingMessage, res: Ser
       }
       if (url.pathname === "/v1/verdict") return send(res, 200, await verdict(body, ip));
       if (url.pathname === "/v1/web/claim") return send(res, 200, await claim(body, ip));
+      if (url.pathname === "/v1/share") return send(res, 200, share(body, ip));
       if (url.pathname === "/v1/report") {
         const tenant = tenantFor(str(body.slug, "slug", 64));
         log({ event: "report", slug: tenant.slug, appUserId: str(body.appUserId, "appUserId"), resultId: str(body.resultId, "resultId"), reason: str(body.reason, "reason", 500) });
         return send(res, 200, { ok: true });
       }
       if (url.pathname === "/v1/delete") {
-        // Results are never stored and logs hold only report ids. Usage counts and rate limits
-        // are abuse controls keyed by install, not personal data, so deletion keeps them.
+        // Results are kept only in memory for a day (so they can be shared), shares until deleted
+        // or expired, and logs hold only report ids. Usage counts and rate limits are abuse
+        // controls keyed by install, not personal data, so deletion keeps them.
         const tenant = tenantFor(str(body.slug, "slug", 64));
-        installId(tenant, body.installToken);
-        log({ event: "delete", slug: tenant.slug, appUserId: str(body.appUserId, "appUserId") });
+        const install = installId(tenant, body.installToken);
+        for (const [id, r] of results.entries()) if (r.slug === tenant.slug && r.install === install) results.delete(id);
+        const removed = deleteShares(tenant.slug, install);
+        log({ event: "delete", slug: tenant.slug, appUserId: str(body.appUserId, "appUserId"), sharesRemoved: removed });
         return send(res, 200, { ok: true });
       }
       return send(res, 404, { error: "not_found", message: "Not found." });
@@ -554,7 +682,9 @@ export function createHandler(deps: ServerDeps): (req: IncomingMessage, res: Ser
 function main(): void {
   const tenantsDir = resolve(process.env.TENANTS_DIR ?? "tenants");
   const installSecret = process.env.INSTALL_TOKEN_SECRET;
+  const sharesDir = process.env.SHARES_DIR;
   const handler = createHandler({
+    ...(sharesDir ? { sharesDir: resolve(sharesDir) } : {}),
     tenantsDir,
     anthropic: new Anthropic(),
     fetch,

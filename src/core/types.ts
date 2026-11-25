@@ -304,7 +304,7 @@ export const PaywallConfig = z.object({
 export type PaywallConfig = z.infer<typeof PaywallConfig>;
 
 export const DataUse = z.object({
-  dataType: z.enum(["photo", "screenshot", "text", "birth_data", "audio", "contacts", "device_id", "usage", "purchase"]),
+  dataType: z.enum(["photo", "screenshot", "text", "birth_data", "audio", "contacts", "device_id", "usage", "purchase", "shared_result"]),
   purpose: z.enum(["core_feature", "analytics", "attribution"]),
   sentTo: z.array(z.enum(["anthropic", "posthog", "revenuecat", "studio_backend"])),
   retentionDays: z.number().int(),

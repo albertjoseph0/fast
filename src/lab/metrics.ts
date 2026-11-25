@@ -106,7 +106,7 @@ export const STAGE_METRICS: Record<ValidationStage, { key: MetricKey; role: Role
   S1_distribution: [{ key: "installsPer1kViews", role: "required" }],
   S1_activation: [
     { key: "activationRate", role: "required" },
-    { key: "d1Retention", role: "informational" },
+    { key: "d1Retention", role: "required" },
   ],
   S2_sharing: [{ key: "shareRate", role: "required" }],
   S3_cross_cell: [{ key: "kFactor", role: "required" }],

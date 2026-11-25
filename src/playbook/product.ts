@@ -43,9 +43,11 @@ export const DATA_COLLECTING_STEPS: readonly OnboardingStepKind[] = [
 ];
 
 /**
- * Hard, two-page paywall after onboarding (multi-page converts 12.41% vs 9.07%,
- * superwall.multi_page_paywall_conversion). Throws if a configured product id is not in
- * the price ladder.
+ * Two-page paywall after the first real result (multi-page converts 12.41% vs 9.07%,
+ * superwall.multi_page_paywall_conversion). The first result is free, so the person has
+ * something real to share before they are asked to pay (Bier: never paywall before the aha;
+ * an onboarding preview is not the aha). Hard once shown: no close button on the paywall that
+ * follows a used-up free result. Throws if a configured product id is not in the price ladder.
  */
 export function defaultPaywall(config: StudioConfig): PaywallConfig {
   const { defaultProductIds, defaultHighlightedProductId } = config.monetization;
@@ -54,7 +56,7 @@ export function defaultPaywall(config: StudioConfig): PaywallConfig {
     throw new Error(`highlighted product ${defaultHighlightedProductId} is not among the default product ids`);
   }
   return {
-    placement: "after_onboarding",
+    placement: "after_first_value",
     style: "hard",
     pages: 2,
     headline: "Unlock your full result",

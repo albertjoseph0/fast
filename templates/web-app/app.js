@@ -21,11 +21,11 @@ export function allowedGeo(country, territories) {
   return typeof country === "string" && territories.includes(country.toUpperCase());
 }
 
-/** First-touch attribution from the landing URL (creator links carry utm_* and ref). */
+/** First-touch attribution from the landing URL (creator links carry utm_* and ref; share links i and ch). */
 export function attributionFrom(search, referrer) {
   const p = new URLSearchParams(search);
   const out = {};
-  for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "ref", "cell"]) {
+  for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "ref", "cell", "i", "ch"]) {
     const v = p.get(key);
     if (v) out[key] = v.slice(0, 100);
   }
@@ -40,6 +40,21 @@ export function attributionFrom(search, referrer) {
 }
 
 /** A stable random user id ("web_" + 32 hex), kept in localStorage. */
+/** A friend's share id from the landing URL, or null. */
+export function shareIdFrom(search) {
+  const id = new URLSearchParams(search).get("s");
+  return id && /^[A-Za-z0-9_-]{16,32}$/.test(id) ? id : null;
+}
+
+/** The link a share sends: opens on the sharer's result (s) and names the sharer (i). */
+export function shareLink(origin, shareId, userId) {
+  const p = new URLSearchParams();
+  if (shareId) p.set("s", shareId);
+  p.set("i", userId);
+  p.set("ch", "share_loop");
+  return `${origin}/?${p}`;
+}
+
 export function newUserId(random = () => crypto.getRandomValues(new Uint8Array(16))) {
   return `web_${Array.from(random(), (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
@@ -139,6 +154,25 @@ async function boot() {
 
   const profile = JSON.parse(store.get("profile") ?? "{}");
 
+  // Arrived from a friend's share: their result comes first, then the way to make one's own.
+  const arrivedShare = shareIdFrom(location.search);
+  const friend = arrivedShare
+    ? await fetch(`${cfg.backendUrl}/v1/shared?slug=${encodeURIComponent(cfg.slug)}&id=${encodeURIComponent(arrivedShare)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null)
+    : null;
+
+  function friendResult(next) {
+    track("share_landing_view");
+    screen(
+      el("p", { class: "muted" }, `Your friend's ${cfg.appName} result`),
+      el("h1", {}, friend.title),
+      el("p", {}, friend.body),
+      el("p", { class: "muted small" }, "Made with AI. It can be wrong."),
+      el("button", { class: "primary", onclick: next }, "Make yours"),
+    );
+  }
+
   function onboarding(i = 0) {
     if (i === 0) track("onboarding_start");
     const step = cfg.onboarding[i];
@@ -216,7 +250,9 @@ async function boot() {
   function result(r) {
     const text = r.sections.map((s) => `${s.title}\n${s.body}`).join("\n\n");
     const share = async () => {
-      const data = { title: cfg.appName, text: `${cfg.share.caption}\n${location.origin}/?ref=share` };
+      // Publish the lead section so the link opens on this result; share the plain link if that fails.
+      const published = await api("/v1/share", { installToken, resultId: r.id }).catch(() => null);
+      const data = { title: cfg.appName, text: `${cfg.share.caption}\n${shareLink(location.origin, published?.shareId, userId)}` };
       try {
         if (navigator.share) await navigator.share(data);
         else await navigator.clipboard.writeText(`${data.text}`);
@@ -259,8 +295,9 @@ async function boot() {
     );
   }
 
-  if (store.get("onboarded")) consent();
-  else onboarding();
+  const start = () => (store.get("onboarded") ? consent() : onboarding());
+  if (friend && typeof friend.title === "string" && typeof friend.body === "string") friendResult(start);
+  else start();
 }
 
 if (typeof document !== "undefined") boot().catch((e) => console.error(e));

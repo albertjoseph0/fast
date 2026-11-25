@@ -131,6 +131,11 @@ describe("renderApp", () => {
     expect(read(join(site, "terms.html"))).toContain("Renews automatically until cancelled");
     expect(read(join(site, "privacy.html"))).toContain('<a href="mailto:help@faststudio.example">');
     expect(read(join(site, "index.html"))).toContain('href="#app-store"');
+    const share = read(join(site, "chart", "index.html"));
+    expect(share).toContain("Your friend's Astra result");
+    expect(share).toContain("/v1/shared?slug=");
+    expect(share).toContain(".textContent = d.title");
+    expect(share).not.toContain("innerHTML");
 
     const aasa = JSON.parse(read(join(site, ".well-known", "apple-app-site-association"))) as {
       applinks: { details: { appIDs: string[]; components: { "/": string }[] }[] };

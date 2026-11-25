@@ -178,12 +178,29 @@ describe("share and invite loops", () => {
     expect(growth.withParams("https://a.example/chart", { r: "res 1", i: "ph_1", ch: null })).toBe("https://a.example/chart?r=res%201&i=ph_1");
     expect(growth.withParams("https://a.example/chart", { i: null })).toBe("https://a.example/chart");
     const links = read("src/links.ts");
-    expect(links).toContain("{ r: resultId, i: sharerId");
+    expect(links).toContain("{ s: shareId, r: shareId ? null : resultId, i: sharerId");
     expect(links).toContain("{ i: inviterId");
     const result = read("app/result.tsx");
     expect(result).toContain("shareUrl(spec.share.deepLinkPath, result.id, distinctId())");
     expect(result).toContain("track(APP_EVENTS.inviteSent");
     expect(read("src/analytics.ts")).toContain("inviter_distinct_id: inviter");
     expect(read("src/session.ts")).toContain("parseAttribution(await Linking.getInitialURL()");
+  });
+
+  it("publishes the result on Share, shows a friend's result on home and counts activation only on a real result", () => {
+    expect(growth.parseAttribution("https://a.example/chart?s=AbCdEfGhIjKlMnOp&i=ph_1&ch=share_loop")).toEqual({
+      sourceId: "share_loop:ph_1",
+      channel: "share_loop",
+      inviter: "ph_1",
+      shareId: "AbCdEfGhIjKlMnOp",
+    });
+    const result = read("app/result.tsx");
+    expect(result).toContain("createShare(result.id)");
+    expect(result.indexOf("createShare(result.id)")).toBeLessThan(result.indexOf("captureRef(card"));
+    expect(read("src/session.ts")).toContain("setJson(KEYS.arrivedShare, attribution.shareId)");
+    const home = read("app/home.tsx");
+    expect(home).toContain("fetchShared(id)");
+    expect(home).toContain("setJson(KEYS.arrivedShare, null)");
+    expect(read("app/onboarding.tsx")).not.toContain("markActivated");
   });
 });

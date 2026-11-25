@@ -15,6 +15,8 @@ export const SDK_BASELINE: readonly DataUse[] = [
   { dataType: "device_id", purpose: "analytics", sentTo: ["posthog"], retentionDays: 365, linkedToUser: false, usedForTracking: false },
   { dataType: "usage", purpose: "analytics", sentTo: ["posthog"], retentionDays: 365, linkedToUser: false, usedForTracking: false },
   { dataType: "purchase", purpose: "core_feature", sentTo: ["revenuecat"], retentionDays: 730, linkedToUser: true, usedForTracking: false },
+  // Share: the lead section of a result the user chooses to share, readable by anyone with its link.
+  { dataType: "shared_result", purpose: "core_feature", sentTo: ["studio_backend"], retentionDays: 30, linkedToUser: false, usedForTracking: false },
 ];
 
 /** Recipient display names used by legal pages and the consent screen. */
@@ -49,6 +51,7 @@ export const DATA_LABELS: Record<DataType, string> = {
   device_id: "A random app-install identifier",
   usage: "How you use the app (screens viewed, buttons tapped)",
   purchase: "Purchase and subscription history",
+  shared_result: "Results you choose to share (anyone with the link can see them)",
 };
 
 export const PURPOSE_LABELS: Record<Purpose, string> = {
@@ -67,6 +70,7 @@ const APPLE_TYPE: Record<DataType, { category: string; type: string; manifest: s
   device_id: { category: "Identifiers", type: "Device ID", manifest: "NSPrivacyCollectedDataTypeDeviceID" },
   usage: { category: "Usage Data", type: "Product Interaction", manifest: "NSPrivacyCollectedDataTypeProductInteraction" },
   purchase: { category: "Purchases", type: "Purchase History", manifest: "NSPrivacyCollectedDataTypePurchaseHistory" },
+  shared_result: { category: "User Content", type: "Other User Content", manifest: "NSPrivacyCollectedDataTypeOtherUserContent" },
 };
 
 const APPLE_PURPOSE: Record<Purpose, { label: string; manifest: string }> = {
@@ -85,6 +89,7 @@ const PLAY_TYPE: Record<DataType, { category: string; type: string }> = {
   device_id: { category: "Device or other IDs", type: "Device or other IDs" },
   usage: { category: "App activity", type: "App interactions" },
   purchase: { category: "Financial info", type: "Purchase history" },
+  shared_result: { category: "App activity", type: "Other user-generated content" },
 };
 
 const PLAY_PURPOSE: Record<Purpose, string> = { core_feature: "App functionality", analytics: "Analytics", attribution: "Analytics" };

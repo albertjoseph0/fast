@@ -232,7 +232,9 @@ export const StudioConfig = z.object({
       ladders: z
         .object({ single_player: z.array(z.array(ValidationStage)), social: z.array(z.array(ValidationStage)) })
         .default({
-          single_player: [["S1_distribution", "S1_activation", "S4_monetization"]],
+          // Sharing and next-day return pass before any money is read (Bier: growth first; a
+          // paywall read on a product nobody shares or comes back to says nothing about scale).
+          single_player: [["S1_distribution", "S1_activation", "S2_sharing"], ["S4_monetization"]],
           social: [["S1_distribution", "S1_activation"], ["S2_sharing"], ["S3_cross_cell"], ["S4_monetization"]],
         }),
       attentionProbe: z

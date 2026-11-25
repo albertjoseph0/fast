@@ -24,6 +24,7 @@ export async function boot(): Promise<void> {
   if (paywallFlag && (await once(`variant_${paywallFlag.variant}`))) track(APP_EVENTS.paywallVariantAssigned, { variant: paywallFlag.variant });
   const cellId = cellIdFrom(flags.map((f) => f.variant));
   const attribution = parseAttribution(await Linking.getInitialURL().catch(() => null));
+  if (attribution.shareId) await setJson(KEYS.arrivedShare, attribution.shareId);
   await trackLaunch({ storefront: await storefront(), attribution, ...(studio.experimentId ? { experimentId: studio.experimentId } : {}), ...(cellId ? { cellId } : {}) });
   await scheduleReminders().catch(() => 0);
 }
@@ -45,6 +46,7 @@ export async function usesLeft(): Promise<number> {
 }
 
 /** activated is unique per user: the value preview or the first verdict, whichever comes first. */
-export async function markActivated(source: "value_preview" | "first_verdict"): Promise<void> {
+/** Activation is a real result, never an onboarding preview of one. */
+export async function markActivated(source: "first_verdict"): Promise<void> {
   if (await once(KEYS.activated)) track(APP_EVENTS.activated, { source });
 }
