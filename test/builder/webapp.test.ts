@@ -1,11 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { renderWebApp, webDeployFiles, webTermsLine } from "../../src/builder/index.ts";
+import { renderWebApp, webDeployFiles, webOptions, webTermsLine } from "../../src/builder/index.ts";
 import type { AppSpec, VentureBindings } from "../../src/core/types.ts";
 import { astra, astraSpec, config, tempDir, TEMPLATE_DIR, venture } from "./fixtures.ts";
 // @ts-expect-error plain JS module shipped to browsers
-import { allowedGeo, attributionFrom, checkoutSessionFrom, checkoutUrl, newUserId, shareIdFrom, shareLink } from "../../templates/web-app/app.js";
+import { allowedGeo, attributionFrom, checkoutSessionFrom, checkoutUrl, needsAgeGate, newUserId, shareIdFrom, shareLink, stepsForWeb } from "../../templates/web-app/app.js";
 // @ts-expect-error plain JS module shipped to browsers
 import geo from "../../templates/web-app/api/geo.js";
 
@@ -50,6 +50,22 @@ describe("renderWebApp", () => {
     expect(webTermsLine(entry, "usd")).toContain("receipt email");
   });
 
+  it("gives the app each step's kind, the output sections and styles for touch", () => {
+    const { record } = render();
+    const cfg = JSON.parse(read(join(record.projectDir, "config.json")));
+    expect(cfg.onboarding.map((s: { kind: string }) => s.kind)).toEqual(astraSpec().onboarding.map((s) => s.kind));
+    expect(cfg.outputSections).toEqual(astraSpec().core.outputSections);
+    const index = read(join(record.projectDir, "index.html"));
+    expect(index).toContain(".option.selected");
+    expect(read(join(record.projectDir, "privacy.html"))).not.toContain(".option.selected");
+  });
+
+  it("asks web visitors about web search, not store search", () => {
+    const step = { id: "a", kind: "attribution_survey" as const, title: "Where did you hear about us?", subtitle: null, options: ["TikTok", "App Store search", "Google Play search"], storeAs: "heardFrom" };
+    expect(webOptions(step)).toEqual(["TikTok", "Web search"]);
+    expect(webOptions({ ...step, kind: "single_choice" })).toEqual(step.options);
+  });
+
   it("fails its checks without payment links or a backend", () => {
     expect(failed(render({ checkoutLinks: {} }).record)).toContain("checkout_links");
     expect(failed(render({ backendUrl: undefined as unknown as string }).record)).toContain("backend_url");
@@ -75,6 +91,13 @@ describe("web app runtime helpers", () => {
     expect(shareIdFrom("?s=<script>")).toBeNull();
     expect(shareLink("https://astra.apps.example", "AbCdEfGhIjKlMnOp", "web_1")).toBe("https://astra.apps.example/?s=AbCdEfGhIjKlMnOp&i=web_1&ch=share_loop");
     expect(shareLink("https://astra.apps.example", undefined, "web_1")).toBe("https://astra.apps.example/?i=web_1&ch=share_loop");
+  });
+
+  it("drops native-only and pre-input teaser steps, and gates adult apps by age", () => {
+    const kinds = ["welcome", "ai_data_consent", "notification_preprompt", "value_preview", "result_teaser", "multi_choice"];
+    expect(stepsForWeb(kinds.map((kind) => ({ kind }))).map((s: { kind: string }) => s.kind)).toEqual(["welcome", "ai_data_consent", "value_preview", "multi_choice"]);
+    expect(needsAgeGate(18)).toBe(true);
+    expect(needsAgeGate("16")).toBe(false);
   });
 
   it("answers the visitor's country from the edge header without storing it", () => {

@@ -19,7 +19,7 @@ function safeColor(value: string, fallback: string): string {
   return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value) ? value : fallback;
 }
 
-export function page(spec: AppSpec, title: string, body: string): string {
+export function page(spec: AppSpec, title: string, body: string, extraCss = ""): string {
   const bg = safeColor(spec.brand.backgroundColor, "#ffffff");
   const fg = safeColor(spec.brand.textColor, "#111111");
   const accent = safeColor(spec.brand.accentColor, "#3355ff");
@@ -39,7 +39,7 @@ h1{line-height:1.2}
 .stores{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0}
 .store{display:inline-block;padding:12px 20px;border-radius:12px;background:var(--accent);color:var(--bg);text-decoration:none;font-weight:600}
 footer{margin-top:48px;font-size:14px;opacity:.8}
-footer a{margin-right:16px}
+footer a{margin-right:16px}${extraCss}
 </style>
 </head>
 <body>

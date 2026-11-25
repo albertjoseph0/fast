@@ -70,6 +70,13 @@ export function webProducts(venture: Venture, spec: AppSpec, config: StudioConfi
   }));
 }
 
+/** A choice step's options for the web, where "App Store search" means nothing: store search becomes web search. */
+export function webOptions(step: AppSpec["onboarding"][number]): string[] {
+  if (step.kind !== "attribution_survey") return [...step.options];
+  const mapped = step.options.map((o) => (/app store|google play|play store/i.test(o) ? "Web search" : o));
+  return [...new Set(mapped)];
+}
+
 /** The runtime config the app reads; only what the browser needs (no system prompt, no keys but PostHog's public one). */
 export function webConfig(venture: Venture, spec: AppSpec, config: StudioConfig) {
   return {
@@ -80,8 +87,9 @@ export function webConfig(venture: Venture, spec: AppSpec, config: StudioConfig)
     posthog: { key: venture.bindings.posthogPublicKey ?? null, host: config.web.posthogHost.replace(/\/+$/, "") },
     minimumAge: Number(spec.compliance.minimumAge),
     aiDisclosure: spec.compliance.aiDisclosure,
-    onboarding: spec.onboarding.map((s) => ({ id: s.id, title: s.title, subtitle: s.subtitle, options: [...s.options], storeAs: s.storeAs })),
+    onboarding: spec.onboarding.map((s) => ({ id: s.id, kind: s.kind, title: s.title, subtitle: s.subtitle, options: webOptions(s), storeAs: s.storeAs })),
     inputKind: spec.core.inputKind,
+    outputSections: [...spec.core.outputSections],
     inputLabel: spec.core.inputLabel,
     loadingMessages: [...spec.core.loadingMessages],
     share: { caption: spec.share.caption, cardHeadline: spec.share.cardHeadline },
@@ -150,12 +158,51 @@ function supportPage(spec: AppSpec, config: StudioConfig): string {
   );
 }
 
+/** App styles on top of the site's page(): touch-sized buttons, choice cards, the result card and plans. */
+export const APP_CSS = `
+#app{min-height:60vh}
+#app h1{font-size:28px;margin:8px 0 12px}
+#app h2{font-size:18px;margin:0 0 6px}
+.eyebrow{font-size:13px;letter-spacing:.06em;text-transform:uppercase;opacity:.7;margin:0 0 8px}
+.small{font-size:14px}.center{text-align:center}
+.progress{height:4px;border-radius:2px;background:color-mix(in srgb,var(--fg) 15%,transparent);margin-bottom:24px}
+.progress>div{height:4px;border-radius:2px;background:var(--accent)}
+.actions{display:flex;flex-direction:column;gap:10px;margin:24px 0 8px}
+button,.button{font:inherit;font-weight:600;display:block;width:100%;box-sizing:border-box;text-align:center;text-decoration:none;padding:15px 18px;border-radius:14px;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.primary{background:var(--accent);color:var(--bg)}
+.secondary{background:color-mix(in srgb,var(--fg) 10%,transparent);color:var(--fg)}
+button:disabled{opacity:.4;cursor:default}
+button.link{background:none;color:var(--fg);opacity:.6;font-weight:400;font-size:14px;padding:10px}
+.options{display:flex;flex-direction:column;gap:10px;margin-top:20px}
+.option{background:color-mix(in srgb,var(--fg) 7%,transparent);color:var(--fg);text-align:left;font-weight:500;border:2px solid transparent}
+.option.selected{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,transparent)}
+.field{font:inherit;width:100%;box-sizing:border-box;padding:14px;border-radius:12px;border:2px solid color-mix(in srgb,var(--fg) 20%,transparent);background:transparent;color:var(--fg);margin-top:16px}
+.field:focus{outline:none;border-color:var(--accent)}
+.card{background:color-mix(in srgb,var(--fg) 7%,transparent);border-radius:18px;padding:18px;margin:12px 0}
+.card p{margin:0}
+.card.hero{background:var(--accent);color:var(--bg)}
+.card.hero h2{font-size:24px}
+.section-name{font-weight:600;padding:6px 0;border-top:1px solid color-mix(in srgb,var(--bg) 30%,transparent)}
+.notice{background:color-mix(in srgb,var(--accent) 20%,transparent);border-radius:12px;padding:12px 14px}
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:180px;border:2px dashed color-mix(in srgb,var(--fg) 30%,transparent);border-radius:18px;padding:16px;cursor:pointer;margin-top:16px;text-align:center}
+.drop .preview{max-width:100%;max-height:320px;border-radius:12px}
+.drop .preview:not([src]){display:none}
+.visually-hidden{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.bullets{padding-left:20px}.bullets li{margin:6px 0}
+.plan{border:2px solid color-mix(in srgb,var(--fg) 15%,transparent);border-radius:18px;padding:16px;margin:12px 0}
+.plan.highlighted{border-color:var(--accent)}
+.plan p{margin:0 0 8px}.plan-price{font-size:20px;font-weight:700}
+.spinner{width:36px;height:36px;margin:48px auto 16px;border-radius:50%;border:4px solid color-mix(in srgb,var(--fg) 15%,transparent);border-top-color:var(--accent);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+`;
+
 function indexHtml(spec: AppSpec): string {
   return page(
     spec,
     `${spec.appName}: ${spec.subtitle}`,
     `<div id="app"><h1>${escapeHtml(spec.appName)}</h1><p>${escapeHtml(spec.subtitle)}</p><noscript>${escapeHtml(spec.appName)} needs JavaScript.</noscript></div>
 <script type="module" src="/app.js"></script>`,
+    APP_CSS,
   );
 }
 
