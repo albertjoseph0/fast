@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createAgents, type Agents } from "../agents/index.ts";
-import { renderApp } from "../builder/index.ts";
+import { renderApp, renderWebApp } from "../builder/index.ts";
 import { defaultConfig, type StudioConfig } from "../config/schema.ts";
 import { SimClock, SystemClock } from "../core/clock.ts";
 import type { Clock, LlmPort, MediaPort, PortSet } from "../core/ports.ts";
@@ -61,6 +61,7 @@ function makeDeps(config: StudioConfig, dataRoot: string, agents?: Agents): Stud
   return {
     agents: agents ?? createAgents(),
     renderApp,
+    renderWebApp,
     outRoot: join(dataRoot, "ventures"),
     templateDir: TEMPLATE_DIR,
     mediaRoot: join(dataRoot, "media"),

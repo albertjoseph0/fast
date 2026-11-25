@@ -10,7 +10,7 @@ import { astraSpec } from "../principles/fixtures.ts";
 import { makeWorld, tickContext, type World } from "./fixtures.ts";
 
 function fakeDeps(agents: Partial<StudioDeps["agents"]> = {}): StudioDeps {
-  return { agents: agents as StudioDeps["agents"], renderApp: () => { throw new Error("unused"); }, outRoot: "", templateDir: "", mediaRoot: "", defaultFormatId: "slideshow_story", differentiationReport: async () => "" };
+  return { agents: agents as StudioDeps["agents"], renderApp: () => { throw new Error("unused"); }, renderWebApp: () => { throw new Error("unused"); }, outRoot: "", templateDir: "", mediaRoot: "", defaultFormatId: "slideshow_story", differentiationReport: async () => "" };
 }
 
 const GOOD: Omit<SubmissionVerification, "fetchedAt"> = { postIsPublic: true, authorHandleMatches: true, platformDisclosureLabel: true, viewsFromPlatform: 40_000 };

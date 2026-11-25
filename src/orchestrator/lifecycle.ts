@@ -6,14 +6,15 @@ import type { StudioConfig } from "../config/schema.ts";
 import type { TickContext } from "../core/context.ts";
 import type { StudioStore } from "../core/store.ts";
 import type { Clock } from "../core/ports.ts";
-import type { ActionKind, HumanTask, Iso, JobOp, LedgerCategory, Venture, VentureStage } from "../core/types.ts";
+import type { ActionKind, HumanTask, Iso, JobOp, LedgerCategory, StorePlatform, Venture, VentureStage } from "../core/types.ts";
 import { OPEN_STATUSES } from "../governance/outbox.ts";
 
 const ALLOWED: Record<VentureStage, VentureStage[]> = {
   screened: ["building", "killed"],
   // A live app shipping a variant build is back in building or in_review; it can still be sunset or
   // harvested. Harvest is open to any live app whose organic contribution is positive.
-  building: ["in_review", "killed", "sunsetting", "harvest"],
+  // Web-lane apps have no store review: a deploy goes straight to live_test.
+  building: ["in_review", "live_test", "killed", "sunsetting", "harvest"],
   in_review: ["live_test", "building", "killed", "sunsetting", "harvest"],
   live_test: ["iterating", "scaling", "killed", "sunsetting", "harvest"],
   iterating: ["live_test", "in_review", "building", "killed", "sunsetting", "harvest"],
@@ -122,8 +123,18 @@ export function windDown(ctx: TickContext, v: Venture, reason: string): void {
  * On sale: released at least once and not removed. The store record's status tracks the version in
  * flight (a variant build can be processing or in review) while the released version stays on sale.
  */
+/** The platform a venture ships on first: "web" for web-lane ventures, otherwise iOS. */
+export function primaryPlatform(v: Venture): StorePlatform {
+  return v.bindings.platforms[0] ?? "ios";
+}
+
+/** A web-lane venture: a deployed web app with Stripe checkout instead of a store binary. */
+export function isWebLane(v: Venture): boolean {
+  return primaryPlatform(v) === "web";
+}
+
 export function isLiveOnStore(v: Venture): boolean {
-  const rec = v.stores.find((s) => s.platform === "ios");
+  const rec = v.stores.find((s) => s.platform === primaryPlatform(v));
   if (!rec || rec.status === "removed") return false;
   return rec.status === "live" || rec.status === "pending_release" || v.history.some((h) => h.to === "live_test");
 }

@@ -10,7 +10,7 @@ import { IDEA, makeVenture, screening } from "../governance/fixtures.ts";
 import { makeWorld, tickContext } from "./fixtures.ts";
 
 function fakeDeps(over: Partial<StudioDeps["agents"]>): StudioDeps {
-  return { agents: over as StudioDeps["agents"], renderApp: () => { throw new Error("unused"); }, outRoot: "", templateDir: "", mediaRoot: "", defaultFormatId: "slideshow_story", differentiationReport: async () => "" };
+  return { agents: over as StudioDeps["agents"], renderApp: () => { throw new Error("unused"); }, renderWebApp: () => { throw new Error("unused"); }, outRoot: "", templateDir: "", mediaRoot: "", defaultFormatId: "slideshow_story", differentiationReport: async () => "" };
 }
 
 describe("discovery", () => {

@@ -351,7 +351,17 @@ export const RULES: PolicyRule[] = [
     return areas.length ? [flag("needs_human", `Submission changes ${areas.join(", ")} and needs a board approval`)] : [];
   }),
 
-  rule("store.territories", "P4 no nationwide tests; privacy.euUkEnabled (GDPR Art. 27, DSA Art. 30)", ["store.set_territories"], (a, ctx, flag) => {
+  rule(
+    "web.first_launch",
+    "autonomy.approveFirstSubmission: a web app has no store review, so its first public deploy waits for the board",
+    ["web.deploy_app"],
+    (a, ctx, flag) =>
+      ctx.config.autonomy.approveFirstSubmission && priorDone(ctx, a, "web.deploy_app").length === 0
+        ? [flag("needs_human", "First public deploy of this web app needs a board approval")]
+        : [],
+  ),
+
+  rule("store.territories", "P4 no nationwide tests; privacy.euUkEnabled (GDPR Art. 27, DSA Art. 30)", ["store.set_territories", "web.deploy_app"], (a, ctx, flag) => {
     const v = ventureOf(a, ctx);
     const allowed = allowedGeos(ctx, v);
     const out: PolicyFinding[] = [];
@@ -685,6 +695,26 @@ export const RULES: PolicyRule[] = [
     return out;
   }),
 
+  rule("web.checkout_prices", "monetization.priceGrid / allowedTrialDays; ROSCA (clear trial and renewal terms)", ["web.setup_checkout"], (a, ctx, flag) => {
+    const grid = ctx.config.monetization.priceGrid;
+    const out: PolicyFinding[] = [];
+    if (!a.payload.products.length) out.push(flag("block", "Web checkout has no products"));
+    for (const def of a.payload.products) {
+      const entry = ctx.config.monetization.ladder.find((l) => l.id === def.ladderId);
+      if (!entry) {
+        out.push(flag("block", `Product ${def.productId} has no price-ladder entry ${def.ladderId}`));
+        continue;
+      }
+      if (entry.usdCents !== def.usdCents || entry.period !== def.period || entry.trialDays !== def.trialDays) {
+        out.push(flag("block", `Product ${def.productId} does not match its price-ladder entry ${def.ladderId}`));
+      }
+      const [lo, hi] = grid[def.period];
+      if (def.usdCents < lo || def.usdCents > hi) out.push(flag("block", `Price ${def.usdCents} for ${def.productId} is outside the ${def.period} grid [${lo}, ${hi}]`));
+      if (!ctx.config.monetization.allowedTrialDays.includes(def.trialDays)) out.push(flag("block", `Trial of ${def.trialDays} days for ${def.productId} is not allowed`));
+    }
+    return out;
+  }),
+
   rule("monetization.subscriber_change", "ROSCA; Apple 3.1.2: price changes that affect paying subscribers need a human", (a) => a.kind === "remote_config.set" && isPaywallConfig(a), (a, ctx, flag) => {
     if (latestSubscribers(ctx, a.ventureId) <= 0) return [];
     const current = priorDone(ctx, a, "remote_config.set", (x) => (x.payload as ActionPayloads["remote_config.set"]).key === "paywall")
@@ -734,7 +764,7 @@ export const RULES: PolicyRule[] = [
 
   // -- audience safety -----------------------------------------------------------
 
-  rule("minors", "autonomy.autonomousMinAge; COPPA; Apple 1.3; FTC Endorsement Guides 255 (minor audiences)", ["store.submit_review", "creator.campaign_create", "ads.campaign_create"], (a, ctx, flag) => {
+  rule("minors", "autonomy.autonomousMinAge; COPPA; Apple 1.3; FTC Endorsement Guides 255 (minor audiences)", ["store.submit_review", "web.deploy_app", "creator.campaign_create", "ads.campaign_create"], (a, ctx, flag) => {
     const v = ventureOf(a, ctx);
     if (!v) return [];
     const minAge = effectiveMinAge(ctx, v);
@@ -742,14 +772,15 @@ export const RULES: PolicyRule[] = [
     return minAge !== undefined && minAge < floor ? [flag("needs_human", `Audience minimum age ${minAge} is under ${floor}`)] : [];
   }),
 
-  rule("sensitive_domains", "autonomy.humanReviewDomains; Apple 1.4 / 5.1.1", ["store.submit_review", "ads.campaign_create"], (a, ctx, flag) => {
+  rule("sensitive_domains", "autonomy.humanReviewDomains; Apple 1.4 / 5.1.1", ["store.submit_review", "web.deploy_app", "ads.campaign_create"], (a, ctx, flag) => {
     const v = ventureOf(a, ctx);
     if (!v || (a.kind === "store.submit_review" && !isFirstSubmission(a, ctx))) return [];
+    if (a.kind === "web.deploy_app" && priorDone(ctx, a, "web.deploy_app").length > 0) return [];
     const hits = sensitiveHits(ctx, v);
     return hits.length ? [flag("needs_human", `Sensitive domains need human review: ${hits.join(", ")}`)] : [];
   }),
 
-  rule("red_category", "autonomy.redCategoryDomains; research brief s.5.5 gate 3 (Apple 4.3, FTC Genesis Tech, state chatbot laws)", ["store.submit_review", "ads.campaign_create"], (a, ctx, flag) => {
+  rule("red_category", "autonomy.redCategoryDomains; research brief s.5.5 gate 3 (Apple 4.3, FTC Genesis Tech, state chatbot laws)", ["store.submit_review", "web.deploy_app", "ads.campaign_create"], (a, ctx, flag) => {
     const v = ventureOf(a, ctx);
     if (!v) return [];
     const domains = ctx.store.latestScreening(v.ideaId)?.sensitiveDomains ?? [];

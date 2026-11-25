@@ -8,6 +8,7 @@
  *   POST /v1/verdict  { slug, installToken, appUserId, input, consent } → { id, sections }
  *   POST /v1/report   { slug, appUserId, resultId, reason }             → { ok }
  *   POST /v1/delete   { slug, installToken, appUserId }                 → { ok }
+ *   POST /v1/web/claim { slug, appUserId, sessionId }                   → { ok }   (web lane)
  *   GET  /v1/config?slug=&variant=                                      → { config }
  *   GET  /healthz
  *
@@ -19,6 +20,12 @@
  * per process when unset, so tokens then reset on restart), TRUST_PROXY=1 behind a load
  * balancer that sets X-Forwarded-For, and one RevenueCat secret key per tenant under the env
  * var name its tenant file lists.
+ *
+ * Web lane: web apps call the same routes cross-origin, so requests from https origins ending
+ * in WEB_ORIGIN_SUFFIX (e.g. ".apps.example.com") get CORS headers. After a Stripe payment link
+ * redirects back, /v1/web/claim posts the Checkout Session to RevenueCat (POST /v1/receipts,
+ * X-Platform: stripe) with the tenant's Stripe-app public key (env var named in
+ * revenueCatStripeKeyEnv), so the purchase grants the entitlement /v1/verdict already checks.
  */
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -39,6 +46,8 @@ export interface Tenant {
   freeUses: number;
   entitlementId: string;
   revenueCatSecretEnv: string;
+  /** Web lane: env var holding the RevenueCat public API key of the project's Stripe app. */
+  revenueCatStripeKeyEnv?: string;
   rateLimit: { perMinute: number; perDay: number };
   /** Verdicts the tenant may serve per UTC day across all users: the inference spend ceiling. */
   dailyVerdictCap: number;
@@ -92,6 +101,19 @@ const DEFAULT_DAILY_VERDICT_CAP = 2_000;
 // Generous: carrier NAT puts many real users behind one address; the tenant cap bounds spend.
 const INSTALLS_PER_IP = { perMinute: 10, perDay: 200 };
 const VERDICTS_PER_IP = { perMinute: 30, perDay: 1_000 };
+const CLAIMS_PER_IP = { perMinute: 10, perDay: 100 };
+const CHECKOUT_SESSION = /^cs_(test_|live_)?[A-Za-z0-9]{8,200}$/;
+
+/** The request's Origin when it is an https web-lane app origin under `suffix`, else null. */
+export function allowedOrigin(origin: string | undefined, suffix: string | undefined): string | null {
+  if (!origin || !suffix || !suffix.startsWith(".")) return null;
+  try {
+    const url = new URL(origin);
+    return url.protocol === "https:" && url.origin === origin && url.hostname.endsWith(suffix.toLowerCase()) ? origin : null;
+  } catch {
+    return null;
+  }
+}
 /** Bound on every per-key map so rotating keys cannot grow memory without limit. */
 const MAX_KEYS = 100_000;
 /** Ids a misconfigured client sends for every install; accepting one would merge users. */
@@ -230,6 +252,7 @@ export function loadTenant(dir: string, slug: string): Tenant | null {
     freeUses: raw.freeUses ?? 0,
     entitlementId: raw.entitlementId ?? "pro",
     revenueCatSecretEnv: raw.revenueCatSecretEnv ?? "REVENUECAT_SECRET_KEY",
+    ...(raw.revenueCatStripeKeyEnv ? { revenueCatStripeKeyEnv: raw.revenueCatStripeKeyEnv } : {}),
     rateLimit: raw.rateLimit ?? { perMinute: 6, perDay: 60 },
     dailyVerdictCap: raw.dailyVerdictCap ?? DEFAULT_DAILY_VERDICT_CAP,
     maxInputChars: raw.maxInputChars ?? 4_000,
@@ -451,9 +474,44 @@ export function createHandler(deps: ServerDeps): (req: IncomingMessage, res: Ser
     return { id: randomUUID(), sections };
   }
 
+  /** Attach a Stripe Checkout Session to the user in RevenueCat (web lane). */
+  async function claim(body: Record<string, unknown>, ip: string): Promise<{ ok: true }> {
+    const tenant = tenantFor(str(body.slug, "slug", 64));
+    const appUserId = userId(body.appUserId);
+    const sessionId = str(body.sessionId, "sessionId", 220);
+    if (!CHECKOUT_SESSION.test(sessionId)) throw new HttpError(400, "bad_request", "Missing or invalid sessionId.");
+    if (!limiter.allow(`claim|${tenant.slug}|${ip}`, CLAIMS_PER_IP, now())) throw new HttpError(429, "rate_limited", "You're going a bit fast. Try again in a minute.");
+    const key = tenant.revenueCatStripeKeyEnv ? deps.env[tenant.revenueCatStripeKeyEnv] : undefined;
+    if (!key) {
+      log({ event: "billing_unavailable", slug: tenant.slug, reason: "no RevenueCat Stripe key" });
+      throw new HttpError(503, "billing_unavailable", "Subscriptions are temporarily unavailable.");
+    }
+    const res = await deps.fetch("https://api.revenuecat.com/v1/receipts", {
+      method: "POST",
+      headers: { authorization: `Bearer ${key}`, "x-platform": "stripe", "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ app_user_id: appUserId, fetch_token: sessionId }),
+    });
+    if (!res.ok) {
+      log({ event: "claim_failed", slug: tenant.slug, status: res.status });
+      throw new HttpError(res.status >= 500 ? 503 : 400, "claim_failed", "We couldn't confirm that purchase. If you were charged, email support.");
+    }
+    log({ event: "claim", slug: tenant.slug });
+    return { ok: true };
+  }
+
   return async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
+      const origin = allowedOrigin(typeof req.headers.origin === "string" ? req.headers.origin : undefined, deps.env.WEB_ORIGIN_SUFFIX);
+      if (origin) {
+        res.setHeader("access-control-allow-origin", origin);
+        res.setHeader("vary", "origin");
+      }
+      if (req.method === "OPTIONS") {
+        if (!origin) return send(res, 403, { error: "forbidden", message: "Origin not allowed." });
+        res.writeHead(204, { "access-control-allow-methods": "GET, POST", "access-control-allow-headers": "content-type", "access-control-max-age": "600" });
+        return void res.end();
+      }
       if (req.method === "GET" && url.pathname === "/healthz") return send(res, 200, { ok: true });
       if (req.method === "GET" && url.pathname === "/v1/config") {
         const tenant = tenantFor(str(url.searchParams.get("slug"), "slug", 64));
@@ -470,6 +528,7 @@ export function createHandler(deps: ServerDeps): (req: IncomingMessage, res: Ser
         return send(res, 200, { installToken: tokens.mint(tenant.slug) });
       }
       if (url.pathname === "/v1/verdict") return send(res, 200, await verdict(body, ip));
+      if (url.pathname === "/v1/web/claim") return send(res, 200, await claim(body, ip));
       if (url.pathname === "/v1/report") {
         const tenant = tenantFor(str(body.slug, "slug", 64));
         log({ event: "report", slug: tenant.slug, appUserId: str(body.appUserId, "appUserId"), resultId: str(body.resultId, "resultId"), reason: str(body.reason, "reason", 500) });

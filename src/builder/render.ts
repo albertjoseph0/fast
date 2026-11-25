@@ -116,7 +116,7 @@ function check(name: string, passed: boolean, detail: string): Check {
   return { name, passed, detail };
 }
 
-function paywallProducts(spec: AppSpec, config: StudioConfig): PriceLadderEntry[] {
+export function paywallProducts(spec: AppSpec, config: StudioConfig): PriceLadderEntry[] {
   return spec.paywall.productIds.flatMap((id) => {
     try {
       return [ladderEntry(config, id)];

@@ -10,7 +10,7 @@ import type { LedgerSync } from "../governance/ledger.ts";
 import { chargesWithin, netPriceCents } from "../lab/ltv.ts";
 import { proportionPosterior, quantile } from "../lab/stats.ts";
 import { ladderEntry, storeProductDefs } from "../playbook/product.ts";
-import { isActive, isLiveOnStore, LIVE_STAGES, ORGANIC_CATEGORIES, transition, windDown } from "./lifecycle.ts";
+import { isActive, isLiveOnStore, LIVE_STAGES, ORGANIC_CATEGORIES, primaryPlatform, transition, windDown } from "./lifecycle.ts";
 
 const DAY_MS = 86_400_000;
 /** Marginal CAC is assumed this much worse than average CAC when spend rises (conservative heuristic). */
@@ -61,7 +61,7 @@ function applyDecision(ctx: TickContext, a: Action, v: Venture): string[] {
       const reason = (a.payload as { reason: string }).reason;
       windDown(ctx, v, reason);
       if (isLiveOnStore(v)) {
-        ctx.outbox.propose({ kind: "store.remove_from_sale", ventureId: v.id, payload: { platform: "ios", reason }, summary: `Remove ${v.name} from sale`, rationale: reason, proposedBy: "allocator", naturalKey: "ios" });
+        ctx.outbox.propose({ kind: "store.remove_from_sale", ventureId: v.id, payload: { platform: primaryPlatform(v), reason }, summary: `Remove ${v.name} from sale`, rationale: reason, proposedBy: "allocator", naturalKey: primaryPlatform(v) });
       }
       transition(ctx.store, clock, v, "killed", `${a.id}: ${reason}`);
       applied.push(`${v.id} killed`);
@@ -73,7 +73,7 @@ function applyDecision(ctx: TickContext, a: Action, v: Venture): string[] {
       windDown(ctx, v, reason);
       // Stop new sales and renewals now; the backend serves paying users until their periods lapse.
       if (isLiveOnStore(v)) {
-        ctx.outbox.propose({ kind: "store.remove_from_sale", ventureId: v.id, payload: { platform: "ios", reason: `sunset: ${reason}` }, summary: `Stop sales of ${v.name}`, rationale: "Sunset serves existing subscribers until their paid periods lapse", proposedBy: "allocator", naturalKey: "ios" });
+        ctx.outbox.propose({ kind: "store.remove_from_sale", ventureId: v.id, payload: { platform: primaryPlatform(v), reason: `sunset: ${reason}` }, summary: `Stop sales of ${v.name}`, rationale: "Sunset serves existing subscribers until their paid periods lapse", proposedBy: "allocator", naturalKey: primaryPlatform(v) });
       }
       transition(ctx.store, clock, v, "sunsetting", `${a.id}: ${reason}`);
       applied.push(`${v.id} sunsetting`);
@@ -93,11 +93,24 @@ function applyDecision(ctx: TickContext, a: Action, v: Venture): string[] {
 
 /** Add scale storefronts: price the ladder there first, then widen availability. */
 function expandTerritories(ctx: TickContext, v: Venture, add: string[]): void {
-  const rec = v.stores.find((s) => s.platform === "ios");
+  const platform = primaryPlatform(v);
+  const rec = v.stores.find((s) => s.platform === platform);
   if (!rec || !v.spec) return;
   const territories = [...new Set([...rec.territories, ...add])].sort();
   if (territories.join(",") === rec.territories.join(",")) return;
   const base = { ventureId: v.id, proposedBy: "allocator" as const };
+  if (platform === "web") {
+    // Web prices are global (Stripe), so scaling is only a redeploy with the wider geofence.
+    ctx.outbox.propose({
+      ...base,
+      kind: "store.set_territories",
+      payload: { platform, territories },
+      naturalKey: `web:${territories.join("-")}`,
+      summary: `Open ${v.spec.appName} in ${add.join(", ")}`,
+      rationale: "Validated in test geos and replicated (Bier P5)",
+    });
+    return;
+  }
   ctx.outbox.propose({
     ...base,
     kind: "store.upsert_subscriptions",
@@ -310,7 +323,7 @@ export function reviewMatureVentures(ctx: TickContext, plan: AllocationPlan): st
     if (v.stage === "sunsetting") {
       if (activeSubscribers(ctx, v.id) > 0) continue;
       if (isLiveOnStore(v)) {
-        ctx.outbox.propose({ kind: "store.remove_from_sale", ventureId: v.id, payload: { platform: "ios", reason: "sunset: no active subscribers remain" }, summary: `Remove ${v.name} from sale`, rationale: "Every paid period has lapsed", proposedBy: "allocator", naturalKey: "ios" });
+        ctx.outbox.propose({ kind: "store.remove_from_sale", ventureId: v.id, payload: { platform: primaryPlatform(v), reason: "sunset: no active subscribers remain" }, summary: `Remove ${v.name} from sale`, rationale: "Every paid period has lapsed", proposedBy: "allocator", naturalKey: primaryPlatform(v) });
       } else {
         transition(ctx.store, ctx.ports.clock, v, "killed", "sunset complete: no active subscribers remain");
         out.push(`${v.id} sunset complete`);

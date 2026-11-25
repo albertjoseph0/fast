@@ -98,6 +98,10 @@ npx factory go-live --confirm    # real writes; limits, approvals and the kill s
 
 See [`docs/RUNBOOK.md`](docs/RUNBOOK.md) for the accounts, credentials and one-time human steps.
 
+**Web lane.** Set `web.defaultLane` to `"web"` and new ventures ship as geofenced web apps on Vercel
+with Stripe checkout instead of iOS apps: no Apple account or App Review in the loop. Try it with
+`npx factory sim --lane web`.
+
 ### What still needs a human, and why
 
 Some steps can't be automated, by design or by platform rule:
@@ -140,6 +144,7 @@ Some steps can't be automated, by design or by platform rule:
 | `src/agents/` | scout, ideator, critics, designer, brand, content, creator ops, compliance, analyst, CEO |
 | `src/governance/` | policy, outbox, approvals, human tasks, write-ahead executor, ledger, disclosure, payouts |
 | `src/builder/`, `templates/expo-app/` | spec → Expo app, store metadata, legal pages, screenshots; verdict backend |
+| `templates/web-app/` | the web-lane single-page app (geofence, paywall with Stripe links, claim on return) |
 | `src/sim/` | simulated market with the live failure surface |
 | `src/integrations/` | App Store Connect, Google Play, EAS, RevenueCat, PostHog, SideShift, Instagram, TikTok, YouTube, Meta/TikTok/Apple Ads, web host |
 | `src/orchestrator/` | the daily tick, venture pipeline, lab phase, growth, discovery, allocator, reports, sim runner |

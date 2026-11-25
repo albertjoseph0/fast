@@ -1,0 +1,9 @@
+{
+  "cleanUrls": true,
+  "headers": [
+    { "source": "/(.*)", "headers": [
+      { "key": "x-content-type-options", "value": "nosniff" },
+      { "key": "referrer-policy", "value": "strict-origin-when-cross-origin" }
+    ] }
+  ]
+}

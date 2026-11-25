@@ -21,8 +21,9 @@ import { promoteScreened, runDiscovery } from "./discovery.ts";
 import { publishOwnedContent, runAttentionProbe, runCreativeLoop, syncContentStats, syncCreatorSubmissions } from "./growth.ts";
 import { pollDueJobs } from "./jobs.ts";
 import { ensureExperiment, proposeKill, retryPrepareVariant, runExperiments, settleVariants, testExposureCents, VARIANT_TO_PREPARE } from "./labPhase.ts";
-import { blockingTasks, isActive, isLiveOnStore, ladderComplete, patch, timeboxExpired } from "./lifecycle.ts";
+import { blockingTasks, isActive, isLiveOnStore, isWebLane, ladderComplete, patch, timeboxExpired } from "./lifecycle.ts";
 import { advanceBuilding, advanceInReview } from "./pipeline.ts";
+import { advanceBuildingWeb } from "./webPipeline.ts";
 import { applyTaskOutcomes, openBootstrapTasks } from "./tasks.ts";
 import { boardMemo, renderReport, type TickSummary, ventureLines, writeReport } from "./report.ts";
 
@@ -294,8 +295,9 @@ export class Studio {
       } catch (err) {
         failed.push(`${v.id}: ${err instanceof Error ? err.message : String(err)}`);
         // An analytics or subscription project that was never bound: make sure someone is asked for it.
-        if (err instanceof Error && err.name === "MissingBindingError" && !this.store.tasks.count((t) => t.kind === "integrations.bind_projects" && t.ventureId === v.id && t.status === "open")) {
-          ctx.outbox.openTask(taskDraft("integrations.bind_projects", v.id, `${v.name} (${v.slug}): ${err.message}`));
+        const bindKind = isWebLane(v) ? "integrations.bind_web_projects" : "integrations.bind_projects";
+        if (err instanceof Error && err.name === "MissingBindingError" && !this.store.tasks.count((t) => t.kind === bindKind && t.ventureId === v.id && t.status === "open")) {
+          ctx.outbox.openTask(taskDraft(bindKind, v.id, `${v.name} (${v.slug}): ${err.message}`));
         }
       }
     }
@@ -365,7 +367,7 @@ export class Studio {
         switch (v.stage) {
           case "building": {
             if (budgetHit()) return "LLM budget reached";
-            const step = await advanceBuilding(ctx, this.deps, v);
+            const step = isWebLane(v) ? await advanceBuildingWeb(ctx, this.deps, v) : await advanceBuilding(ctx, this.deps, v);
             const after = this.store.ventures.require(v.id);
             const hasProbe = this.store.experiments.count((e) => e.ventureId === v.id && e.stages[0] === "S0_attention") > 0;
             if (after.stage !== "building" || !after.spec) return step;

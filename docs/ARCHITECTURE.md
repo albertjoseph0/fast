@@ -116,6 +116,24 @@ Instagram Trial Reels during the build and kills concepts whose hooks get no att
 `principles/ladder.ts` assigns the ladder: an idea is social when it lacks single-player value, needs
 friends, or its primary channel is invites.
 
+### Web lane
+
+`config.web.defaultLane = "web"` sends new ventures down a shorter path (`orchestrator/webPipeline.ts`):
+
+```
+spec → Stripe payment links for the ladder (web.setup_checkout) → bind PostHog/RevenueCat
+     → render web app (builder/webapp.ts) → monetization.configure → backend tenant
+     → web.deploy_app to <slug>.<appsDomain>, geofenced (board approves the first) → live_test
+```
+
+There is no binary, App Review or store record to wait on, so a variant ships as a redeploy. The page
+reads its territories from `geo.json` (written at deploy) and the visitor's country from an edge function,
+so P4 holds without a storefront. Paywall prices come from the ladder through `web.checkout_prices`, which
+blocks anything off the grid. A purchase returns to `/?checkout={CHECKOUT_SESSION_ID}`; the app posts it to
+the verdict backend's `/v1/web/claim`, which hands the session to RevenueCat (`X-Platform: stripe`) so the
+entitlement, the PostHog revenue events and the lab work exactly as in the store lane. Scaling is a
+redeploy with more territories, and removal from sale deactivates the payment links.
+
 ## 5. Principles as code
 
 | # | Principle | Where | Rule |

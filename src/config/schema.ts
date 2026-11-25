@@ -380,6 +380,7 @@ export const StudioConfig = z.object({
       currency: z.string().default("usd"),
       /** Stripe customer portal login link for self-serve cancellation (ROSCA); without it the pages point to support email. */
       customerPortalUrl: z.string().nullable().default(null),
+      posthogHost: z.string().default("https://us.i.posthog.com"),
     })
     .prefault({}),
 

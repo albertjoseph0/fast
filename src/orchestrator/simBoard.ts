@@ -112,6 +112,9 @@ export class SimBoard {
         case "posthogProjectId":
           out[input.key] = String(10_000 + Math.floor(r.next() * 89_999));
           break;
+        case "posthogPublicKey":
+          out[input.key] = `phc_sim${slug.replace(/[^a-z0-9]/gi, "")}`;
+          break;
         case "revenueCatProjectId":
           out[input.key] = `projsim${slug.replace(/[^a-z0-9]/gi, "")}`;
           break;

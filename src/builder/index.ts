@@ -6,3 +6,4 @@ export { applePrivacyAnswers, collectedData, dataSafetyCsv, privacyManifest, pri
 export { legalHtmlBody, legalMarkdown, privacyPolicy, subscriptionLines, termsOfUse, type LegalDoc } from "./legal.ts";
 export { appleAppSiteAssociation, assetLinks, deepLinkBase, siteFiles, type SiteFile } from "./site.ts";
 export { encodeRgbPng, pngInfo, rasterize, SCREENSHOT_SIZE, screenshotSvgs } from "./screenshots.ts";
+export { formatPrice, renderWebApp, webConfig, webDeployFiles, webPrivacy, webProducts, webTerms, webTermsLine, type WebProduct, type WebRenderInput } from "./webapp.ts";

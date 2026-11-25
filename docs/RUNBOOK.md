@@ -46,6 +46,26 @@ do when something goes wrong. The studio runs itself between those touchpoints.
    review `budgets` and `autonomy` before going live.
 6. **Go live** once the dry-run records look right: `npx factory go-live --confirm`.
 
+### The web lane (optional, no App Store)
+
+Set `web.defaultLane` to `"web"` in the config and new ventures ship as web apps instead of iOS apps:
+no Apple account, no App Review, no binary. Each app is a static page deployed to Vercel at
+`<slug>.<web.appsDomain>`, geofenced to the test territories by an edge function, and sold with Stripe
+Payment Links. RevenueCat still holds the subscription, so the lab reads the same numbers.
+
+1. **Vercel:** a team, a domain the team owns (`web.appsDomain`, e.g. `apps.yourstudio.com`) with a
+   wildcard record `*.apps.yourstudio.com`, and a token for that team (`VERCEL_TOKEN`, `VERCEL_TEAM_ID`).
+2. **Stripe:** an activated account, a restricted key with write access to Products, Prices and Payment
+   Links (`STRIPE_SECRET_KEY`), and the customer portal turned on; put its link in `web.customerPortalUrl`.
+3. **RevenueCat:** connect Stripe to the RevenueCat project and add a Stripe app. Its public API key goes
+   to the verdict backend as `REVENUECAT_STRIPE_KEY_<SLUG>` (the tenant file names it).
+4. **Verdict backend:** set `WEB_ORIGIN_SUFFIX` to `.<web.appsDomain>` (leading dot) so the web apps may
+   call it from the browser. Other origins get no CORS headers.
+
+The first public deploy of each web app waits for a board approval (`web.first_launch`), like a first
+store submission. Scaling is a redeploy with more territories; removal from sale deactivates the payment
+links and leaves the legal pages up for existing subscribers.
+
 ## 2. What the studio will ask you for
 
 The studio opens **human tasks** for steps no API allows. List them with `factory tasks`, read one
@@ -61,6 +81,7 @@ inputs exist, so the per-venture ones usually arrive together and can be done in
 | `creators.fund_wallet` | studio | first day | `fundedCents` |
 | `apple.create_app` | venture | after the bundle id is registered | `ascAppId` (App Store Connect has no create-app API) |
 | `integrations.bind_projects` | venture | once the venture's site is published | `posthogProjectId`, `revenueCatProjectId`, `easProjectId` |
+| `integrations.bind_web_projects` | venture (web lane) | once the payment links exist | `posthogProjectId`, `posthogPublicKey` (`phc_…`), `revenueCatProjectId` |
 | `web.deploy_site` | venture | once the venture's site is published | `deepLinkDomain` (the domain serving the site and universal links) |
 | `backend.add_tenant` | venture | before the first submission, and again whenever the tenant file changes | `confirmed=yes` after deploying the file named in the task |
 | `apple.privacy_labels` | venture | once the app record exists | `confirmed=yes` |
@@ -80,7 +101,7 @@ inputs exist, so the per-venture ones usually arrive together and can be done in
 with `factory approve <id>` or reject with `factory reject <id> --reason "..."`. An approval is bound to
 the action's payload hash, so if the payload changes, you'll be asked again. Expect to be asked for:
 
-* the first store submission of each app
+* the first store submission of each app, or the first public deploy of a web-lane app
 * resubmissions after a rejection
 * every submission of a red-category app
 * any change to core behaviour, monetization, age rating or data flows
@@ -147,6 +168,11 @@ call time. Keep them in your process manager or secret store, not in `.factory/`
 | Apple Ads | `APPLE_ADS_PRIVATE_KEY` | no | Inline private key PEM, an alternative to the path |
 | Apple Ads | `APPLE_ADS_API_BASE` | no | Override of the Platform API base URL (default https://api.ads.apple.com/v1) |
 | Web host (static) | `WEB_BASE_URL` | yes | Public URL where <dataDir>/web is deployed, e.g. https://apps.example.com (no trailing slash) |
+| Web apps (Vercel, web lane) | `VERCEL_TOKEN` | yes | Vercel access token for the team that owns `web.appsDomain` |
+| Web apps (Vercel, web lane) | `VERCEL_TEAM_ID` | no | Team id (`team_…`) that owns `web.appsDomain` |
+| Stripe (web lane checkout) | `STRIPE_SECRET_KEY` | yes | Restricted key with Products, Prices and Payment Links write |
+| Verdict backend (web lane) | `WEB_ORIGIN_SUFFIX` | yes | `.<web.appsDomain>`; web apps under it may call the backend from the browser |
+| Verdict backend (web lane) | `REVENUECAT_STRIPE_KEY_<SLUG>` | yes | RevenueCat Stripe app public key, one per web venture, used to attach checkouts to users |
 | Web media (Vercel Blob, optional) | `BLOB_READ_WRITE_TOKEN` | yes | Vercel Blob read-write token (vercel_blob_rw_<storeId>_…) for a public store |
 | Web media (Vercel Blob, optional) | `VERCEL_BLOB_API_URL` | no | Blob API base override (default https://vercel.com/api/blob) |
 

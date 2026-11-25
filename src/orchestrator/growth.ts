@@ -27,6 +27,7 @@ import { allocate, armsToCull, postsPerArm, probabilityBest, type ArmStats } fro
 import { decideExperiment, evaluateCell } from "../lab/decide.ts";
 import { designAttentionProbe } from "../lab/experiments.ts";
 import type { StudioDeps } from "./deps.ts";
+import { primaryPlatform } from "./lifecycle.ts";
 import { ideaFor } from "./pipeline.ts";
 import { proposeKill } from "./labPhase.ts";
 import { createHash } from "node:crypto";
@@ -583,7 +584,7 @@ export async function runCreativeLoop(ctx: TickContext, deps: StudioDeps, v: Ven
   const batchId = ctx.store.nextId("batch");
   const posts = postsPerArm(shares, Math.max(arms.length, Math.round(batchBudget / Math.max(1, ctx.config.creators.defaultDeal.maxPayoutCents))));
   ctx.store.batches.put({ id: batchId, ventureId: v.id, family: "creator", startedAt: now, closesAt: addDays(now, cfg.batchDays), arms, allocation: shares, results: {}, culled: [], status: "open" });
-  const geos = [...new Set([...ctx.config.lab.scaleGeos, ...(v.stores.find((s) => s.platform === "ios")?.territories ?? [])])];
+  const geos = [...new Set([...ctx.config.lab.scaleGeos, ...(v.stores.find((s) => s.platform === primaryPlatform(v))?.territories ?? [])])];
   for (const hook of hooks) {
     const arm = `${hook.formatId}:${hook.id}`;
     const share = shares[arm] ?? 0;

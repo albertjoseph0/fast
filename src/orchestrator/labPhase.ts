@@ -14,7 +14,7 @@ import { ladderEntry } from "../playbook/product.ts";
 import type { StudioDeps } from "./deps.ts";
 import { ideaFor } from "./pipeline.ts";
 import { adultRecruitment } from "./growth.ts";
-import { blockingTasks, isLiveOnStore, ORGANIC_CATEGORIES, patch, transition, windDown } from "./lifecycle.ts";
+import { blockingTasks, isLiveOnStore, ORGANIC_CATEGORIES, patch, primaryPlatform, transition, windDown } from "./lifecycle.ts";
 
 function cellCampaigns(ctx: TickContext, experimentId: string, cellId?: string): CreatorCampaign[] {
   return ctx.store.campaigns.list((c) => c.experimentId === experimentId && (cellId === undefined || c.cellId === cellId));
@@ -343,7 +343,7 @@ async function readExperiment(ctx: TickContext, deps: StudioDeps, plan0: Experim
       }),
     );
     const spec = v.spec;
-    const pricing = spec ? { entry: ladderEntry(ctx.config, spec.paywall.highlightedProductId), platform: "ios" as const } : undefined;
+    const pricing = spec ? { entry: ladderEntry(ctx.config, spec.paywall.highlightedProductId), platform: primaryPlatform(v) } : undefined;
     const outcome = decideExperiment({
       plan,
       verdicts,
@@ -537,7 +537,7 @@ export function settleVariants(ctx: TickContext, v: Venture): string {
   }
   if (pending.deliveryMode === "content_only") return "variant ready";
   // Builds: ready once the venture is live again (the pipeline moves it back through review).
-  const rec = v.stores.find((s) => s.platform === "ios");
+  const rec = v.stores.find((s) => s.platform === primaryPlatform(v));
   if (v.stage === "live_test" && rec?.status === "live") {
     patch(ctx.store, ctx.ports.clock, v, { pendingVariant: { ...pending, readyAt: now } });
     return "variant live";
