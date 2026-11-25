@@ -6,7 +6,7 @@
  */
 import type { AgentContext } from "../core/context.ts";
 import type { AppLookup, ChartApp, TrendObservation } from "../core/ports.ts";
-import type { Signal, SignalSource, TrendSource } from "../core/types.ts";
+import type { IdeaRecord, Signal, SignalSource, TrendSource } from "../core/types.ts";
 import { SCHEMA, type SchemaInputs } from "./schemas.ts";
 import { normKey, rolePrompt } from "./shared.ts";
 
@@ -254,4 +254,57 @@ async function settle<T>(p: Promise<T[]>): Promise<T[]> {
 
 function unique<T>(items: T[]): T[] {
   return [...new Set(items)];
+}
+
+/** At most this many distinct terms are measured per discovery cycle (YouTube search costs 100 quota units a call). */
+export const MAX_VERIFY_TERMS = 20;
+/** Search results kept per verified term: the leaders show whether the market is real. */
+const VERIFY_SEARCH_LIMIT = 5;
+
+export interface DemandCheck {
+  /** New signals, ready to store. */
+  signals: Signal[];
+  /** Idea id -> the ids of the signals measured for that idea's own demand terms. */
+  byIdea: Map<string, string[]>;
+}
+
+/**
+ * Measure each idea's own demand. The ideator cites whatever signals it was shown, which often
+ * describe the market at large rather than this idea; here the idea's demandTerms are searched in
+ * the App Store and scanned on YouTube, Instagram and the Meta Ad Library, so its evidence is
+ * about what it actually does. Terms are shared across ideas and capped per cycle.
+ */
+export async function verifyDemand(ctx: AgentContext, records: IdeaRecord[], opts: { country?: string } = {}): Promise<DemandCheck> {
+  const country = opts.country ?? ctx.config.lab.testGeos[0] ?? "US";
+  const terms = unique(records.flatMap((r) => r.demandTerms ?? [])).slice(0, MAX_VERIFY_TERMS);
+  const byIdea = new Map<string, string[]>();
+  if (terms.length === 0) return { signals: [], byIdea };
+
+  const [searches, social] = await Promise.all([
+    Promise.all(terms.map((term) => settle(ctx.ports.trends.searchApps({ term, country, limit: VERIFY_SEARCH_LIMIT })))),
+    settle(Promise.resolve().then(() => ctx.ports.socialTrends.scan({ terms, country, sinceDays: TREND_WINDOW_DAYS }))),
+  ]);
+  const drafts: { term: string; draft: Draft }[] = [];
+  terms.forEach((term, i) => {
+    for (const app of searches[i] ?? []) drafts.push({ term, draft: searchDraft(app, term, country) });
+  });
+  for (const obs of social) if (terms.includes(obs.term)) drafts.push({ term: obs.term, draft: trendDraft(obs) });
+
+  const observedAt = ctx.ports.clock.iso();
+  const withMomentum = addMomentum(
+    drafts.map((d) => d.draft),
+    ctx.store.signals.list(),
+    ctx.ports.clock.now(),
+  );
+  const signals = withMomentum.map((d) => ({ ...d, id: ctx.store.nextId("signal"), observedAt }));
+  const idsByTerm = new Map<string, string[]>();
+  signals.forEach((s, i) => {
+    const term = drafts[i]!.term;
+    idsByTerm.set(term, [...(idsByTerm.get(term) ?? []), s.id]);
+  });
+  for (const r of records) {
+    const ids = unique((r.demandTerms ?? []).flatMap((t) => idsByTerm.get(t) ?? []));
+    if (ids.length > 0) byIdea.set(r.id, ids);
+  }
+  return { signals, byIdea };
 }

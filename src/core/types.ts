@@ -196,6 +196,10 @@ export interface IdeaRecord {
   id: string;
   idea: Idea;
   sourceSignalIds: string[];
+  /** Search phrases for the idea's own demand; discovery measures them before screening. */
+  demandTerms?: string[];
+  /** Signals measured for demandTerms; when present they, not the cited signals, are the idea's evidence. */
+  verifiedSignalIds?: string[];
   createdAt: Iso;
 }
 

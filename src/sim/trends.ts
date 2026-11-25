@@ -81,6 +81,12 @@ export function topicsIn(text: string): string[] {
   return SIM_TOPICS.filter((t) => ws.some((w) => w === t || (w.startsWith(t) && w.length - t.length <= 3)));
 }
 
+/** Demand behind a piece of text: the strongest topic it names, 1 when it names none. */
+export function textDemand(text: string, seed: number): number {
+  const topics = topicsIn(text);
+  return topics.length === 0 ? 1 : Math.max(...topics.map((t) => topicTruth(t, seed).demand));
+}
+
 /** True demand multiplier for an idea: the strongest topic it serves, 1 when it matches none. */
 export function ideaDemand(idea: Idea, seed: number): number {
   const text = [idea.title, idea.oneLiner, idea.aiCapability, idea.verdictMoment, idea.wedge.name, idea.wedge.description].join(" ");

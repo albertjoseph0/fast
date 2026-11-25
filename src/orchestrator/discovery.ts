@@ -130,6 +130,15 @@ export async function runDiscovery(ctx: TickContext, deps: StudioDeps, freeCashC
   const signals = await deps.agents.scanMarket(ctx);
   for (const s of signals) ctx.store.signals.put(s);
   const records = await deps.agents.generateIdeas(ctx, { signals, count: p.ideasPerCycle, avoidTitles: takenTitles(ctx) });
+  if (p.requireEvidence && deps.agents.verifyDemand) {
+    // Measure each idea's own search terms, so its evidence is about what it does, not the market at large.
+    const check = await deps.agents.verifyDemand(ctx, records);
+    for (const s of check.signals) ctx.store.signals.put(s);
+    for (const r of records) {
+      const ids = check.byIdea.get(r.id);
+      if (ids) r.verifiedSignalIds = ids;
+    }
+  }
   const screened: { record: IdeaRecord; screening: Screening }[] = [];
   for (const record of records) {
     ctx.store.ideas.put(record);

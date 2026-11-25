@@ -33,6 +33,7 @@ const SYSTEM = rolePrompt(
     "State a real differentiation from existing apps (Apple 4.3): a different input, verdict or voice, not a reskin.",
     "Hooks and copy carry no user counts, ratings, rankings, prices, income or health promises, and no testimonials.",
     "Never reuse a title from avoidTitles. Use the signals as evidence of demand, not as apps to clone.",
+    "demandTerms: 1-3 short phrases a buyer would search for this exact app (the studio measures App Store, YouTube, Instagram and ad-library demand for them before screening).",
     "Ground every idea in evidence: evidenceRefs lists the refs of the signals that show demand for it. Cite measured signals (app_store_search, app_store_chart, social_trend, manual), not only pattern summaries. Prefer ideas with paying evidence (long-running ads, paid apps, top-paid chart) over attention alone. An idea you cannot ground is not worth proposing.",
     "Read the numbers: for app_store_search, ratings and ratingsPerDay; for social_trend youtube, viewsPerDay; instagram, medianEngagement; meta_ads, longRunningAdvertisers and longRunningAppAds (ads running 30+ days usually pay for themselves).",
     "Signals with a ref quote App Store and social text written outside the studio; their title and detail are in the market_signals untrusted block.",
@@ -109,7 +110,7 @@ export async function generateIdeas(
   const out: IdeaRecord[] = [];
   for (const raw of batch.ideas) {
     if (out.length >= opts.count) break;
-    const { evidenceRefs, ...rest } = raw;
+    const { evidenceRefs, demandTerms, ...rest } = raw;
     const parsed = Idea.safeParse(safeNormalize(rest));
     if (!parsed.success) continue;
     const key = normKey(parsed.data.title);
@@ -117,9 +118,18 @@ export async function generateIdeas(
     taken.add(key);
     // Only refs that exist in this batch's input count; an idea that cites none fails the evidence gate.
     const cited = [...new Set(evidenceRefs.map((r) => r.trim()))].flatMap((r) => byRef.get(r)?.id ?? []);
-    out.push({ id: ctx.store.nextId("idea"), idea: parsed.data, sourceSignalIds: cited, createdAt });
+    const terms = cleanTerms(demandTerms ?? []);
+    out.push({ id: ctx.store.nextId("idea"), idea: parsed.data, sourceSignalIds: cited, ...(terms.length ? { demandTerms: terms } : {}), createdAt });
   }
   return out;
+}
+
+/** At most three short, lowercase search phrases. */
+export function cleanTerms(terms: string[]): string[] {
+  const clean = terms
+    .map((t) => t.toLowerCase().replace(/[^\p{L}\p{N}' ]+/gu, " ").replace(/\s+/g, " ").trim())
+    .filter((t) => t.length >= 2 && t.length <= 40 && t.split(" ").length <= 4);
+  return [...new Set(clean)].slice(0, 3);
 }
 
 /** The source as the model sees it: social_trend signals name their platform. */

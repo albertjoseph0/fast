@@ -45,6 +45,10 @@ export type SchemaName = (typeof SCHEMA)[keyof typeof SCHEMA];
 /** An idea plus the refs of the input signals that evidence its demand (at least one measured signal). */
 export const IdeaCandidate = Idea.extend({
   evidenceRefs: z.array(z.string()).describe("Refs (signal_N) of the input signals showing demand for this idea; cite only signals that support it"),
+  demandTerms: z
+    .array(z.string())
+    .describe("1-3 short search phrases (1-3 words) a buyer of this app would type in the App Store or search on YouTube, e.g. 'golf swing'; the studio measures demand for them")
+    .optional(),
 });
 export const IdeaBatch = z.object({ ideas: z.array(IdeaCandidate) });
 export type IdeaBatch = z.infer<typeof IdeaBatch>;

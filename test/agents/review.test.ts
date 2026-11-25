@@ -181,6 +181,7 @@ describe("createAgents", () => {
       "renderDraft",
       "writeBrief",
       "selectCreators",
+      "verifyDemand",
       "reviewSubmission",
       "reviewCopy",
       "explainOutcome",

@@ -130,6 +130,6 @@ export async function screen(
     classifierDomains,
     classifierMinimumAge: Number(classifier.minimumAge),
     existingTitles: opts.existingTitles,
-    ...(ctx.config.portfolio.requireEvidence ? { evidence: evidenceFor(record.sourceSignalIds.flatMap((id) => ctx.store.signals.get(id) ?? [])) } : {}),
+    ...(ctx.config.portfolio.requireEvidence ? { evidence: evidenceFor((record.verifiedSignalIds?.length ? record.verifiedSignalIds : record.sourceSignalIds).flatMap((id) => ctx.store.signals.get(id) ?? [])) } : {}),
   });
 }

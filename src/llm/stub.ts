@@ -86,7 +86,7 @@ function ideaBatch(input: SchemaInputs["IdeaBatch"], rng: Rng): IdeaBatch {
   }
 
   return {
-    ideas: rng.shuffle(picked.slice(0, count)).map((p) => ({ ...ideaFromArchetype(p.archetype, rng, p.title), evidenceRefs: citedRefs(p.archetype, input.signals) })),
+    ideas: rng.shuffle(picked.slice(0, count)).map((p) => ({ ...ideaFromArchetype(p.archetype, rng, p.title), evidenceRefs: citedRefs(p.archetype, input.signals), demandTerms: p.archetype.tags.slice(0, 2) })),
   };
 }
 

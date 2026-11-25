@@ -165,6 +165,12 @@ ranking for A/B runs. Meta's library returns commercial ads for EU delivery only
 cross-check, not a US measurement. The ideator's 60-signal prompt is shared across sources round-robin,
 so pattern summaries cannot crowd out measured rows.
 
+Cited signals often describe the market at large (a chart leader) rather than the idea, so each idea
+also names 1–3 `demandTerms`, the phrases a buyer would search. Before screening, `verifyDemand`
+(`agents/scout.ts`) searches those terms in the App Store and scans them on YouTube, Instagram and the
+Meta Ad Library, at most 20 terms a cycle. When that finds anything, those signals
+(`verifiedSignalIds`), not the cited ones, are the idea's evidence.
+
 ## 6. Lab
 
 * **Metrics** (`MetricKey`) are proportions with Beta posteriors, or rates (kFactor) with Gamma

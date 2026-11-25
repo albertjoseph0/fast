@@ -32,7 +32,7 @@ import { hashString } from "../core/rng.ts";
 import type { StudioStore } from "../core/store.ts";
 import type { HumanTaskDraft, PlatformLabels, PostStats, StorePlatform, VentureBindings } from "../core/types.ts";
 import { chart, isoWeek, search } from "./catalog.ts";
-import { simTrendObservations } from "./trends.ts";
+import { simTrendObservations, textDemand } from "./trends.ts";
 import type { TrendSource } from "../core/types.ts";
 
 /** The simulated market answers for every live trend source but Google Trends (not wired live). */
@@ -71,7 +71,9 @@ export function createSimPorts(opts: { world: SimWorld; clock: Clock; store: Stu
   const trends: TrendPort = {
     kind: "sim",
     topApps: async (req) => chart(req.country, req.chart, req.limit, clock.today()),
-    searchApps: async (req) => search(req.term, req.country, req.limit),
+    // Rating counts follow the hidden topic demand, as they do in a real store.
+    searchApps: async (req) =>
+      search(req.term, req.country, req.limit).map((a) => ({ ...a, ratingCount: Math.round(a.ratingCount * textDemand(`${a.name} ${a.description}`, world.seed)) })),
   };
 
   const socialTrends: SocialTrendPort = {

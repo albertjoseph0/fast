@@ -12,10 +12,11 @@ import { reviewSubmission, selectCreators, writeBrief } from "./creatorOps.ts";
 import { classifySensitivity, critiqueIdea, screen } from "./critic.ts";
 import { applyVariant, designSpec, proposeVariant } from "./designer.ts";
 import { generateIdeas } from "./ideator.ts";
-import { scanMarket } from "./scout.ts";
+import { scanMarket, verifyDemand } from "./scout.ts";
 
 export interface Agents {
   scanMarket: typeof scanMarket;
+  verifyDemand: typeof verifyDemand;
   generateIdeas: typeof generateIdeas;
   critiqueIdea: typeof critiqueIdea;
   classifySensitivity: typeof classifySensitivity;
@@ -38,6 +39,7 @@ export interface Agents {
 export function createAgents(): Agents {
   return {
     scanMarket,
+    verifyDemand,
     generateIdeas,
     critiqueIdea,
     classifySensitivity,
