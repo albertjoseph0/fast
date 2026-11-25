@@ -24,6 +24,10 @@ past ventures did.
 - **Done:** ranking by evidence × a family prior (core need × wedge kind) that is shrunk toward the
   studio's base rate, discounted 10% a month and Thompson-sampled so untested families still get tried.
 - **Done:** the ideator's 60 signals are shared across sources round-robin.
+- **Done:** each idea names 1–3 search phrases; before screening, those phrases are searched in the App
+  Store and scanned on YouTube, Instagram and the Meta Ad Library (20 phrases a cycle at most), and
+  that, not whatever the ideator cited, is the idea's evidence. Without this the evidence score
+  mostly reflected which chart leaders the ideator happened to cite.
 - **Next:** pass the evidence to the critics; require two independent sources; fad, seasonal and bot
   filters; check creator supply with `CreatorRead.searchCreators` before screening passes.
 - **Owner:** YouTube API key; Instagram professional account plus a Meta app with hashtag access;
@@ -101,6 +105,24 @@ diagnostics ran.
 - **Next:** one-star tripwire (needs review data); sunset handling per store; settlement lag in the cash
   trough; a lane cut to zero can never recover; LTV from observed renewals rather than priors; rollout
   beyond the US; harvest levers and exit rules.
+
+## Simulator check
+
+150 simulated days, seeds 1–8, same economics in both arms (old ranking by screening score vs. the new
+evidence ranking with demand verification). Averages per seed:
+
+| | Validated ventures | True demand of ideas built | True demand of validated ones | Net cash |
+|---|---|---|---|---|
+| Old ranking | 1.75 | 1.16 | 1.08 | +$41,000 |
+| New ranking | 2.38 | 1.27 | 1.61 | +$14,000 |
+
+The new ranking builds and validates more ideas with real demand. Net cash fell on average, but that
+gap comes from two seeds where the old ranking happened to land one large hit (one seed earned $1.15M
+of revenue against $342k); money in this simulator is driven by one hit per run, so eight seeds
+cannot settle it. Within a run, the evidence score barely tracks the simulator's hidden demand
+(correlation about 0), because the simulator ties demand to incidental words anywhere in an idea's
+description. The pooled decide rule changed almost nothing in this round. Treat these as a check that
+the rules behave sensibly, not as a forecast; the real test is the live sources once the keys exist.
 
 ## Sources
 
